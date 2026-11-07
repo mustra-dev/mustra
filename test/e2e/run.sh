@@ -63,14 +63,14 @@ echo "stack up in $(( $(date +%s) - start ))s"
 # part of this stack, so a slip in it would otherwise go unnoticed.
 docker compose -f deploy/docker-compose.yml config -q
 docker compose -f deploy/compose.dev.yml config -q
-# The image compose just built carries every agent download -- six agents,
+# The image compose just built carries every agent download -- seven agents,
 # two tray builds and the Python runtimes -- and the server.
 server_image="$(docker inspect -f '{{.Image}}' "$(cd deploy && docker compose ps -q server)")"
 docker run --rm --entrypoint sh "$server_image" -c '
   set -e
   cd /usr/local/share/mustra-agent-builds
   ls
-  test "$(ls mustra-agent-* | wc -l)" -eq 6
+  test "$(ls mustra-agent-* | wc -l)" -eq 7
   test "$(ls mustra-tray-windows-* | wc -l)" -eq 2
   ls mustra-python-* >/dev/null
   test -x /usr/local/bin/mustra-server'

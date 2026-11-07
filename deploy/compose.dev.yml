@@ -6,7 +6,7 @@
 # MUSTRA_ALLOW_INSECURE_PUBLIC_URL=true -- `make dev-server` sets them)
 # on localhost, no TLS and no NATS credentials. The server and agent run
 # from source on the host so a change is `go run` away, not a full image
-# rebuild that also cross-compiles six agent binaries.
+# rebuild that also cross-compiles seven agent binaries.
 #
 #   docker compose -f compose.dev.yml up -d      (or: make dev-up)
 #   make dev-server                              (in one terminal)

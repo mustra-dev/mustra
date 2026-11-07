@@ -15,7 +15,7 @@ What you need, the two ways to run it, and where things are. The
 ## The development loop
 
 The production stack builds the server into a container and cross-compiles
-six agent binaries on every `--build`. For iterating on the server that is
+seven agent binaries on every `--build`. For iterating on the server that is
 the wrong shape, so development runs only the backing services and script tools in Docker
 and everything of ours from source.
 
@@ -62,7 +62,7 @@ make lint     # just gofmt + vet
 ```
 
 CI (`.github/workflows/ci.yml`) runs the checks on Linux, compiles every
-package for Windows and macOS there, cross-compiles all six agent targets,
+package for Windows and macOS there, cross-compiles all seven agent targets,
 and builds the production image without pushing it. The macOS test job and
 the macOS and Windows sensor jobs, the slowest machines to get, run
 when a change can affect them: the agent's packages and their test imports,
@@ -82,7 +82,7 @@ Node for the browser crawl. It is behind the `e2e` build tag, so `go test
 ./...` does not run it. `.github/workflows/e2e.yml` runs it on every pull
 request and push to main. It is also CI's only `Dockerfile.server` build:
 `run.sh` checks that both compose files resolve and that the image carries
-all six agents, both tray builds and the Python runtimes. In CI, the
+all seven agents, both tray builds and the Python runtimes. In CI, the
 workflow first copies the Go cache CI saved on main into the build's cache
 mounts and loads the script-tools layers from CI's layer cache, so the
 "stack up" step takes about a minute and a half rather than four; both are
@@ -206,7 +206,7 @@ Settings that matter for local work:
 
 ```sh
 make server    # bin/mustra-server for this machine, version-stamped from git
-make agents    # bin/agents/mustra-agent-<os>-<arch> for all six targets
+make agents    # bin/agents/mustra-agent-<os>-<arch> for all seven targets
 make servers   # bin/servers/linux_<arch>/mustra-server for both image targets
 make image     # the production image, version-stamped
 ```
@@ -263,7 +263,7 @@ shipping a server-only release.
 
 ## Build caching and deployment efficiency
 
-CI and releases use `.github/actions/build-binaries` to build six agents and
+CI and releases use `.github/actions/build-binaries` to build seven agents and
 two Linux servers on the native runner, then `deploy/Dockerfile.image`
 packages `bin/` without invoking Go or QEMU. Release attachments and both
 images use the same agent outputs. Agent builds use `-trimpath` and omit

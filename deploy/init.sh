@@ -98,7 +98,7 @@ if [ ! -f .env ]; then
   done
 fi
 
-# The build cross-compiles six agent binaries and packages a Python runtime
+# The build cross-compiles seven agent binaries and packages a Python runtime
 # for each. Running out of room halfway through leaves an unusable cache.
 avail_mb=$(df -Pm . | awk 'NR==2 {print $4}')
 if [ -n "${avail_mb:-}" ] && [ "$avail_mb" -lt 6000 ]; then
@@ -314,7 +314,7 @@ fi
 export MUSTRA_VERSION MUSTRA_COMMIT MUSTRA_BUILD_TIME
 
 echo
-echo "Building and starting the stack. The first build cross-compiles six agent"
+echo "Building and starting the stack. The first build cross-compiles seven agent"
 echo "binaries and packages their Python runtimes, so it takes a few minutes."
 echo
 # Build first, then start. `up --build` decides which images it must pull
