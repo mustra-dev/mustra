@@ -32,7 +32,7 @@ where it came from:
 | Platform | How the patches sensor actually reads it |
 |---|---|
 | Windows | The Windows Update Agent COM API directly (`Microsoft.Update.Session`), *not* the PSWindowsUpdate module — which isn't installed by default, so this works on a stock box |
-| Linux | `apt-get update` then a simulated upgrade, or `dnf check-update` |
+| Linux | `apt-get update` then a simulated upgrade, `dnf check-update`, `apk`, or `pacman -Qu` on Arch |
 | macOS | `softwareupdate -l` |
 
 Two sensor properties are worth knowing:

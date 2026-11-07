@@ -15,6 +15,11 @@ rather than a page that can drift from it.
   report the label.
 - **Compose file paths on the Containers page.** Each container's compose file is shown
   under its Compose project, rather than only on hover.
+- **Pending updates on Arch Linux.** The agent reads pacman, so Arch and its
+  derivatives report pending updates and installed packages instead of "no supported
+  package manager". Arch supports only full upgrades, so a patch run there must include
+  every pending update; one that leaves some out is refused and says which. Needs agents
+  on 1.4.0.
 
 ## 1.3.0 — 2026-11-06
 
