@@ -24,6 +24,9 @@ type containerRow struct {
 	Hostname    string `json:"hostname"`
 	Online      bool   `json:"online"`
 	CollectedAt string `json:"collected_at"`
+	// ReleasesURL is the image's project's release notes on GitHub, when
+	// its source label names a GitHub repository.
+	ReleasesURL string `json:"releases_url,omitempty"`
 }
 
 // containersResponse is what GET /api/containers answers. Counts and Hosts
@@ -60,6 +63,7 @@ type containerFilter struct {
 	AgentID  string
 	Hostname string // any case
 	Update   string
+	Name     string // the container's name, exactly
 }
 
 func (f containerFilter) valid() bool {
@@ -98,14 +102,14 @@ func (s *Server) listContainers(ctx context.Context, filter containerFilter) (co
 			if _, known := containerUpdateRank[c.Update]; !known {
 				c.Update = proto.ContainerNotChecked
 			}
-			if filter.Update != "" && c.Update != filter.Update {
+			if (filter.Update != "" && c.Update != filter.Update) || (filter.Name != "" && c.Name != filter.Name) {
 				continue
 			}
 			resp.Counts[c.Update]++
 			hosts[row.AgentID] = true
 			resp.Containers = append(resp.Containers, containerRow{
 				ContainerInfo: c, AgentID: row.AgentID, Hostname: hostname, Online: online[row.AgentID],
-				CollectedAt: row.CollectedAt.UTC().Format(time.RFC3339),
+				CollectedAt: row.CollectedAt.UTC().Format(time.RFC3339), ReleasesURL: releasesURL(c),
 			})
 		}
 	}

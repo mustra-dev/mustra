@@ -204,21 +204,26 @@ func readEngine(ctx context.Context, client *http.Client) ([]seenContainer, erro
 	if len(listed) > maxContainersReported {
 		listed = listed[:maxContainersReported]
 	}
-	digestsByImage := map[string][]string{}
+	digestsByImage, labelsByImage := map[string][]string{}, map[string]map[string]string{}
 	out := make([]seenContainer, 0, len(listed))
 	for _, l := range listed {
 		digests, known := digestsByImage[l.ImageID]
 		if !known && l.ImageID != "" {
 			var image struct {
 				RepoDigests []string `json:"RepoDigests"`
+				Config      struct {
+					Labels map[string]string `json:"Labels"`
+				} `json:"Config"`
 			}
 			// A failure leaves no digests, which reports the container as
 			// not checked rather than guessing.
 			if err := engineGet(ctx, client, "/images/"+url.PathEscape(l.ImageID)+"/json", &image); err == nil {
 				digests = image.RepoDigests
+				labelsByImage[l.ImageID] = image.Config.Labels
 			}
 			digestsByImage[l.ImageID] = digests
 		}
+		labels := labelsByImage[l.ImageID]
 		out = append(out, seenContainer{digests: digests, info: proto.ContainerInfo{
 			ID:             truncateID(l.ID),
 			Name:           boundField(containerName(l)),
@@ -228,6 +233,8 @@ func readEngine(ctx context.Context, client *http.Client) ([]seenContainer, erro
 			ComposeProject: boundField(l.Labels["com.docker.compose.project"]),
 			ComposeService: boundField(l.Labels["com.docker.compose.service"]),
 			ComposeFile:    boundField(l.Labels["com.docker.compose.project.config_files"]),
+			Source:         boundField(labels["org.opencontainers.image.source"]),
+			ImageVersion:   boundField(labels["org.opencontainers.image.version"]),
 		}})
 	}
 	return out, nil

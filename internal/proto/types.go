@@ -323,6 +323,12 @@ type ContainerInfo struct {
 	ComposeProject string `json:"compose_project,omitempty"`
 	ComposeService string `json:"compose_service,omitempty"`
 	ComposeFile    string `json:"compose_file,omitempty"`
+	// Source and ImageVersion are the image's OCI labels
+	// (org.opencontainers.image.source and .version), as the publisher set
+	// them: where to read what changed, and the version an image on a
+	// floating tag really is.
+	Source       string `json:"source,omitempty"`
+	ImageVersion string `json:"image_version,omitempty"`
 	// Update is one of the Container* values above.
 	Update       string `json:"update"`
 	UpdateDetail string `json:"update_detail,omitempty"`
