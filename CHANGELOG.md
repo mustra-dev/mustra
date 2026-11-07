@@ -6,6 +6,12 @@ rather than a page that can drift from it.
 
 ## Unreleased
 
+## 1.4.0 — 2026-11-07
+
+Server 1.4.0, agent 1.4.0. Update agents for release notes on the Containers page,
+Arch Linux updates, and the new FreeBSD agent. Upgraded servers read GitHub's API
+when the MCP tool asks for a container's release notes.
+
 ### Added
 - **See what changed before you update a container.** When an image names its GitHub
   repository (the `org.opencontainers.image.source` label most projects set), the
