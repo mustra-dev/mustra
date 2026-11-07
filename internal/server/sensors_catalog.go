@@ -114,7 +114,7 @@ func sensorCatalog() []sensorDoc {
 			Answers: "Who has this application, and who is on an old version of it. Also the backbone of the software catalog — package detection matches against this rather than running a separate check per package per device.",
 			Returns: "name, version, publisher, executable, install date, last used (where the platform records one)",
 			Mechanism: []sensorMechanism{
-				{OS: "linux", How: "dpkg-query -W on Debian/Ubuntu (install date from the package's dpkg file-list mtime), rpm -qa on RHEL-family (INSTALLTIME)"},
+				{OS: "linux", How: "dpkg-query -W on Debian/Ubuntu (install date from the package's dpkg file-list mtime), rpm -qa on RHEL-family (INSTALLTIME), the apk database on Alpine, and pacman's local database on Arch (%INSTALLDATE%)"},
 				{OS: "darwin", How: "reads each app bundle's Info.plist with plutil (version, CFBundleExecutable), the bundle's mtime as install date, and Spotlight's kMDItemLastUsedDate via mdls as last used"},
 				{OS: "windows", How: "reads the Uninstall registry keys (both 32- and 64-bit hives) in the agent's own process (no PowerShell) — the same source Add/Remove Programs uses — taking the executable from DisplayIcon and InstallDate, and last used from that executable's Prefetch file (when prefetch is enabled)"},
 			},
@@ -130,7 +130,7 @@ func sensorCatalog() []sensorDoc {
 			Answers: "How far behind is this machine, and is anything security-relevant outstanding. Drives the Patches module and the compliance view.",
 			Returns: "name, current_version, new_version, severity",
 			Mechanism: []sensorMechanism{
-				{OS: "linux", How: "apt-get update then a simulated upgrade on Debian/Ubuntu; dnf/yum check-update on RHEL-family. A patch list can scope this to specific repos instead of whatever the host has configured."},
+				{OS: "linux", How: "apt-get update then a simulated upgrade on Debian/Ubuntu; dnf/yum check-update on RHEL-family; apk on Alpine; pacman -Qu on Arch, against the sync databases as they are (the agent never runs pacman -Sy alone, which Arch warns sets up a partial upgrade). A patch list can scope this to specific repos instead of whatever the host has configured."},
 				{OS: "darwin", How: "softwareupdate -l, Apple's own update listing tool, which queries the Software Update catalogue the machine is pointed at."},
 				{OS: "windows", How: "the Windows Update Agent COM API directly — Microsoft.Update.Session, CreateUpdateSearcher, searching IsInstalled=0 and IsHidden=0. Deliberately not the PSWindowsUpdate module, which is not installed by default, so this works on a stock Windows box with no prerequisites."},
 			},
