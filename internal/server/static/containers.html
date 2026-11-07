@@ -22,6 +22,7 @@
   .ct-filter { font-size: 12.5px; margin: 0 0 8px; display: inline-flex; gap: 6px; align-items: center; }
   .ct-tags b { font-weight: 600; }
   .stat-tile-value.warn { color: var(--warn); }
+  .ct-changes { font-size: var(--fs-meta); margin-left: 6px; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -107,12 +108,14 @@ function render() {
   }
   body.innerHTML = shown.map(c => {
     const compose = c.compose_project ? `${c.compose_project} / ${c.compose_service || "—"}` : "";
+    const changes = c.releases_url && c.update === "update_available"
+      ? ` <a class="ct-changes" href="${escapeHtml(safeUrl(c.releases_url))}" target="_blank" rel="noopener noreferrer">What changed</a>` : "";
     return `<tr>
-      <td><strong>${escapeHtml(c.name)}</strong>${compose ? `<span class="muted ct-sub" title="${escapeHtml(c.compose_file || "")}">${escapeHtml(compose)}</span>` : ""}</td>
+      <td><strong>${escapeHtml(c.name)}</strong>${compose ? `<span class="muted ct-sub">${escapeHtml(compose)}</span>` : ""}${c.compose_file ? `<span class="mono muted ct-sub">${escapeHtml(c.compose_file)}</span>` : ""}</td>
       <td><a href="/endpoint/${escapeHtml(c.agent_id)}">${escapeHtml(c.hostname)}</a>${c.online ? "" : ' <span class="muted">offline</span>'}</td>
       <td class="mono">${escapeHtml(c.image)}</td>
       <td data-sort="${escapeHtml(updateRank[c.update] ?? 9)}" title="${escapeHtml(c.update_detail || "")}">
-        <span class="pill ${escapeHtml(c.update)}">${escapeHtml(updateLabel[c.update] || c.update)}</span>${targetHTML(c)}</td>
+        <span class="pill ${escapeHtml(c.update)}">${escapeHtml(updateLabel[c.update] || c.update)}</span>${changes}${targetHTML(c)}</td>
       <td data-sort="${escapeHtml(c.state)}" title="${escapeHtml(c.status || "")}">${escapeHtml(c.state || "—")}</td>
       <td data-sort="${escapeHtml(c.checked_at || "")}" title="${escapeHtml(c.checked_at || "")}">${c.checked_at ? fmtAgo(c.checked_at) : "—"}</td>
     </tr>`;

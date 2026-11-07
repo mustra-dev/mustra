@@ -13,7 +13,7 @@ See every Docker and Podman container across your endpoints, and which images ha
 
 1. Open **Containers**. Containers with an update are listed first.
 2. Turn on **Only containers with an update** to hide the rest.
-3. Read the line under the status. A version tag shows what it could move to, such as the newest in its major version and the newest overall. Otherwise it says why the status is what it is.
+3. Read the line under the status. **What changed** opens the project's release notes, when the image says where its project lives. A version tag shows what it could move to, such as the newest in its major version and the newest overall. Otherwise it says why the status is what it is.
 4. Update the container your usual way. The page catches up on the agent's next checks, up to about seven hours later.
 
 ## What each status means
@@ -48,4 +48,4 @@ mustra has a read-only MCP endpoint, so an AI agent can ask what has updates out
 
 3. Ask it something like "which containers have updates outstanding?"
 
-It has one tool, `list_containers`, which filters by update status, hostname or endpoint.
+It has two tools. `list_containers` filters by update status, hostname or endpoint, and shows each container's compose file. `list_container_changes` returns the release notes between the running version and the newer one, for images that name their GitHub repository.

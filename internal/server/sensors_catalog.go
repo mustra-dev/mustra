@@ -229,9 +229,9 @@ func sensorCatalog() []sensorDoc {
 			Name:    "Containers",
 			Summary: "What the host's Docker or Podman engine runs, and which images have an update.",
 			Answers: "Which containers are behind, on which hosts, and what would they move to. It reports and never pulls or recreates anything.",
-			Returns: "id, name, image, image_digest, state, status, compose_project, compose_service, compose_file, update, update_detail, latest_digest, newer_tag, newer_tag_in_major, checked_at",
+			Returns: "id, name, image, image_digest, state, status, compose_project, compose_service, compose_file, source, image_version, update, update_detail, latest_digest, newer_tag, newer_tag_in_major, checked_at",
 			Mechanism: []sensorMechanism{
-				{OS: "linux", How: "GET requests to the engine's API on /var/run/docker.sock, then /run/podman/podman.sock: the container list and each image's digests. For each image in use, a HEAD request to its registry for the tag's current digest and, for a version tag such as 16.4, the repository's tag list. Environment variables, commands and mounts are never read."},
+				{OS: "linux", How: "GET requests to the engine's API on /var/run/docker.sock, then /run/podman/podman.sock: the container list and each image's digests and its source and version labels. For each image in use, a HEAD request to its registry for the tag's current digest and, for a version tag such as 16.4, the repository's tag list. Environment variables, commands and mounts are never read."},
 				{OS: "darwin", How: "The same, where /var/run/docker.sock exists. Docker Desktop only creates it with its default-socket setting on; a per-user socket is not read."},
 				{OS: "windows", How: "Not collected (reports nothing): Docker on Windows has no socket at these paths."},
 			},
