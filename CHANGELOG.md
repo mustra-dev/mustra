@@ -6,6 +6,16 @@ rather than a page that can drift from it.
 
 ## Unreleased
 
+### Added
+- **See what changed before you update a container.** When an image names its GitHub
+  repository (the `org.opencontainers.image.source` label most projects set), the
+  Containers page links to its release notes. The MCP endpoint has a second read-only
+  tool, `list_container_changes`, that returns the notes between the running version and
+  the newer one, so an agent can read them before updating. Needs agents on 1.4.0 to
+  report the label.
+- **Compose file paths on the Containers page.** Each container's compose file is shown
+  under its Compose project, rather than only on hover.
+
 ## 1.3.0 — 2026-11-06
 
 Server 1.3.0, agent 1.3.0. Update agents to report containers: upgraded agents on

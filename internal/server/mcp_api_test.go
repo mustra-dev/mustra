@@ -102,15 +102,21 @@ func TestMCPOffersOnlyReadOnlyTools(t *testing.T) {
 		t.Fatal(rpcErr)
 	}
 	tools := res["tools"].([]any)
-	if len(tools) != 1 {
-		t.Fatalf("expected only list_containers, got %d tools", len(tools))
+	var names []string
+	for _, raw := range tools {
+		tool := raw.(map[string]any)
+		names = append(names, tool["name"].(string))
+		if ann := tool["annotations"].(map[string]any); ann["readOnlyHint"] != true || ann["destructiveHint"] != false {
+			t.Errorf("%s annotations: %v", tool["name"], ann)
+		}
+		if tool["inputSchema"].(map[string]any)["type"] != "object" {
+			t.Errorf("%s: input schema must be an object schema", tool["name"])
+		}
 	}
-	tool := tools[0].(map[string]any)
-	if ann := tool["annotations"].(map[string]any); ann["readOnlyHint"] != true || ann["destructiveHint"] != false {
-		t.Errorf("annotations: %v", ann)
-	}
-	if tool["inputSchema"].(map[string]any)["type"] != "object" {
-		t.Error("input schema must be an object schema")
+	// A new tool is a decision about what a model may do here: add it to
+	// this list only once it is known to change nothing.
+	if strings.Join(names, ",") != "list_containers,list_container_changes" {
+		t.Errorf("tools offered: %v", names)
 	}
 }
 

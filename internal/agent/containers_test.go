@@ -388,7 +388,7 @@ func TestCollectFromEngine(t *testing.T) {
 			{"Id":"` + strings.Repeat("2", 64) + `","Names":["/old"],"Image":"busybox","ImageID":"sha256:` + strings.Repeat("e", 64) + `","State":"exited","Status":"Exited (0)"},
 			{"Id":"` + strings.Repeat("3", 64) + `","Names":["/api"],"Image":"mine:dev","ImageID":"sha256:` + strings.Repeat("f", 64) + `","State":"running","Status":"Up"}]`,
 		"/containers/" + strings.Repeat("1", 64) + "/json":    `{"Config":{"Image":"nginx:1.27","Env":["SECRET=nope"]}}`,
-		"/images/sha256:" + strings.Repeat("d", 64) + "/json": `{"RepoDigests":["nginx@` + digestOld + `"]}`,
+		"/images/sha256:" + strings.Repeat("d", 64) + "/json": `{"RepoDigests":["nginx@` + digestOld + `"],"Config":{"Labels":{"org.opencontainers.image.source":"https://github.com/nginx/docker-nginx","org.opencontainers.image.version":"1.27.4"}}}`,
 		"/images/sha256:" + strings.Repeat("e", 64) + "/json": `{"RepoDigests":[]}`,
 	})
 	c := &containerCollector{sockets: []string{filepath.Join(filepath.Dir(sock), "absent.sock"), sock}, logger: slog.New(slog.DiscardHandler)}
@@ -402,7 +402,7 @@ func TestCollectFromEngine(t *testing.T) {
 	web := got[1]
 	// The list showed an ID; the tag moved. The configured reference is
 	// what the container is really following.
-	if web.Image != "nginx:1.27" || web.ImageDigest != digestOld || web.ComposeProject != "site" || web.ComposeService != "web" || web.ComposeFile != "/srv/site/compose.yml" || web.ID != strings.Repeat("1", 12) {
+	if web.Image != "nginx:1.27" || web.ImageDigest != digestOld || web.ComposeProject != "site" || web.ComposeService != "web" || web.ComposeFile != "/srv/site/compose.yml" || web.Source != "https://github.com/nginx/docker-nginx" || web.ImageVersion != "1.27.4" || web.ID != strings.Repeat("1", 12) {
 		t.Errorf("web: %+v", web)
 	}
 	if web.Update != proto.ContainerNotChecked || !strings.Contains(web.UpdateDetail, "turned off") {
