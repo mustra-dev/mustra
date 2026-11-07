@@ -4,7 +4,9 @@ import (
 	"context"
 	"net"
 	"os"
+	"os/exec"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -37,6 +39,16 @@ func collectFacts(ctx context.Context, agentID string, info proto.AgentInfo, age
 		f.PlatformVer = hi.PlatformVersion
 		f.KernelVer = hi.KernelVersion
 		f.UptimeSec = hi.Uptime
+	}
+	if runtime.GOOS == "freebsd" {
+		// OPNsense and TrueNAS CORE say "freebsd" to gopsutil; what
+		// matters about them is the appliance and its own version.
+		if p, v, _ := freebsdAppliance(); p != "" {
+			f.Platform, f.PlatformVer = p, v
+		} else if out, err := exec.CommandContext(ctx, "freebsd-version", "-u").Output(); err == nil {
+			// gopsutil lowercases it: 14.5-release-p2.
+			f.PlatformVer = strings.TrimSpace(string(out))
+		}
 	}
 	if h := haosHostInfo(ctx); h != nil {
 		f.Platform, f.PlatformVer = platformHAOS, h.OSVersion

@@ -146,6 +146,11 @@ func agentBuildPlatform(name string) (goos, goarch string, ok bool) {
 	}
 	switch parts[0] {
 	case "linux", "darwin", "windows":
+	case "freebsd":
+		// amd64 only: OPNsense and TrueNAS CORE, which it is for.
+		if parts[1] != "amd64" {
+			return "", "", false
+		}
 	default:
 		return "", "", false
 	}

@@ -410,7 +410,7 @@ async function pickPackage(kind) {
 // reached by Screen Sharing, or the agent's shell for a command line.
 function remoteProtocolsFor(a) {
   if (a.platform === "haos") return [];
-  return { windows: ["rdp"], darwin: ["vnc"], linux: ["ssh"] }[a.os] || [];
+  return { windows: ["rdp"], darwin: ["vnc"], linux: ["ssh"], freebsd: ["ssh"] }[a.os] || [];
 }
 
 

@@ -318,9 +318,9 @@ func (s *Server) handleSaveMaintenanceWindow(w http.ResponseWriter, r *http.Requ
 		in.ObserveDST = old == nil || old.ObserveDST
 	}
 	switch in.Platform {
-	case "", "windows", "darwin", "linux":
+	case "", "windows", "darwin", "linux", "freebsd":
 	default:
-		http.Error(w, "platform must be windows, darwin or linux", 400)
+		http.Error(w, "platform must be windows, darwin, linux or freebsd", 400)
 		return
 	}
 	switch in.TimeBase {

@@ -81,7 +81,7 @@ function safeUrl(u) {
 // "darwin" — so this is presentation only, and the raw value stays in the
 // element's title for anyone writing a rule.
 function osLabel(os) {
-  return { linux: "Linux", darwin: "macOS", windows: "Windows" }[os] || os || "—";
+  return { linux: "Linux", darwin: "macOS", windows: "Windows", freebsd: "FreeBSD" }[os] || os || "—";
 }
 
 // Distro names as their projects write them — RHEL and openSUSE are not

@@ -575,6 +575,10 @@ func legacyUpdateCommand(base, agentOS, site string) string {
 			"& $env:TEMP\\mustra-install.ps1"
 	case "linux", "darwin":
 		return "curl -fsSL " + shQuote(base+"/install.sh"+query) + " | bash"
+	case "freebsd":
+		// Every FreeBSD agent applies signed updates; this is only the
+		// fallback the reply carries, in the base system's own tools.
+		return "/usr/bin/fetch -qo - " + shQuote(base+"/install.sh"+query) + " | sh"
 	}
 	return ""
 }

@@ -24,11 +24,21 @@ Put the mustra agent on Windows, macOS and Linux endpoints, one at a time or man
 | --- | --- |
 | Linux, macOS | A terminal, as a user who can `sudo` |
 | Alpine Linux | A root shell (the command adds `bash` and `curl` first) |
+| FreeBSD, OPNsense, TrueNAS CORE (amd64) | A root shell; on OPNsense, the console's shell option (8) or SSH as root. Plain FreeBSD gets `curl` from packages first |
 | Windows | PowerShell, opened with **Run as administrator** |
 
 5. The endpoint appears under **Client Status** within a minute. The token's **Uses** count goes up by one.
 
 Anyone holding the command can enroll machines until the token is used up or expires. Choose **Revoke** next to a token you no longer need.
+
+### FreeBSD, OPNsense and TrueNAS CORE
+
+The agent runs as an rc.d service under `daemon(8)`, which restarts it if it exits. It reports inventory, services, packages and pending package updates. What differs from Linux:
+
+- **OPNsense:** pending package updates are listed, but applying them is refused. OPNsense updates install from **System → Firmware → Updates**, which also updates the base system the agent does not read.
+- **TrueNAS CORE:** updates are whole images from TrueNAS's own updater, so the patch check says so instead of listing packages. A TrueNAS update replaces the boot environment, which removes the agent: run the install command again afterwards.
+- **Not on FreeBSD:** custom sensors (no Python runtime is shipped for it), containers, and the Self Service window's installs. FreeBSD base system updates (`freebsd-update`) are not read either.
+- **Identity on OPNsense:** the agent keeps its identity in `/var/lib/mustra-agent`. If OPNsense's **System → Settings → Miscellaneous → RAM disk for /var** is on, a reboot clears it and the firewall enrolls again as a new endpoint.
 
 ## Install on many machines over SSH
 
@@ -67,6 +77,7 @@ When the server is upgraded it carries the matching agent.
 | System | How |
 | --- | --- |
 | Linux, macOS | `sudo /opt/mustra-agent/uninstall.sh` |
+| FreeBSD, OPNsense, TrueNAS CORE | `/opt/mustra-agent/uninstall.sh`, as root |
 | Windows | **Settings → Apps → Installed apps**, find **Mustra Agent & Self Service**, choose **Uninstall**; or run `C:\Program Files\mustra-agent\uninstall.ps1` as administrator |
 
 If **Administration → Uninstall Password** is set, the uninstaller asks for it. Removing the agent does not remove the endpoint from the console; it shows as offline until you delete it.

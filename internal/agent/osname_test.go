@@ -14,7 +14,11 @@ func TestDisplayOSName(t *testing.T) {
 		{"linux", "nixos", "25.05", "Nixos 25.05"},
 		{"linux", "haos", "18.3", "Home Assistant OS 18.3"},
 		{"linux", "", "", "Linux"},
-		{"freebsd", "", "", "freebsd"},
+		{"freebsd", "", "", "FreeBSD"},
+		{"freebsd", "freebsd", "14.5-release-p2", "FreeBSD 14.5-release-p2"},
+		{"freebsd", "opnsense", "26.7", "OPNsense 26.7"},
+		{"freebsd", "truenas", "13.0-U6.1", "TrueNAS 13.0-U6.1"},
+		{"plan9", "", "", "plan9"},
 	}
 	for _, c := range cases {
 		if got := displayOSName(c.goos, c.platform, c.version); got != c.want {

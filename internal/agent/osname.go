@@ -28,9 +28,10 @@ var platformNames = map[string]string{
 	"suse": "SUSE", "sles": "SLES", "arch": "Arch Linux", "alpine": "Alpine", "gentoo": "Gentoo",
 	"amzn": "Amazon Linux", "ol": "Oracle Linux", "linuxmint": "Linux Mint", "pop": "Pop!_OS",
 	"darwin": "macOS", "macos": "macOS", "windows": "Windows", platformHAOS: "Home Assistant OS",
+	"freebsd": "FreeBSD", "opnsense": "OPNsense", "truenas": "TrueNAS",
 }
 
-var goosNames = map[string]string{"linux": "Linux", "darwin": "macOS", "windows": "Windows"}
+var goosNames = map[string]string{"linux": "Linux", "darwin": "macOS", "windows": "Windows", "freebsd": "FreeBSD"}
 
 var microsoftPrefix = regexp.MustCompile(`(?i)^microsoft\s+`)
 

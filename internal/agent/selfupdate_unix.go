@@ -38,6 +38,10 @@ func startInNewSession(command string) error {
 // the agent): ask the running agent to exit, and let its supervisor start
 // whatever the path now holds.
 func stopAgentService(dataDir string) error {
+	if runtime.GOOS == "freebsd" {
+		// daemon(8) starts the new binary once this one exits.
+		return signalRecordedAgent(dataDir)
+	}
 	if runtime.GOOS != "linux" {
 		return nil
 	}
@@ -56,6 +60,8 @@ func startAgentService(dataDir string) error {
 		return exec.Command("systemctl", "start", "mustra-agent").Run()
 	case "darwin":
 		return exec.Command("launchctl", "kickstart", "-k", "system/com.mustra.agent").Run()
+	case "freebsd":
+		return exec.Command("service", "mustra_agent", "start").Run()
 	}
 	return fmt.Errorf("no service manager to restart the agent on %s", runtime.GOOS)
 }

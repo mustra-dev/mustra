@@ -1643,7 +1643,7 @@ if(linkedSchedule){const check=setInterval(()=>{if(!linkedScheduleOpened&&packag
 // Tuesday from 6:30 PM to 1:00 AM") and edits one at a time on its own page.
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const ORDINALS = { 1: "first", 2: "second", 3: "third", 4: "fourth", 5: "last" };
-const MW_PLATFORMS = { "": "All platforms", windows: "Windows", darwin: "macOS", linux: "Linux" };
+const MW_PLATFORMS = { "": "All platforms", windows: "Windows", darwin: "macOS", linux: "Linux", freebsd: "FreeBSD" };
 let windowsList = [], mwFilter = "";
 const localZone = (Intl.DateTimeFormat().resolvedOptions() || {}).timeZone || "UTC";
 const allZones = (() => { let z = []; try { z = Intl.supportedValuesOf ? Intl.supportedValuesOf("timeZone") : []; } catch (e) {} for (const x of [localZone, "UTC"]) if (!z.includes(x)) z.unshift(x); return z; })();

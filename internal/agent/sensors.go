@@ -84,6 +84,8 @@ func collectServices(ctx context.Context) ([]proto.ServiceInfo, error) {
 		return collectServicesLinux(ctx)
 	case "darwin":
 		return collectServicesDarwin(ctx)
+	case "freebsd":
+		return collectServicesFreeBSD(ctx)
 	case "windows":
 		return collectServicesWindows(ctx)
 	default:
@@ -219,6 +221,8 @@ func collectInstalledApps(ctx context.Context) ([]proto.InstalledApp, error) {
 		return collectAppsLinux(ctx)
 	case "darwin":
 		return collectAppsDarwin(ctx)
+	case "freebsd":
+		return collectAppsFreeBSD(ctx)
 	case "windows":
 		return collectAppsWindows(ctx)
 	default:

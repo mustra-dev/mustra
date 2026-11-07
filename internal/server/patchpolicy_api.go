@@ -193,8 +193,8 @@ func validatePatchPolicy(p *store.PatchPolicy) error {
 		}
 	}
 	for _, os := range p.Rules.OS {
-		if !slices.Contains([]string{"linux", "windows", "darwin"}, os) {
-			return fmt.Errorf("os must be linux, windows or darwin")
+		if !slices.Contains([]string{"linux", "windows", "darwin", "freebsd"}, os) {
+			return fmt.Errorf("os must be linux, windows, darwin or freebsd")
 		}
 	}
 	clean := p.Rules.NamePatterns[:0]

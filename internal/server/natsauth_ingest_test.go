@@ -155,6 +155,7 @@ func TestAgentBuildPlatform(t *testing.T) {
 	for name, want := range map[string][2]string{
 		"mustra-agent-linux-amd64":       {"linux", "amd64"},
 		"mustra-agent-windows-arm64.exe": {"windows", "arm64"},
+		"mustra-agent-freebsd-amd64":     {"freebsd", "amd64"},
 		"mustra-tray-windows-amd64.exe":  {"windows", "amd64"},
 	} {
 		goos, goarch, ok := agentBuildPlatform(name)
@@ -162,7 +163,7 @@ func TestAgentBuildPlatform(t *testing.T) {
 			t.Errorf("%s: %s %s %v", name, goos, goarch, ok)
 		}
 	}
-	for _, name := range []string{"mustra-agent-linux-amd64.exe", "mustra-agent-windows-amd64", "mustra-python-linux-amd64.tar.gz", "mustra-agent-plan9-amd64"} {
+	for _, name := range []string{"mustra-agent-linux-amd64.exe", "mustra-agent-windows-amd64", "mustra-python-linux-amd64.tar.gz", "mustra-agent-plan9-amd64", "mustra-agent-freebsd-arm64"} {
 		if _, _, ok := agentBuildPlatform(name); ok {
 			t.Errorf("%s accepted", name)
 		}

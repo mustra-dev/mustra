@@ -1224,6 +1224,7 @@ differently on each platform:
 |---|---|
 | Linux (systemd) | systemd kills a unit's whole control group on stop, so a plain background child dies the instant the installer stops the agent. `systemd-run` puts the updater in its own transient unit. |
 | Linux (OpenRC) | The agent runs under `supervise-daemon` (Alpine and the like). The installer stops and starts it with `rc-service`; the updater survives that in a session of its own (`setsid`). |
+| FreeBSD | The agent runs under `daemon(8)` from an rc.d script, which starts it again five seconds after it exits. The updater asks the running agent to exit and leaves the restart to `daemon(8)`, as under OpenRC. |
 | Windows | A service's children can be terminated with the service, so `Start-Process` creates a genuinely independent process. |
 | Other | `setsid` — a new session is not in this process's group and survives it. |
 

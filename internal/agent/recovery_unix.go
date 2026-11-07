@@ -41,6 +41,10 @@ func agentServiceRegistered() (installed, enabled bool) {
 			out, _ := exec.Command("rc-update", "show", "default").Output()
 			return true, bytes.Contains(out, []byte("mustra-agent"))
 		}
+	case "freebsd":
+		if fileExists(freebsdRCScript) {
+			return true, exec.Command("service", "mustra_agent", "enabled").Run() == nil
+		}
 	case "darwin":
 		if fileExists(launchdPlist) {
 			out, _ := exec.Command("launchctl", "print-disabled", "system").Output()
@@ -56,6 +60,9 @@ func agentServiceRegistered() (installed, enabled bool) {
 func restartAgentService(dataDir string) error {
 	if runtime.GOOS == "linux" && !hasSystemd() && fileExists(openrcScript) {
 		return exec.Command("rc-service", "mustra-agent", "restart").Run()
+	}
+	if runtime.GOOS == "freebsd" {
+		return exec.Command("service", "mustra_agent", "restart").Run()
 	}
 	return startAgentService(dataDir)
 }
@@ -116,7 +123,8 @@ WantedBy=timers.target
 			}
 		}
 		return exec.Command("systemctl", "enable", "--now", "mustra-agent-recover.timer").Run()
-	case runtime.GOOS == "linux":
+	case runtime.GOOS == "linux" || runtime.GOOS == "freebsd":
+		// FreeBSD's cron reads /etc/cron.d in the same system format.
 		if !fileExists("/etc/cron.d") {
 			return fmt.Errorf("no systemd and no /etc/cron.d to schedule recovery with")
 		}
@@ -165,6 +173,8 @@ func uninstallRecoveryJob() error {
 			_ = os.Remove(recoverUnit)
 			_ = exec.Command("systemctl", "daemon-reload").Run()
 		}
+		_ = os.Remove(recoverCron)
+	case "freebsd":
 		_ = os.Remove(recoverCron)
 	case "darwin":
 		_ = exec.Command("launchctl", "bootout", "system/"+recoverLDLabel).Run()

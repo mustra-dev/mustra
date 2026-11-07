@@ -542,7 +542,8 @@ const pppcProfile = `<?xml version="1.0" encoding="UTF-8"?>
 `
 
 const installShScript = `#!/usr/bin/env bash
-# mustra agent installer (Linux/macOS). Run as root.
+# mustra agent installer (Linux/macOS/FreeBSD). Run as root. POSIX sh is
+# enough: FreeBSD has no bash unless someone installed it.
 set -euo pipefail
 # Every file below is created with an explicit mode, but a permissive umask
 # in the calling shell (0000 under some docker exec and sudo setups) used to
@@ -584,6 +585,7 @@ arch_name=$(uname -m)
 case "$os_name" in
   Linux) goos=linux ;;
   Darwin) goos=darwin ;;
+  FreeBSD) goos=freebsd ;;
   *) echo "unsupported OS: $os_name" >&2; exit 1 ;;
 esac
 
@@ -592,6 +594,9 @@ case "$arch_name" in
   arm64|aarch64) goarch=arm64 ;;
   *) echo "unsupported arch: $arch_name" >&2; exit 1 ;;
 esac
+if [ "$goos" = freebsd ] && [ "$goarch" != amd64 ]; then
+  echo "the FreeBSD agent is built for amd64 only" >&2; exit 1
+fi
 
 # A new endpoint needs a token; an enrolled one (or one still holding the
 # old shared credential, which the agent trades for its own on start) does
@@ -632,7 +637,9 @@ pinned_sha() {
   esac
 }
 file_sha() {
-  if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut -d ' ' -f1; else shasum -a 256 "$1" | cut -d ' ' -f1; fi
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut -d ' ' -f1
+  elif command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | cut -d ' ' -f1
+  else sha256 -q "$1"; fi
 }
 
 # The Linux install is a systemd unit. Check before downloading or touching
@@ -757,6 +764,11 @@ chmod 700 "$DATA_DIR"
 # What each download must hash to, from the script the install command pinned.
 
 fetch() {
+  # FreeBSD has fetch(1) in its base system and curl only as a package.
+  if ! command -v curl >/dev/null 2>&1; then
+    /usr/bin/fetch -q -o "$2" "$1"
+    return
+  fi
   # The first attempt is speculative, so its noise is suppressed: curl
   # reporting "Recv failure" on a transfer that the next line retries and
   # completes reads like a broken install rather than a working fallback.
@@ -766,23 +778,22 @@ fetch() {
 }
 
 # Stage and verify the application-owned interpreter before replacing it.
+# FreeBSD has none: custom sensors do not run there.
+python_stage=$(mktemp -d "$INSTALL_DIR/.python-XXXXXX")
+trap 'rm -rf "$python_stage"' EXIT
+if [ "$goos" != freebsd ]; then
 python_target="${goos}-${goarch}"
 if [ "$goos" = linux ] && ls /lib/ld-musl-*.so.1 >/dev/null 2>&1; then python_target="${python_target}-musl"; fi
 PYTHON_URL="${DOWNLOAD_BASE}/downloads/mustra-python-${python_target}.tar.gz?v=${AGENT_VERSION}"
-python_stage=$(mktemp -d "$INSTALL_DIR/.python-XXXXXX")
-trap 'rm -rf "$python_stage"' EXIT
 fetch "$PYTHON_URL" "$python_stage/runtime.tar.gz"
 fetch "${DOWNLOAD_BASE}/downloads/mustra-python-${python_target}.tar.gz.sha256?v=${AGENT_VERSION}" "$python_stage/expected"
-if command -v sha256sum >/dev/null 2>&1; then
-  python_sha=$(sha256sum "$python_stage/runtime.tar.gz" | cut -d ' ' -f1)
-else
-  python_sha=$(shasum -a 256 "$python_stage/runtime.tar.gz" | cut -d ' ' -f1)
-fi
+python_sha=$(file_sha "$python_stage/runtime.tar.gz")
 python_expected=$(pinned_sha "mustra-python-${python_target}.tar.gz")
 [ -n "$python_expected" ] || python_expected=$(tr -d '\r\n' < "$python_stage/expected")
 [ "$python_sha" = "$python_expected" ] || { echo "Python checksum mismatch" >&2; exit 1; }
 tar -xzf "$python_stage/runtime.tar.gz" -C "$python_stage"
 "$python_stage/python/bin/python3" -I -S -c 'import json,ssl,sqlite3; print("Python runtime ready")'
+fi
 
 # The agent binary is staged and verified here, while the old agent is still
 # running. It used to be downloaded straight over the live binary *after*
@@ -798,11 +809,7 @@ fetch "$BIN_URL" "$python_stage/mustra-agent"
 # truncated binary that segfaulted forever.
 fetch "${DOWNLOAD_BASE}/downloads/mustra-agent-${goos}-${goarch}.sha256?v=${AGENT_VERSION}" "$python_stage/agent-expected" ||
   { echo "could not fetch the agent checksum; nothing was changed" >&2; exit 1; }
-if command -v sha256sum >/dev/null 2>&1; then
-  agent_sha=$(sha256sum "$python_stage/mustra-agent" | cut -d ' ' -f1)
-else
-  agent_sha=$(shasum -a 256 "$python_stage/mustra-agent" | cut -d ' ' -f1)
-fi
+agent_sha=$(file_sha "$python_stage/mustra-agent")
 # First field only: a .sha256 may hold the bare digest or sha256sum's
 # "<digest>  <name>", and a comparison that keeps the filename never
 # matches a computed digest.
@@ -844,6 +851,7 @@ fi
 rm -rf /opt/beacon-agent 2>/dev/null || true
 systemctl stop mustra-agent 2>/dev/null || true
 if has_openrc && [ -f /etc/init.d/mustra-agent ]; then rc-service mustra-agent stop >/dev/null 2>&1 || true; fi
+if [ -x /usr/local/etc/rc.d/mustra_agent ]; then service mustra_agent onestop >/dev/null 2>&1 || true; fi
 # No -w. That flag writes a *disabled* override into launchd's database, so
 # an install that dies between here and the load below leaves the agent not
 # merely stopped but permanently off — surviving a reboot, with launchctl
@@ -852,6 +860,7 @@ if has_openrc && [ -f /etc/init.d/mustra-agent ]; then rc-service mustra-agent s
 # something reloads it, which a reboot does.
 launchctl unload /Library/LaunchDaemons/com.mustra.agent.plist 2>/dev/null || true
 
+if [ "$goos" != freebsd ]; then
 rm -rf "$INSTALL_DIR/python.previous"
 if [ -d "$INSTALL_DIR/python" ]; then mv "$INSTALL_DIR/python" "$INSTALL_DIR/python.previous"; fi
 if ! mv "$python_stage/python" "$INSTALL_DIR/python"; then
@@ -861,6 +870,7 @@ fi
 rm -rf "$INSTALL_DIR/python.previous"
 chown -R 0:0 "$INSTALL_DIR/python"
 chmod -R go-w "$INSTALL_DIR/python"
+fi
 
 rm -f "$INSTALL_DIR/mustra-agent.previous"
 if [ -f "$INSTALL_DIR/mustra-agent" ]; then mv "$INSTALL_DIR/mustra-agent" "$INSTALL_DIR/mustra-agent.previous"; fi
@@ -1092,6 +1102,58 @@ UNIT
   fi
   rm -f "$INSTALL_DIR/mustra-agent.previous"
   echo "mustra-agent installed and started via systemd."
+elif [ "$goos" = "freebsd" ]; then
+  # daemon(8) supervises the agent and starts it again five seconds after
+  # it exits, which is also how a self-update takes effect here, as under
+  # OpenRC. -f detaches it from this script's output, which a pushed
+  # install reads to its end and would otherwise wait on forever. Enabled
+  # in rc.conf.d rather than rc.conf: OPNsense manages rc.conf itself, and
+  # leaves files there that it did not write.
+  cat > /usr/local/etc/rc.d/mustra_agent <<RCEOF
+#!/bin/sh
+#
+# PROVIDE: mustra_agent
+# REQUIRE: LOGIN NETWORKING
+# KEYWORD: shutdown
+
+. /etc/rc.subr
+
+name=mustra_agent
+rcvar=mustra_agent_enable
+load_rc_config \$name
+: \${mustra_agent_enable:=NO}
+
+pidfile=/var/run/mustra_agent.pid
+procname=/usr/sbin/daemon
+command=/usr/sbin/daemon
+command_args="-f -r -R 5 -P \${pidfile} -o /var/log/mustra-agent.log $INSTALL_DIR/mustra-agent --nats-url $NATS_URL --site $SITE --data-dir $DATA_DIR $NATS_CA_ARGS"
+start_precmd=mustra_agent_prestart
+
+mustra_agent_prestart() {
+	# The identity and credential live here.
+	install -d -m 0700 -o root -g wheel $DATA_DIR
+}
+
+run_rc_command "\$1"
+RCEOF
+  chmod 555 /usr/local/etc/rc.d/mustra_agent
+  mkdir -p /etc/rc.conf.d
+  echo 'mustra_agent_enable="YES"' > /etc/rc.conf.d/mustra_agent
+  service mustra_agent start >/dev/null
+  # As under OpenRC: a changing PID means daemon(8) keeps restarting it.
+  sleep 3
+  first_pid=$(pgrep -f "^$INSTALL_DIR/mustra-agent " 2>/dev/null || true)
+  sleep 8
+  if [ -z "$first_pid" ] || [ "$(pgrep -f "^$INSTALL_DIR/mustra-agent " 2>/dev/null || true)" != "$first_pid" ]; then
+    echo "mustra-agent was installed but keeps exiting. Its last log lines:" >&2
+    tail -n 15 /var/log/mustra-agent.log >&2 2>/dev/null || true
+    if restore_previous_agent; then
+      service mustra_agent restart >/dev/null 2>&1 || true
+    fi
+    exit 1
+  fi
+  rm -f "$INSTALL_DIR/mustra-agent.previous"
+  echo "mustra-agent installed and started via rc.d."
 elif [ "$goos" = "darwin" ]; then
   PLIST=/Library/LaunchDaemons/com.mustra.agent.plist
   # No EnvironmentVariables: nothing secret belongs in a job's environment,
@@ -1289,7 +1351,7 @@ fi
 # has had one through Add/Remove Programs; this is the same thing for the
 # platforms that do not have an equivalent.
 cat > "$INSTALL_DIR/uninstall.sh" <<'UNINSTALL_EOF'
-#!/usr/bin/env bash
+#!/bin/sh
 # Removes the mustra agent from this machine.
 set -u
 if [ "$(id -u)" -ne 0 ]; then
@@ -1352,6 +1414,9 @@ if [ "$(uname -s)" = "Darwin" ]; then
   rm -f /Library/LaunchAgents/dev.mustra.menubar.plist
   rm -rf "/Library/Application Support/mustra"
   rm -rf "/Applications/Mustra Self Service.app"
+elif [ "$(uname -s)" = "FreeBSD" ]; then
+  service mustra_agent onestop 2>/dev/null || true
+  rm -f /usr/local/etc/rc.d/mustra_agent /etc/rc.conf.d/mustra_agent /var/log/mustra-agent.log
 elif [ -f /etc/init.d/mustra-agent ] && command -v rc-service >/dev/null 2>&1; then
   rc-service mustra-agent stop 2>/dev/null || true
   rc-update del mustra-agent default 2>/dev/null || true
@@ -1365,7 +1430,11 @@ rm -rf "$INSTALL_DIR" "$DATA_DIR"
 echo "mustra removed. This endpoint will stop reporting to the console."
 UNINSTALL_EOF
 chmod 700 "$INSTALL_DIR/uninstall.sh"
-echo "To remove mustra from this machine: sudo $INSTALL_DIR/uninstall.sh"
+if [ "$goos" = freebsd ]; then
+  echo "To remove mustra from this machine, as root: $INSTALL_DIR/uninstall.sh"
+else
+  echo "To remove mustra from this machine: sudo $INSTALL_DIR/uninstall.sh"
+fi
 
 # Full Disk Access, which root does not confer.
 #

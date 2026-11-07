@@ -35,6 +35,8 @@ func collectPatches(ctx context.Context, nc *gonats.Conn, agentID string) ([]pro
 		return collectPatchesLinux(ctx, nc, agentID)
 	case "darwin":
 		return collectPatchesDarwin(ctx)
+	case "freebsd":
+		return collectPatchesFreeBSD(ctx)
 	case "windows":
 		return collectPatchesWindows(ctx)
 	default:
@@ -401,6 +403,8 @@ func applyPatches(ctx context.Context, nc *gonats.Conn, agentID string, names []
 		return applyPatchesLinux(ctx, nc, agentID, names, report)
 	case "darwin":
 		return applyPatchesDarwin(ctx, names, viaMDM, report)
+	case "freebsd":
+		return applyPatchesFreeBSD(ctx, names, report)
 	case "windows":
 		return applyPatchesWindows(ctx, names, report)
 	default:
