@@ -53,6 +53,21 @@ func TestInstallShIsValidShell(t *testing.T) {
 	}
 }
 
+// TestInstallShIsPOSIX parses it with dash as well. FreeBSD has no bash
+// unless someone installed it, so the FreeBSD install command runs this
+// script with /bin/sh, and a bash-only construct would stop it there alone.
+func TestInstallShIsPOSIX(t *testing.T) {
+	dash, err := exec.LookPath("dash")
+	if err != nil {
+		t.Skip("dash is not available")
+	}
+	cmd := exec.Command(dash, "-n")
+	cmd.Stdin = strings.NewReader(renderInstallSh(t))
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("install.sh is not POSIX sh: %v\n%s", err, out)
+	}
+}
+
 // TestInstallShStagesTheAgentBinary pins the ordering that keeps a failed
 // download from bricking an endpoint. The agent binary must be fetched and
 // checked while the old agent is still running; it used to be downloaded

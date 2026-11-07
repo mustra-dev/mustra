@@ -88,7 +88,7 @@ func neighborTable(ctx context.Context) (string, error) {
 			{"ip", []string{"neigh", "show"}},
 			{"arp", []string{"-an"}},
 		}
-	case "darwin":
+	case "darwin", "freebsd":
 		attempts = []attempt{
 			{"arp", []string{"-an"}},
 			{"ndp", []string{"-an"}},

@@ -41,7 +41,7 @@ managed endpoints; preserve targeting, authorization, and outcome semantics.
 | Targeting | `internal/groups/` defines field vocabulary and rule matching, reused by groups and Interact. Software applicability and dispatch are in `internal/server/software_api.go`. |
 | Console | `internal/server/static/` contains HTML with page-local JavaScript, shared `app.js`, and `app.css`. `console.go` embeds and serves these assets. |
 | Identity/integrations | `internal/server/auth/`, `scim/`, `vault/`, `osv/`, and `debsec/` own authentication, provisioning, credential encryption, and vulnerability sources. |
-| Deployment/releases | `deploy/Dockerfile.server` builds the server and six OS/architecture agent binaries. `internal/version/` carries build identity; root `changelog.go` embeds `CHANGELOG.md` for the console. |
+| Deployment/releases | `deploy/Dockerfile.server` builds the server and seven OS/architecture agent binaries. `internal/version/` carries build identity; root `changelog.go` embeds `CHANGELOG.md` for the console. |
 
 `packaging/npm/` and `packaging/pypi/` reserve package names; they are not
 application dependencies or build systems. There is no frontend bundler.

@@ -100,6 +100,7 @@ func sensorCatalog() []sensorDoc {
 			Mechanism: []sensorMechanism{
 				{OS: "linux", How: "systemctl list-units --type=service, which reports the unit's active state and whether it is enabled at boot."},
 				{OS: "darwin", How: "launchctl list, which enumerates loaded launchd jobs along with their last exit status."},
+				{OS: "freebsd", How: "service -e for the rc.d services enabled in rc.conf, then each script's onestatus for whether it is running."},
 				{OS: "windows", How: "EnumServicesStatusEx on the Service Control Manager, in the agent's own process (no PowerShell), with each service's start type from its Services registry key; the same state and start-type values Get-Service reports."},
 			},
 			Interval: "the agent's sensor interval (15 minutes by default)",
@@ -116,6 +117,7 @@ func sensorCatalog() []sensorDoc {
 			Mechanism: []sensorMechanism{
 				{OS: "linux", How: "dpkg-query -W on Debian/Ubuntu (install date from the package's dpkg file-list mtime), rpm -qa on RHEL-family (INSTALLTIME), the apk database on Alpine, and pacman's local database on Arch (%INSTALLDATE%)"},
 				{OS: "darwin", How: "reads each app bundle's Info.plist with plutil (version, CFBundleExecutable), the bundle's mtime as install date, and Spotlight's kMDItemLastUsedDate via mdls as last used"},
+				{OS: "freebsd", How: "pkg query for each package's name, version and install time."},
 				{OS: "windows", How: "reads the Uninstall registry keys (both 32- and 64-bit hives) in the agent's own process (no PowerShell) — the same source Add/Remove Programs uses — taking the executable from DisplayIcon and InstallDate, and last used from that executable's Prefetch file (when prefetch is enabled)"},
 			},
 			Interval: "the agent's sensor interval (15 minutes by default)",
@@ -132,6 +134,7 @@ func sensorCatalog() []sensorDoc {
 			Mechanism: []sensorMechanism{
 				{OS: "linux", How: "apt-get update then a simulated upgrade on Debian/Ubuntu; dnf/yum check-update on RHEL-family; apk on Alpine; pacman -Qu on Arch, against the sync databases as they are (the agent never runs pacman -Sy alone, which Arch warns sets up a partial upgrade). A patch list can scope this to specific repos instead of whatever the host has configured."},
 				{OS: "darwin", How: "softwareupdate -l, Apple's own update listing tool, which queries the Software Update catalogue the machine is pointed at."},
+				{OS: "freebsd", How: "pkg version -vRl '<': packages with a newer version in the remote catalogue, which pkg refreshes when it is out of date. Base system updates (freebsd-update) are not packages and are not read. On TrueNAS CORE the check fails and says why: its updates are whole images from its own updater. On OPNsense packages are listed, and applying them is refused in favour of its firmware updater."},
 				{OS: "windows", How: "the Windows Update Agent COM API directly — Microsoft.Update.Session, CreateUpdateSearcher, searching IsInstalled=0 and IsHidden=0. Deliberately not the PSWindowsUpdate module, which is not installed by default, so this works on a stock Windows box with no prerequisites."},
 			},
 			Interval: "the agent's sensor interval (15 minutes by default), plus an immediate republish after patches are applied",
@@ -384,7 +387,7 @@ func sensorSourceFiles(kind string) []string {
 	case proto.SensorDisks, proto.SensorNetwork, proto.SensorUsers, proto.SensorHardware:
 		return []string{"inventory.go"}
 	case proto.SensorPatches, proto.SensorPatchStatus:
-		return []string{"patches.go", "patchlist.go"}
+		return []string{"patches.go", "patchlist.go", "freebsd.go"}
 	case proto.SensorPrivileges:
 		return []string{"privileges_linux.go", "privileges_darwin.go", "privileges_windows.go"}
 	case proto.SensorNeighbors:
@@ -396,7 +399,7 @@ func sensorSourceFiles(kind string) []string {
 	case proto.SensorIntegrity:
 		return []string{"integrity.go", "integrity_unix.go", "integrity_windows.go"}
 	case proto.SensorLocalAdmins:
-		return []string{"localadmins_windows.go", "localadmins_linux.go", "localadmins_darwin.go"}
+		return []string{"localadmins_windows.go", "localadmins_unix.go", "localadmins_darwin.go"}
 	case proto.SensorDirectory:
 		return []string{"directory.go"}
 	case proto.SensorBackups:

@@ -166,7 +166,7 @@
 <script src="/static/charts.js"></script>
 <script>
 let list = [], editable = false, filter = "all", editing = null, lastDetail = null, me = null;
-const osLabelOf = o => ({ linux: "Linux", windows: "Windows", darwin: "macOS" }[o] || o || "—");
+const osLabelOf = o => ({ linux: "Linux", windows: "Windows", darwin: "macOS", freebsd: "FreeBSD" }[o] || o || "—");
 
 document.addEventListener("mustra:user", (e) => {
   me = e.detail || null;

@@ -179,6 +179,12 @@
             <p class="install-note">Adds <code>bash</code> and <code>curl</code>, which a minimal Alpine lacks, then installs the agent as an OpenRC service.</p>
           </div>
           <div class="install-card">
+            <h3>FreeBSD, OPNsense, TrueNAS CORE <span class="u-fwt-400 u-c-text-muted">(as root)</span></h3>
+            <pre class="cmd" id="cmd-freebsd"></pre>
+            <button class="secondary copy" data-target="cmd-freebsd">Copy</button>
+            <p class="install-note">amd64. Installs an rc.d service. On OPNsense and TrueNAS, updates still come from their own updater; TrueNAS CORE removes it on its next update.</p>
+          </div>
+          <div class="install-card">
             <h3>Windows <span class="u-fwt-400 u-c-text-muted">(elevated PowerShell)</span></h3>
             <pre class="cmd" id="cmd-windows"></pre>
             <button class="secondary copy" data-target="cmd-windows">Copy</button>
@@ -552,7 +558,8 @@ document.getElementById("enroll-create").addEventListener("click", async () => {
     document.getElementById("cmd-unix").textContent = data.commands.unix;
     document.getElementById("cmd-windows").textContent = data.commands.windows;
     document.getElementById("cmd-alpine").textContent = data.commands.alpine || data.commands.unix;
-    document.getElementById("cmd-plain").textContent = [data.commands.unix_plain, data.commands.alpine_plain, data.commands.windows_plain].filter(Boolean).join("\n\n");
+    document.getElementById("cmd-freebsd").textContent = data.commands.freebsd || data.commands.unix;
+    document.getElementById("cmd-plain").textContent = [data.commands.unix_plain, data.commands.alpine_plain, data.commands.freebsd_plain, data.commands.windows_plain].filter(Boolean).join("\n\n");
     document.getElementById("enroll-result-uses").textContent = String(data.record.max_uses);
     document.getElementById("enroll-result-expires").textContent = fmtWhen(data.record.expires_at);
     document.getElementById("enroll-result").hidden = false;

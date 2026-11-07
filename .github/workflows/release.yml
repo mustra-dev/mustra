@@ -55,7 +55,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # One runner builds six agents, two servers and two multi-arch images.
+      # One runner builds seven agents, two servers and two multi-arch images.
       # On the hosted image from October 2026 that ran out of disk during the
       # second image (v0.94.0, twice), so remove toolchains this job never
       # uses before starting. Only deletions of preinstalled software.

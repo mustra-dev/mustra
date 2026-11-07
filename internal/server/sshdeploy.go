@@ -187,6 +187,8 @@ func detectRemoteOS(client *ssh.Client) string {
 			return "linux"
 		case strings.Contains(out, "Darwin"):
 			return "darwin"
+		case strings.Contains(out, "FreeBSD"):
+			return "freebsd"
 		}
 	}
 	// Only now consider Windows, and only on positive evidence.
@@ -226,17 +228,23 @@ func pushAgentViaSSH(ctx context.Context, target string, cred *vault.Decrypted, 
 	var script bytes.Buffer
 	var cmd string
 	switch osKind {
-	case "linux", "darwin":
+	case "linux", "darwin", "freebsd":
 		if err := installShTemplate.Execute(&script, data); err != nil {
 			return "", fmt.Errorf("render install script: %w", err)
 		}
 		// Only reach for sudo if we're not already root — many minimal
 		// hosts (small servers, containers) don't even have sudo installed,
 		// and root over SSH doesn't need it.
+		// FreeBSD has neither bash nor sudo unless they were installed;
+		// the script is POSIX sh.
+		shell := "bash -s"
+		if osKind == "freebsd" {
+			shell = "sh -s"
+		}
 		if cred.Username == "root" {
-			cmd = "bash -s"
+			cmd = shell
 		} else {
-			cmd = "sudo bash -s"
+			cmd = "sudo " + shell
 		}
 	case "windows":
 		if err := installPs1Template.Execute(&script, data); err != nil {

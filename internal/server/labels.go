@@ -27,7 +27,7 @@ const notSetLabel = "(not set)"
 
 // osLabels are the kernel/OS values the agent reports.
 var osLabels = map[string]string{
-	"linux": "Linux", "darwin": "macOS", "windows": "Windows",
+	"linux": "Linux", "darwin": "macOS", "windows": "Windows", "freebsd": "FreeBSD",
 }
 
 // platformLabels are distributions as their own projects write them. RHEL
@@ -40,6 +40,7 @@ var platformLabels = map[string]string{
 	"arch": "Arch Linux", "alpine": "Alpine", "gentoo": "Gentoo",
 	"amzn": "Amazon Linux", "ol": "Oracle Linux", "linuxmint": "Linux Mint",
 	"pop": "Pop!_OS", "darwin": "macOS", "windows": "Windows",
+	"freebsd": "FreeBSD", "opnsense": "OPNsense", "truenas": "TrueNAS",
 	"haos": "Home Assistant OS",
 }
 

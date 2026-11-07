@@ -15,7 +15,7 @@ IDENTITY_LDFLAGS = -X $(MODULE)/internal/version.AgentVersion=$(AGENT_VERSION) \
               -X $(MODULE)/internal/version.Commit=$(COMMIT)
 LDFLAGS = $(IDENTITY_LDFLAGS) -X $(MODULE)/internal/version.BuildTime=$(BUILD_TIME)
 SERVER_TARGETS = linux/amd64 linux/arm64
-AGENT_TARGETS = linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64
+AGENT_TARGETS = linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64 freebsd/amd64
 
 .DEFAULT_GOAL := help
 

@@ -13,7 +13,7 @@ init.sh              first-run bootstrap and upgrade step: .env, keys,
                      starts the stack
 docker-compose.yml   the stack; `--profile tunnel` adds cloudflared
 compose.dev.yml      NATS + Postgres + script tools, server runs from source
-Dockerfile.server    server image, with all six agent binaries inside
+Dockerfile.server    server image, with all seven agent binaries inside
 Dockerfile.script-tools  ShellCheck and PowerShell analysis/completion image
 .env.example         every setting, documented; init.sh turns it into .env
 nats/nats.conf       production NATS: TLS, server credential, auth callout
@@ -80,7 +80,7 @@ The usual causes, in the order worth checking:
 ## Building vs pulling
 
 `docker compose up -d --build` builds the server and script-tools images from this checkout. It
-cross-compiles six agent binaries using the native builder. Later builds
+cross-compiles seven agent binaries using the native builder. Later builds
 reuse separate server and agent layers and shared Go caches. `make image` from the repository root
 builds the server image with the version stamped in from `git describe`, so the
 About page reports what is actually running.

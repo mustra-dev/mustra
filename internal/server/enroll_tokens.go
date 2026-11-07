@@ -181,7 +181,7 @@ func installCommands(base, token, site string, noRemoteCode bool, shSum, ps1Sum 
 	const stale = "mustra: this install command no longer matches the server: it may be out of date. Create a new enrollment token. Nothing was changed."
 	shPinned := func(run string) string {
 		return `f=$(mktemp) && curl -fsSL -H ` + shQuote(auth) + ` ` + shQuote(base+"/install.sh"+q) + ` -o "$f" && ` +
-			`{ [ "$( (sha256sum "$f" 2>/dev/null || shasum -a 256 "$f") | cut -d ' ' -f1)" = ` + shQuote(shSum) + ` ] || { echo ` + shQuote(stale) + ` >&2; false; }; } && ` +
+			`{ [ "$( (sha256sum "$f" 2>/dev/null || shasum -a 256 "$f" 2>/dev/null || sha256 -r "$f") | cut -d ' ' -f1)" = ` + shQuote(shSum) + ` ] || { echo ` + shQuote(stale) + ` >&2; false; }; } && ` +
 			run + ` "$f"; s=$?; rm -f "$f"; (exit $s)`
 	}
 	irm := "irm -UseBasicParsing -Headers @{Authorization=" + psQuoteString("Bearer "+token) + "} " + psQuoteString(base+"/install.ps1"+q)
@@ -190,11 +190,16 @@ func installCommands(base, token, site string, noRemoteCode bool, shSum, ps1Sum 
 		// Alpine has neither bash, curl nor sudo out of the box, and is
 		// usually administered as root.
 		"alpine": "apk add --no-cache bash curl && " + shPinned("bash"),
+		// FreeBSD (OPNsense, TrueNAS CORE) has no bash or sudo, and its
+		// fetch(1) cannot send the token header. OPNsense and TrueNAS
+		// ship curl; plain FreeBSD gets it from packages.
+		"freebsd": "{ command -v curl >/dev/null || pkg install -y curl; } && " + shPinned("sh"),
 		"windows": `$f=Join-Path $env:TEMP ('mustra-'+[guid]::NewGuid()+'.ps1'); ` + irm + ` -OutFile $f; ` +
 			`if((Get-FileHash $f -Algorithm SHA256).Hash -ne ` + psQuoteString(ps1Sum) + `){Remove-Item $f; throw ` + psQuoteString(stale) + `}; ` +
 			`$s=[IO.File]::ReadAllText($f); Remove-Item $f; iex $s`,
 		"unix_plain":    "curl -fsSL -H " + shQuote(auth) + " " + shQuote(base+"/install.sh"+q) + " | sudo bash",
 		"alpine_plain":  "apk add --no-cache bash curl && curl -fsSL -H " + shQuote(auth) + " " + shQuote(base+"/install.sh"+q) + " | bash",
+		"freebsd_plain": "{ command -v curl >/dev/null || pkg install -y curl; } && curl -fsSL -H " + shQuote(auth) + " " + shQuote(base+"/install.sh"+q) + " | sh",
 		"windows_plain": irm + " | iex",
 	}
 }

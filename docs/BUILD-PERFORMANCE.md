@@ -47,7 +47,7 @@ to survive server-only commits when `AGENT_VERSION` stays fixed.
 
 - `make dev-server` no longer invokes the agent matrix and omits the changing
   timestamp from its version flags. Build downloads explicitly as needed.
-- CI/release builds six agents and two servers once on the native runner;
+- CI/release builds seven agents and two servers once on the native runner;
   Docker only packages those outputs. Release attachments use those same
   agents. Local source Docker builds also cross-compile natively.
 - Separate agent inputs and late version arguments improve source-build
@@ -66,7 +66,7 @@ without measuring runner memory/CPU contention first.
 
 `make check` passed (formatting, vet, build, and tests), as did `actionlint`
 and `git diff --check`. Both source-built and packaged multi-platform
-images were inspected for the correct server architecture, six agent
+images were inspected for the correct server architecture, seven agent
 platforms, CA bundle, and shared agent-layer digest. Packaged binaries
 matched the host outputs byte-for-byte with independent server/agent
 versions. An agent rebuilt in another checkout with a console edit was

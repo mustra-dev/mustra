@@ -1,4 +1,4 @@
-//go:build linux
+//go:build linux || freebsd
 
 package agent
 
@@ -88,9 +88,13 @@ func collectLocalAdmins(ctx context.Context) ([]proto.LocalAdmin, error) {
 	// sudoers grants. Lines look like "alex ALL=(ALL:ALL) ALL" or
 	// "%admins ALL=(ALL) NOPASSWD: ALL"; Defaults, comments, includes and
 	// aliases are skipped.
-	files := []string{"/etc/sudoers"}
-	if extra, err := filepath.Glob("/etc/sudoers.d/*"); err == nil {
-		files = append(files, extra...)
+	// FreeBSD's sudo is a package, so its files are under /usr/local.
+	var files []string
+	for _, base := range []string{"/etc/sudoers", "/usr/local/etc/sudoers"} {
+		files = append(files, base)
+		if extra, err := filepath.Glob(base + ".d/*"); err == nil {
+			files = append(files, extra...)
+		}
 	}
 	for _, path := range files {
 		f, err := os.Open(path)
@@ -112,7 +116,7 @@ func collectLocalAdmins(ctx context.Context) ([]proto.LocalAdmin, error) {
 			}
 			who := fields[0]
 			via := "sudoers"
-			if filepath.Dir(path) == "/etc/sudoers.d" {
+			if strings.HasSuffix(filepath.Dir(path), "/sudoers.d") {
 				via = "sudoers.d/" + filepath.Base(path)
 			}
 			switch {

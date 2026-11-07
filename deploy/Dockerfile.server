@@ -36,7 +36,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
         -o "/out/agents/mustra-tray-windows-${arch}.exe" ./cmd/mustra-tray; \
       cp "/out/agents/mustra-tray-windows-${arch}.exe" "internal/agent/trayembed/mustra-tray-windows-${arch}.bin"; \
     done; \
-    for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do \
+    for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64 freebsd/amd64; do \
       os="${target%/*}"; arch="${target#*/}"; \
       ext=""; [ "$os" = "windows" ] && ext=".exe"; \
       CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath -buildvcs=false \

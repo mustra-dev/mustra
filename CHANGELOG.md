@@ -6,6 +6,12 @@ rather than a page that can drift from it.
 
 ## Unreleased
 
+## 1.4.0 — 2026-11-07
+
+Server 1.4.0, agent 1.4.0. Update agents for release notes on the Containers page,
+Arch Linux updates, and the new FreeBSD agent. Upgraded servers read GitHub's API
+when the MCP tool asks for a container's release notes.
+
 ### Added
 - **See what changed before you update a container.** When an image names its GitHub
   repository (the `org.opencontainers.image.source` label most projects set), the
@@ -20,6 +26,14 @@ rather than a page that can drift from it.
   package manager". Arch supports only full upgrades, so a patch run there must include
   every pending update; one that leaves some out is refused and says which. Needs agents
   on 1.4.0.
+- **FreeBSD agent, for OPNsense and TrueNAS CORE.** amd64 agent builds for FreeBSD,
+  with an install command on **Client Management → Manual Install** and SSH push. It
+  installs as an rc.d service under `daemon(8)`, and reports inventory, services,
+  packages and pending package updates (`pkg`), which it can apply on plain FreeBSD.
+  OPNsense and TrueNAS update from their own updaters: the agent lists OPNsense's
+  packages but refuses to upgrade them, and on TrueNAS CORE the patch check says where
+  updates come from. Custom sensors and containers are not supported on FreeBSD. Tested
+  on FreeBSD 14.5 and OPNsense 26.7.
 
 ## 1.3.0 — 2026-11-06
 
