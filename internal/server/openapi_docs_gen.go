@@ -131,9 +131,11 @@ var typeDocs = map[string]typeDoc{
 			"CheckedAt":       "RFC 3339, when the registry last answered",
 			"Image":           "as configured: postgres:16.4",
 			"ImageDigest":     "the running image's digest at the registry",
+			"ImageVersion":    "Source and ImageVersion are the image's OCI labels (org.opencontainers.image.source and .version), as the publisher set them: where to read what changed, and the version an image on a floating tag really is.",
 			"LatestDigest":    "LatestDigest is what the tag points to now, when the registry said.",
 			"NewerTag":        "NewerTag is the highest version tag of the same shape as Image's (16.4-alpine to 17.1-alpine); NewerTagInMajor is the highest with the same first number, when that is a different tag. A major upgrade is often a migration, so the two are worth telling apart.",
 			"NewerTagInMajor": "NewerTag is the highest version tag of the same shape as Image's (16.4-alpine to 17.1-alpine); NewerTagInMajor is the highest with the same first number, when that is a different tag. A major upgrade is often a migration, so the two are worth telling apart.",
+			"Source":          "Source and ImageVersion are the image's OCI labels (org.opencontainers.image.source and .version), as the publisher set them: where to read what changed, and the version an image on a floating tag really is.",
 			"State":           "running, exited, ...",
 			"Status":          "the engine's words: \"Up 3 days\"",
 			"Update":          "Update is one of the Container* values above.",
@@ -495,6 +497,9 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/server.containerRow": {
 		Doc: "containerRow is a container and the endpoint it runs on.",
+		Fields: map[string]string{
+			"ReleasesURL": "ReleasesURL is the image's project's release notes on GitHub, when its source label names a GitHub repository.",
+		},
 	},
 	"github.com/mustra-dev/mustra/internal/server.containersResponse": {
 		Doc: "containersResponse is what GET /api/containers answers. Counts and Hosts cover the rows answered, so a filtered request counts only its filter.",

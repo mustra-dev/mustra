@@ -241,7 +241,10 @@ func collectAppsLinux(ctx context.Context) ([]proto.InstalledApp, error) {
 	if apkPresent() {
 		return collectAppsAPK()
 	}
-	return nil, fmt.Errorf("no supported package manager found (tried dpkg-query, rpm, apk)")
+	if pacmanPresent() {
+		return collectAppsPacman()
+	}
+	return nil, fmt.Errorf("no supported package manager found (tried dpkg-query, rpm, apk, pacman)")
 }
 
 // dpkgInstallDate is when the package's file list was last written —

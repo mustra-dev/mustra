@@ -32,7 +32,7 @@ where it came from:
 | Platform | How the patches sensor actually reads it |
 |---|---|
 | Windows | The Windows Update Agent COM API directly (`Microsoft.Update.Session`), *not* the PSWindowsUpdate module — which isn't installed by default, so this works on a stock box |
-| Linux | `apt-get update` then a simulated upgrade, or `dnf check-update` |
+| Linux | `apt-get update` then a simulated upgrade, `dnf check-update`, `apk`, or `pacman -Qu` on Arch |
 | macOS | `softwareupdate -l` |
 
 Two sensor properties are worth knowing:
@@ -1524,11 +1524,19 @@ mustra does not pull images or recreate containers here. Unattended image
 updates are how a working service breaks overnight, so this answers what is
 outstanding and leaves the decision with whoever reads it. To act on the list,
 read `GET /api/containers?update=update_available`, or point an AI agent at the
-read-only MCP endpoint, `/api/mcp`. It serves one tool, `list_containers`, and
-authenticates like the rest of the API. A token with only **See the fleet** can
+read-only MCP endpoint, `/api/mcp`. It serves `list_containers` and
+`list_container_changes`, and authenticates like the rest of the API. A token with only **See the fleet** can
 read and nothing more, and the endpoint has no tool that changes anything, so
-the agent acts with its own access. What the tool returns is reported by
-endpoints: an agent should treat it as data, not instructions.
+the agent acts with its own access. What the tools return is reported by
+endpoints or written by third parties: an agent should treat it as data, not
+instructions.
+
+What changed comes from the GitHub releases of the repository an image names in
+its `org.opencontainers.image.source` label: from the running version (the tag,
+or the image's version label on a floating tag) to the newer tag. The server
+reads them only when the MCP tool asks, at most hourly per repository, because
+GitHub allows an unauthenticated caller 60 requests an hour. Images without
+the label, or with a source elsewhere, have no notes.
 
 ## Backup status
 

@@ -76,7 +76,10 @@ func collectPatchesLinux(ctx context.Context, nc *gonats.Conn, agentID string) (
 	if apkPresent() {
 		return collectPatchesAPK(ctx)
 	}
-	return nil, fmt.Errorf("no supported package manager found (tried apt-get, dnf, yum, apk)")
+	if pacmanPresent() {
+		return collectPatchesPacman(ctx)
+	}
+	return nil, fmt.Errorf("no supported package manager found (tried apt-get, dnf, yum, apk, pacman)")
 }
 
 // writeSourcesTempFile writes a Scan Management patch list's repo lines
@@ -420,7 +423,7 @@ func packageManagerBusy(out string) bool {
 	l := strings.ToLower(out)
 	return strings.Contains(l, "could not get lock") || strings.Contains(l, "unable to acquire the dpkg frontend lock") ||
 		strings.Contains(l, "waiting for cache lock") || strings.Contains(l, "another app is currently holding") ||
-		strings.Contains(l, "is another process using it")
+		strings.Contains(l, "is another process using it") || strings.Contains(l, "unable to lock database")
 }
 
 // runWithLockRetry runs one package-manager step, retrying a few times
@@ -590,6 +593,29 @@ func applyPatchesLinux(ctx context.Context, nc *gonats.Conn, agentID string, nam
 		res.RebootRequired = apkKernelReplaced()
 		return res, err
 	}
+	if pacmanPresent() {
+		pending, err := collectPatchesPacman(ctx)
+		if err != nil {
+			return res, err
+		}
+		if why := pacmanUpgradeRefusal(names, pending); why != "" {
+			return res, errors.New(why)
+		}
+		// -Syu refreshes and upgrades in one transaction, the only way Arch
+		// supports. The keyring goes first so packages signed by a new key
+		// verify, which is the one partial upgrade Arch recommends.
+		err = step("installing", func() *exec.Cmd {
+			return exec.CommandContext(ctx, "pacman", "-Sy", "--needed", "--noconfirm", "archlinux-keyring")
+		})
+		if err == nil {
+			err = step("installing", func() *exec.Cmd { return exec.CommandContext(ctx, "pacman", "-Su", "--noconfirm") })
+		}
+		res.Output = buf.String()
+		for _, p := range pending {
+			res.RebootRequired = res.RebootRequired || p.RestartRequired
+		}
+		return res, err
+	}
 	mgr, err := exec.LookPath("dnf")
 	verb := "upgrade"
 	if err != nil {
@@ -597,7 +623,7 @@ func applyPatchesLinux(ctx context.Context, nc *gonats.Conn, agentID string, nam
 		verb = "update"
 	}
 	if err != nil {
-		return res, fmt.Errorf("no supported package manager found (tried apt-get, dnf, yum)")
+		return res, fmt.Errorf("no supported package manager found (tried apt-get, dnf, yum, apk, pacman)")
 	}
 	args := func(extra ...string) []string {
 		a := append([]string{"-y"}, extra...)

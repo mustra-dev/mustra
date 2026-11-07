@@ -115,7 +115,7 @@ func sensorCatalog() []sensorDoc {
 			Answers: "Who has this application, and who is on an old version of it. Also the backbone of the software catalog — package detection matches against this rather than running a separate check per package per device.",
 			Returns: "name, version, publisher, executable, install date, last used (where the platform records one)",
 			Mechanism: []sensorMechanism{
-				{OS: "linux", How: "dpkg-query -W on Debian/Ubuntu (install date from the package's dpkg file-list mtime), rpm -qa on RHEL-family (INSTALLTIME)"},
+				{OS: "linux", How: "dpkg-query -W on Debian/Ubuntu (install date from the package's dpkg file-list mtime), rpm -qa on RHEL-family (INSTALLTIME), the apk database on Alpine, and pacman's local database on Arch (%INSTALLDATE%)"},
 				{OS: "darwin", How: "reads each app bundle's Info.plist with plutil (version, CFBundleExecutable), the bundle's mtime as install date, and Spotlight's kMDItemLastUsedDate via mdls as last used"},
 				{OS: "freebsd", How: "pkg query for each package's name, version and install time."},
 				{OS: "windows", How: "reads the Uninstall registry keys (both 32- and 64-bit hives) in the agent's own process (no PowerShell) — the same source Add/Remove Programs uses — taking the executable from DisplayIcon and InstallDate, and last used from that executable's Prefetch file (when prefetch is enabled)"},
@@ -132,7 +132,7 @@ func sensorCatalog() []sensorDoc {
 			Answers: "How far behind is this machine, and is anything security-relevant outstanding. Drives the Patches module and the compliance view.",
 			Returns: "name, current_version, new_version, severity",
 			Mechanism: []sensorMechanism{
-				{OS: "linux", How: "apt-get update then a simulated upgrade on Debian/Ubuntu; dnf/yum check-update on RHEL-family. A patch list can scope this to specific repos instead of whatever the host has configured."},
+				{OS: "linux", How: "apt-get update then a simulated upgrade on Debian/Ubuntu; dnf/yum check-update on RHEL-family; apk on Alpine; pacman -Qu on Arch, against the sync databases as they are (the agent never runs pacman -Sy alone, which Arch warns sets up a partial upgrade). A patch list can scope this to specific repos instead of whatever the host has configured."},
 				{OS: "darwin", How: "softwareupdate -l, Apple's own update listing tool, which queries the Software Update catalogue the machine is pointed at."},
 				{OS: "freebsd", How: "pkg version -vRl '<': packages with a newer version in the remote catalogue, which pkg refreshes when it is out of date. Base system updates (freebsd-update) are not packages and are not read. On TrueNAS CORE the check fails and says why: its updates are whole images from its own updater. On OPNsense packages are listed, and applying them is refused in favour of its firmware updater."},
 				{OS: "windows", How: "the Windows Update Agent COM API directly — Microsoft.Update.Session, CreateUpdateSearcher, searching IsInstalled=0 and IsHidden=0. Deliberately not the PSWindowsUpdate module, which is not installed by default, so this works on a stock Windows box with no prerequisites."},
@@ -232,9 +232,9 @@ func sensorCatalog() []sensorDoc {
 			Name:    "Containers",
 			Summary: "What the host's Docker or Podman engine runs, and which images have an update.",
 			Answers: "Which containers are behind, on which hosts, and what would they move to. It reports and never pulls or recreates anything.",
-			Returns: "id, name, image, image_digest, state, status, compose_project, compose_service, compose_file, update, update_detail, latest_digest, newer_tag, newer_tag_in_major, checked_at",
+			Returns: "id, name, image, image_digest, state, status, compose_project, compose_service, compose_file, source, image_version, update, update_detail, latest_digest, newer_tag, newer_tag_in_major, checked_at",
 			Mechanism: []sensorMechanism{
-				{OS: "linux", How: "GET requests to the engine's API on /var/run/docker.sock, then /run/podman/podman.sock: the container list and each image's digests. For each image in use, a HEAD request to its registry for the tag's current digest and, for a version tag such as 16.4, the repository's tag list. Environment variables, commands and mounts are never read."},
+				{OS: "linux", How: "GET requests to the engine's API on /var/run/docker.sock, then /run/podman/podman.sock: the container list and each image's digests and its source and version labels. For each image in use, a HEAD request to its registry for the tag's current digest and, for a version tag such as 16.4, the repository's tag list. Environment variables, commands and mounts are never read."},
 				{OS: "darwin", How: "The same, where /var/run/docker.sock exists. Docker Desktop only creates it with its default-socket setting on; a per-user socket is not read."},
 				{OS: "windows", How: "Not collected (reports nothing): Docker on Windows has no socket at these paths."},
 			},

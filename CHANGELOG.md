@@ -7,6 +7,19 @@ rather than a page that can drift from it.
 ## Unreleased
 
 ### Added
+- **See what changed before you update a container.** When an image names its GitHub
+  repository (the `org.opencontainers.image.source` label most projects set), the
+  Containers page links to its release notes. The MCP endpoint has a second read-only
+  tool, `list_container_changes`, that returns the notes between the running version and
+  the newer one, so an agent can read them before updating. Needs agents on 1.4.0 to
+  report the label.
+- **Compose file paths on the Containers page.** Each container's compose file is shown
+  under its Compose project, rather than only on hover.
+- **Pending updates on Arch Linux.** The agent reads pacman, so Arch and its
+  derivatives report pending updates and installed packages instead of "no supported
+  package manager". Arch supports only full upgrades, so a patch run there must include
+  every pending update; one that leaves some out is refused and says which. Needs agents
+  on 1.4.0.
 - **FreeBSD agent, for OPNsense and TrueNAS CORE.** amd64 agent builds for FreeBSD,
   with an install command on **Client Management → Manual Install** and SSH push. It
   installs as an rc.d service under `daemon(8)`, and reports inventory, services,
