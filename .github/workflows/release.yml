@@ -198,3 +198,8 @@ jobs:
             bin/agents/*
             bin/mustra-${{ github.ref_name }}.spdx.json
           generate_release_notes: true
+          # A release candidate (v1.5.0-rc.1) must not become the repository's
+          # latest release: every server's update check reads releases/latest
+          # (internal/server/about.go), so it would offer the candidate to all of
+          # them. The images already skip the latest tag for these.
+          prerelease: ${{ contains(github.ref_name, '-') }}
