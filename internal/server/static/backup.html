@@ -48,7 +48,7 @@
       <div id="backup-page-head"></div>
 
       <div class="caveat" id="caveat">
-        <h3>Two things a backup does not carry</h3>
+        <h3 id="caveat-title">Two things a backup does not carry</h3>
         <div id="caveat-list">loading…</div>
       </div>
 
@@ -156,8 +156,22 @@ async function load() {
   const data = await resp.json();
   backups = data.backups || [];
   settings = data.settings || {};
-  document.getElementById("caveat-list").innerHTML =
-    `<ul>${(data.excluded || []).map(x => `<li>${escapeHtml(x)}</li>`).join("")}</ul>`;
+  const conf = data.config || {};
+  const caveat = document.getElementById("caveat-list");
+  if (conf.included) {
+    // Carried as ciphertext: say whose key opens it and how fresh it is.
+    document.getElementById("caveat-title").textContent = "The deployment's configuration is included, encrypted";
+    caveat.innerHTML = `<ul>
+      <li>${escapeHtml((conf.files || []).join(", "))} from deploy/, encrypted to ${escapeHtml((conf.recipients || []).map(r => r.slice(0, 12) + "…" + r.slice(-6)).join(", "))}.
+        Only the holder of that age key can read it; this server cannot.</li>
+      <li>Snapshot taken ${escapeHtml(conf.taken_at ? fmtAgo(conf.taken_at) : "—")}, when the stack last started. Restart it after changing those files.</li>
+      <li>To restore: <code>age -d -i key.txt config.tar.age | tar -xz -C deploy/</code> before starting the stack, then restore the database here.</li>
+    </ul>`;
+  } else {
+    document.getElementById("caveat-title").textContent = "Two things a backup does not carry";
+    caveat.innerHTML = `<ul>${(data.excluded || []).map(x => `<li>${escapeHtml(x)}</li>`).join("")}</ul>` +
+      (conf.error ? `<p class="status err">The configuration snapshot failed: ${escapeHtml(conf.error)}</p>` : "");
+  }
 
   document.getElementById("s-enabled").checked = !!settings.enabled;
   document.getElementById("s-hour").value = settings.hour_utc ?? 3;
