@@ -115,7 +115,7 @@ func TestMCPOffersOnlyReadOnlyTools(t *testing.T) {
 	}
 	// A new tool is a decision about what a model may do here: add it to
 	// this list only once it is known to change nothing.
-	if strings.Join(names, ",") != "list_containers,list_container_changes" {
+	if strings.Join(names, ",") != "list_containers,list_container_changes,list_pending_updates" {
 		t.Errorf("tools offered: %v", names)
 	}
 }
@@ -176,5 +176,90 @@ func TestMCPListContainers(t *testing.T) {
 	}
 	if none := call(`{"hostname":"no-such-host"}`); none.Containers == nil || none.Total != 0 {
 		t.Errorf("none: %+v", none)
+	}
+}
+
+func TestMCPPendingUpdates(t *testing.T) {
+	dsn := os.Getenv("MUSTRA_TEST_DEPLOY_DSN")
+	if dsn == "" {
+		t.Skip("set MUSTRA_TEST_DEPLOY_DSN to a disposable Postgres database")
+	}
+	ctx := context.Background()
+	st, err := store.Open(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(st.Close)
+	s := &Server{logger: slog.Default(), store: st, live: &liveConfig{}}
+
+	add := func(os string, patches []proto.PatchInfo, status *proto.PatchStatus) string {
+		host := idgen.New("mcpu-")
+		id := "agt-" + host
+		if err := st.UpsertOnRegister(ctx, id, proto.AgentInfo{Hostname: host, OS: os}); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = st.DeleteAgent(context.Background(), id) })
+		if patches != nil {
+			raw, _ := json.Marshal(patches)
+			if err := st.UpsertSensorData(ctx, id, string(proto.SensorPatches), time.Now(), raw); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if status != nil {
+			raw, _ := json.Marshal(status)
+			if err := st.UpsertSensorData(ctx, id, string(proto.SensorPatchStatus), time.Now(), raw); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return id
+	}
+	busy := add("linux", []proto.PatchInfo{{Name: "openssl", Severity: "security"}, {Name: "curl"}, {Name: "linux", RestartRequired: true}}, &proto.PatchStatus{OK: true})
+	failing := add("freebsd", []proto.PatchInfo{{Name: "old"}}, &proto.PatchStatus{OK: false, Error: "pkg: no network"})
+	clean := add("windows", []proto.PatchInfo{}, nil)
+	add("darwin", nil, nil) // never checked: not listed
+
+	call := func(args string) mcpPendingUpdates {
+		t.Helper()
+		res, rpcErr := mcpResult(t, mcpCall(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_pending_updates","arguments":`+args+`}}`))
+		if rpcErr != nil || res["isError"] == true {
+			t.Fatalf("%v %v", res, rpcErr)
+		}
+		var out mcpPendingUpdates
+		text := res["content"].([]any)[0].(map[string]any)["text"].(string)
+		if err := json.Unmarshal([]byte(text), &out); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	byID := func(o mcpPendingUpdates) map[string]mcpEndpointUpdates {
+		m := map[string]mcpEndpointUpdates{}
+		for _, e := range o.Endpoints {
+			m[e.AgentID] = e
+		}
+		return m
+	}
+	all := byID(call(`{}`))
+	if e := all[busy]; e.Pending != 3 || e.Security != 1 || !e.Restart || !e.CheckOK {
+		t.Errorf("busy: %+v", e)
+	}
+	// A failed check is unknown, never "nothing pending".
+	if e := all[failing]; e.CheckOK || !strings.Contains(e.CheckErr, "no network") {
+		t.Errorf("failing: %+v", e)
+	}
+	if e, ok := all[clean]; !ok || e.Pending != 0 || !e.CheckOK || e.Updates == nil {
+		t.Errorf("clean: %+v", e)
+	}
+	if sec := byID(call(`{"agent_id":"` + busy + `","security_only":true}`))[busy]; sec.Pending != 1 || sec.Updates[0].Name != "openssl" {
+		t.Errorf("security only: %+v", sec)
+	}
+	if lim := byID(call(`{"agent_id":"` + busy + `","limit":1}`))[busy]; len(lim.Updates) != 1 || !lim.Truncated || lim.Pending != 3 {
+		t.Errorf("limit: %+v", lim)
+	}
+	if os := call(`{"os":"freebsd"}`); len(os.Endpoints) == 0 || os.Endpoints[0].OS != "freebsd" {
+		t.Errorf("os filter: %+v", os)
+	}
+	res, _ := mcpResult(t, mcpCall(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_pending_updates","arguments":{"os":"plan9"}}}`))
+	if res["isError"] != true {
+		t.Errorf("bad os accepted: %v", res)
 	}
 }

@@ -48,4 +48,4 @@ mustra has a read-only MCP endpoint, so an AI agent can ask what has updates out
 
 3. Ask it something like "which containers have updates outstanding?"
 
-It has two tools. `list_containers` filters by update status, hostname or endpoint, and shows each container's compose file. `list_container_changes` returns the release notes between the running version and the newer one, for images that name their GitHub repository.
+It has three read-only tools. `list_containers` filters by update status, hostname or endpoint, and shows each container's compose file. `list_container_changes` returns the release notes between the running version and the newer one, for images that name their GitHub repository. `list_pending_updates` returns each endpoint's pending operating system and package updates, so an agent sees containers and OS packages together. None of them applies anything.

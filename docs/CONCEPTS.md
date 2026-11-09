@@ -1524,8 +1524,10 @@ mustra does not pull images or recreate containers here. Unattended image
 updates are how a working service breaks overnight, so this answers what is
 outstanding and leaves the decision with whoever reads it. To act on the list,
 read `GET /api/containers?update=update_available`, or point an AI agent at the
-read-only MCP endpoint, `/api/mcp`. It serves `list_containers` and
-`list_container_changes`, and authenticates like the rest of the API. A token with only **See the fleet** can
+read-only MCP endpoint, `/api/mcp`. It serves `list_containers`,
+`list_container_changes` and `list_pending_updates` (OS and package updates
+per endpoint, with whether the last check worked), and authenticates like
+the rest of the API. A token with only **See the fleet** can
 read and nothing more, and the endpoint has no tool that changes anything, so
 the agent acts with its own access. What the tools return is reported by
 endpoints or written by third parties: an agent should treat it as data, not

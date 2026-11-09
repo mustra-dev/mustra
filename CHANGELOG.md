@@ -6,6 +6,12 @@ rather than a page that can drift from it.
 
 ## Unreleased
 
+### Added
+- **Pending OS updates over MCP.** A third read-only tool, `list_pending_updates`, returns
+  each endpoint's pending operating system and package updates, with whether its last
+  check worked, so an agent sees containers and OS packages in one place. An endpoint
+  whose check failed says so rather than appearing to have nothing pending.
+
 ## 1.4.0 — 2026-11-07
 
 Server 1.4.0, agent 1.4.0. Update agents for release notes on the Containers page,
