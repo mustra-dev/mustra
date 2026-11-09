@@ -13,6 +13,16 @@ Arch Linux updates, and the new FreeBSD agent. Upgraded servers read GitHub's AP
 when the MCP tool asks for a container's release notes.
 
 ### Added
+- **Upgrade without opening the secrets file.** The release to pull is now in
+  `deploy/version.env`, apart from the keys and credentials in `deploy/.env`; `init.sh`
+  creates it, keeping a tag already pinned in `.env`. The README now describes
+  upgrading with published images, not only building from source.
+- **`compose.yaml` at the repository root.** It includes `deploy/docker-compose.yml`
+  under the same project name, so `docker compose` works from the root and tools that
+  look for a compose file there find mustra. It is the same stack, not a second one.
+- **Network subnets from `.env`.** `MUSTRA_NETWORK_SUBNET` and `MUSTRA_TOOLS_SUBNET` set
+  the compose networks' subnets on hosts that have used up Docker's default address
+  pools, instead of a hand-written override. Unset, Docker chooses, as before.
 - **See what changed before you update a container.** When an image names its GitHub
   repository (the `org.opencontainers.image.source` label most projects set), the
   Containers page links to its release notes. The MCP endpoint has a second read-only

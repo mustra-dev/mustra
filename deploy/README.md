@@ -88,7 +88,13 @@ About page reports what is actually running.
 `docker compose pull && docker compose up -d` uses published images
 instead, `ghcr.io/mustra-dev/mustra` and
 `ghcr.io/mustra-dev/mustra-script-tools` at the tag in `MUSTRA_IMAGE_TAG`
-(default `latest`). Releases are published by `.github/workflows/release.yml`
+(default `latest`). That tag lives in `version.env`, not `.env`, so a version
+bump never opens the file with the keys and credentials: `init.sh` creates it
+from `version.env.example`, or copy that file yourself. Compose reads it when
+run from the repository root, through `compose.yaml` there, which includes
+this directory's compose file under the same project name (`deploy`), so it
+is the same stack. Run from this directory instead, pass both files:
+`docker compose --env-file .env --env-file version.env …`. Releases are published by `.github/workflows/release.yml`
 on every `v*` tag. CI compiles once and packages the same agent binaries into
 both image architectures and release downloads.
 
@@ -107,7 +113,18 @@ docker compose pull server script-tools
 docker compose up -d --no-deps --no-build script-tools server
 ```
 
-Set `MUSTRA_IMAGE_TAG` to a specific release for a repeatable deployment.
+Set `MUSTRA_IMAGE_TAG` in `version.env` to a specific release for a
+repeatable deployment.
+
+### Network subnets
+
+Docker picks each compose network's subnet from its default address pools.
+On a host that has used them up, `up` fails with "could not find an
+available, non-overlapping IPv4 address pool". Set `MUSTRA_NETWORK_SUBNET`
+and `MUSTRA_TOOLS_SUBNET` in `.env` (for example `172.30.10.0/24` and
+`172.30.11.0/24`) instead of writing an override file. Changing them on a
+running stack needs `docker compose down` first, because Docker does not
+change a network's subnet in place.
 
 ## Public access
 

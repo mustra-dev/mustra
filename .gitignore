@@ -48,3 +48,6 @@ deploy/nats/certs/
 # Python bytecode.
 __pycache__/
 *.pyc
+
+# The release to pull (deploy/version.env.example); the operator's own.
+deploy/version.env

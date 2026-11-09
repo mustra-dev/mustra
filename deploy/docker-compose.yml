@@ -259,7 +259,18 @@ volumes:
   nats-data:
   postgres-data:
 
-# The tools have no external route and cannot reach NATS or Postgres.
+# Docker picks each network's subnet from its default address pools unless
+# one is set here. A host that has used up those pools fails at `up`, so the
+# subnets can be fixed in .env (MUSTRA_NETWORK_SUBNET, MUSTRA_TOOLS_SUBNET);
+# left unset, the config is empty and Docker chooses, as before.
 networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${MUSTRA_NETWORK_SUBNET:-}
+  # The tools have no external route and cannot reach NATS or Postgres.
   script-tools:
     internal: true
+    ipam:
+      config:
+        - subnet: ${MUSTRA_TOOLS_SUBNET:-}
