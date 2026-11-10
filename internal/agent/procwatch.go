@@ -139,7 +139,10 @@ func (a *Agent) runProcessWatch(ctx context.Context) {
 		case ev := <-pw.events:
 			pw.record(ev)
 		case <-flush.C:
-			pw.flush(ctx)
+			pw.flush(ctx, false)
+		case done := <-a.historyFlush["process_events"]:
+			pw.flush(ctx, true)
+			close(done)
 		}
 	}
 }
@@ -171,9 +174,13 @@ func (pw *procWatcher) record(ev proto.ProcessEvent) {
 	pw.order = append(pw.order, key)
 }
 
-func (pw *procWatcher) flush(ctx context.Context) {
+// flush publishes what the window saw; a quiet window as in fileWatcher.flush.
+func (pw *procWatcher) flush(ctx context.Context, force bool) {
 	if len(pw.pending) == 0 && pw.suppressed == 0 && pw.unidentified == 0 && pw.dropped.Load() == 0 {
 		now := time.Now().UTC()
+		if !force && now.Sub(pw.since) < quietMarkerEvery {
+			return
+		}
 		pw.sourceMu.Lock()
 		complete := pw.source != "poll"
 		pw.sourceMu.Unlock()
