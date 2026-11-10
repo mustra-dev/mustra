@@ -14,6 +14,10 @@ rather than a page that can drift from it.
   when it needs it, and pruning reads only keys, stops at the first entry it keeps no
   more, and runs at most once a minute. Needs an agent update. Reported with a full
   analysis by @ali3nz (#44).
+- **A restore is in the audit log again.** Restoring a backup terminates every database
+  connection, so the restore's own audit row went to a dead connection and was lost, and
+  the "restore requested" row was in the database the restore replaced. Audit writes now
+  retry on a fresh connection, and the completed restore's row says when it was requested.
 
 ### Added
 - **Backups can carry the deployment's configuration, encrypted.** Set
