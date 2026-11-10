@@ -1,4 +1,4 @@
-FROM golang:1.27.3-trixie@sha256:c65ecfe613b539ac74c62a4c3b2c27e8f8a6076384c8f27e8a3c0f3be17cc385 AS go-builder
+FROM golang:1.27.3-trixie@sha256:af1bfc2614ebb1dbd31af514b78740fd678850e76498762b425ecee4c5c6ea80 AS go-builder
 WORKDIR /src
 COPY go.mod ./
 COPY internal/sensorbuild ./internal/sensorbuild
@@ -7,7 +7,7 @@ RUN CGO_ENABLED=0 go build -o /sensor-builder ./cmd/sensor-builder
 
 # This image has no control-plane credentials or endpoint data. Keep tool
 # versions/checksums together so source and release builds use the same engines.
-FROM --platform=$BUILDPLATFORM node:26.12.0-trixie-slim@sha256:e556a144463cc8dc53afe8de6d2fa0db5c132fd39ffa232c17641bd40df2bf11 AS npm
+FROM --platform=$BUILDPLATFORM node:26.13.0-trixie-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072 AS npm
 WORKDIR /app
 COPY tools/script-service/package*.json ./
 RUN npm ci --omit=dev
@@ -20,7 +20,7 @@ COPY tools/python-runtime/ /tools/
 RUN python3 /tools/package.py /archives linux-${TARGETARCH} \
     && mkdir /runtime && tar -xzf /archives/mustra-python-linux-${TARGETARCH}.tar.gz -C /runtime
 
-FROM ubuntu:26.04@sha256:c098726dd9b9733f3e885f8de0ef375206a311b0a317eadc40d347b1115fb944 AS tools
+FROM ubuntu:26.04@sha256:6a06111c3b0a8600feadb270aec771dc239bf407b25625f93f44ab00e11f4d3c AS tools
 ARG TARGETARCH
 # apt-get upgrade picks up security fixes newer than the pinned digest.
 # /usr/bin/pebble is Ubuntu's container init, unused here; it carries its own
@@ -61,7 +61,7 @@ RUN mkdir -p /usr/local/share/licenses/shellcheck /usr/local/share/licenses/node
 
 # Node is architecture-specific, unlike the JavaScript dependency layer above.
 # Node 26 links libatomic, which the tools stage installs (libatomic1).
-FROM node:26.12.0-trixie-slim@sha256:e556a144463cc8dc53afe8de6d2fa0db5c132fd39ffa232c17641bd40df2bf11 AS node-runtime
+FROM node:26.13.0-trixie-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072 AS node-runtime
 FROM tools
 COPY --from=go-builder /usr/local/go /usr/local/go
 COPY --from=go-builder /sensor-builder /usr/local/bin/sensor-builder
