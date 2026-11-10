@@ -1821,3 +1821,9 @@ their configuration every five minutes, so a change reaches the fleet within
 that. If node_exporter also runs on an endpoint, both report the same series
 names under different `job` labels; rules that do not filter on `job` see
 the host twice.
+
+The systemd collector, like node_exporter's, sends `node_systemd_unit_state`
+in each of five states for every unit, usually the largest family on a Linux
+host. Sending it **for failed units only** keeps the `failed` series alone: one per
+unit, and `node_systemd_unit_state{state="failed"} == 1` still finds them, but
+rules that read the other states stop matching.

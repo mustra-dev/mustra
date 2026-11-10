@@ -628,6 +628,7 @@
         <div class="form-grid">
           <div class="field"><label><input type="checkbox" id="tel-enabled"> Collect metrics on endpoints</label></div>
           <div class="field"><label for="tel-interval">Every (seconds)</label><input id="tel-interval" type="number" min="5" max="3600" placeholder="15"></div>
+          <div class="field"><label title="node_systemd_unit_state for the failed state alone: one series per unit instead of five. Rules on failed units keep working; ones that read other states do not."><input type="checkbox" id="tel-systemd-failed"> Systemd units: send failed only</label></div>
         </div>
         <div class="role-scope-grid">
           <div>
@@ -1932,6 +1933,7 @@ function renderTelemetry(d) {
   const t = d.settings;
   document.getElementById("tel-enabled").checked = t.metrics.enabled;
   document.getElementById("tel-interval").value = t.metrics.interval_seconds || 15;
+  document.getElementById("tel-systemd-failed").checked = !!t.metrics.systemd_failed_only;
   telCollectorList.setItems((d.collectors || []).map(c => ({ value: c, label: c, hint: TEL_COLLECTOR_HINTS[c] || "" })));
   telCollectorList.setValues(t.metrics.collectors);
   telGroupList.setValues(t.metrics.group_ids);
@@ -2028,7 +2030,8 @@ async function saveTelemetry(extra) {
   const body = {
     metrics: { enabled: document.getElementById("tel-enabled").checked,
       interval_seconds: parseInt(document.getElementById("tel-interval").value, 10) || 15,
-      collectors: telCollectorList.values(), group_ids: telGroupList.values() },
+      collectors: telCollectorList.values(), group_ids: telGroupList.values(),
+      systemd_failed_only: document.getElementById("tel-systemd-failed").checked },
     remote_write: { enabled: document.getElementById("tel-rw-enabled").checked,
       url: document.getElementById("tel-rw-url").value.trim(),
       username: document.getElementById("tel-rw-user").value.trim(),

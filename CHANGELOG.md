@@ -18,6 +18,10 @@ rather than a page that can drift from it.
   connection, so the restore's own audit row went to a dead connection and was lost, and
   the "restore requested" row was in the database the restore replaced. Audit writes now
   retry on a fresh connection, and the completed restore's row says when it was requested.
+- **Two managed certificates with the same name on one host no longer collide in
+  `/metrics`.** `mustra_managed_certificate_expiry_timestamp_seconds` now carries the
+  certificate's `id`, so each is its own series; before, Prometheus rejected the duplicate
+  on every scrape. Rules and dashboards that match on `name` and `host` keep working.
 
 ### Added
 - **Backups can carry the deployment's configuration, encrypted.** Set
@@ -41,6 +45,11 @@ rather than a page that can drift from it.
 - **Network subnets from `.env`.** `MUSTRA_NETWORK_SUBNET` and `MUSTRA_TOOLS_SUBNET` set
   the compose networks' subnets on hosts that have used up Docker's default address
   pools, instead of a hand-written override. Unset, Docker chooses, as before.
+- **Send systemd unit state for failed units only.** A telemetry option under
+  Administration → Telemetry keeps `node_systemd_unit_state{state="failed"}` and drops the
+  other four states, one series per unit instead of five. On a Linux host it is usually the
+  largest family, so Prometheus stores far less. Off by default, which keeps
+  node_exporter's output.
 
 ## 1.4.0 — 2026-11-07
 

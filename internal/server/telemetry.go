@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -56,6 +57,11 @@ type telemetryMetricsSettings struct {
 	// GroupIDs limits collection to these computer groups; empty means
 	// every endpoint.
 	GroupIDs []string `json:"group_ids"`
+	// SystemdFailedOnly sends node_systemd_unit_state for the "failed"
+	// state alone: one series per unit instead of node_exporter's five, the
+	// largest family on a typical Linux host. Rules on failed units keep
+	// working; ones that read the other states do not.
+	SystemdFailedOnly bool `json:"systemd_failed_only"`
 }
 
 type telemetryRemoteWrite struct {
@@ -430,15 +436,22 @@ func labelKey(lb [][2]string) string {
 	return b.String()
 }
 
-func expandBatch(b proto.MetricsBatch, endpoint [][2]string) []telemetrySeries {
+func expandBatch(b proto.MetricsBatch, endpoint [][2]string, systemdFailedOnly bool) []telemetrySeries {
 	ts := b.Timestamp.UnixMilli()
 	var out []telemetrySeries
 	for _, f := range b.Families {
 		if !validMetricName(f.Name) {
 			continue
 		}
+		stateAt := -1
+		if systemdFailedOnly && f.Name == "node_systemd_unit_state" {
+			stateAt = slices.Index(f.Labels, "state")
+		}
 		for _, smp := range f.Samples {
 			if math.IsNaN(smp.Value) {
+				continue
+			}
+			if stateAt >= 0 && (stateAt >= len(smp.Values) || smp.Values[stateAt] != "failed") {
 				continue
 			}
 			// The server's labels come first and win: an agent naming its own
@@ -515,7 +528,7 @@ func (s *Server) handleEndpointMetrics(w http.ResponseWriter, r *http.Request) {
 	series := upSeries(endpoints, s.telemetry.lastReceived(), time.Now())
 	for _, e := range entries {
 		if ep, ok := endpoints[e.AgentID]; ok && ep.InScope {
-			series = append(series, expandBatch(e.Batch, ep.Labels)...)
+			series = append(series, expandBatch(e.Batch, ep.Labels, t.Metrics.SystemdFailedOnly)...)
 		}
 	}
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")

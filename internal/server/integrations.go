@@ -709,8 +709,11 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		gauge("mustra_managed_certificate_expiry_timestamp_seconds", "When each managed certificate expires.")
 		for _, m := range mcs {
 			if m.ExpiresAt != nil {
-				fmt.Fprintf(&b, "mustra_managed_certificate_expiry_timestamp_seconds{name=\"%s\",host=\"%s\",state=\"%s\"} %d\n",
-					label(m.Name), label(m.Hostname), label(m.State), m.ExpiresAt.Unix())
+				// The id keeps two certificates with the same name on one host
+				// apart; without it they are one series twice, and Prometheus
+				// rejects the scrape's second sample.
+				fmt.Fprintf(&b, "mustra_managed_certificate_expiry_timestamp_seconds{id=\"%s\",name=\"%s\",host=\"%s\",state=\"%s\"} %d\n",
+					label(m.ID), label(m.Name), label(m.Hostname), label(m.State), m.ExpiresAt.Unix())
 			}
 		}
 	}
