@@ -92,6 +92,9 @@ type Agent struct {
 	pub          *durablePublisher
 	// watchRefresh nudges the file watcher after a "watch" command.
 	watchRefresh chan struct{}
+	// historyFlush asks a watcher, by history kind, to record its current
+	// window now; it closes the channel it is sent once it has.
+	historyFlush map[string]chan chan struct{}
 	// notification is the end-user message currently awaiting an answer.
 	// One at a time: a stack of competing restart prompts is not something
 	// a person can act on, and the newest is the one that matters.
@@ -218,6 +221,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	a.recordPID()
 	a.loadSettings()
 	a.watchRefresh = make(chan struct{}, 1)
+	a.historyFlush = map[string]chan chan struct{}{"file_events": make(chan chan struct{}), "process_events": make(chan chan struct{})}
 	a.loadWatchConfig()
 	a.loadBranding()
 	defer store.Close()

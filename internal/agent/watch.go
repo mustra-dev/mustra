@@ -146,7 +146,10 @@ func (a *Agent) runFileWatch(ctx context.Context) {
 			fw.suppressed++
 			fw.mu.Unlock()
 		case <-flush.C:
-			fw.flush(ctx)
+			fw.flush(ctx, false)
+		case done := <-a.historyFlush["file_events"]:
+			fw.flush(ctx, true)
+			close(done)
 		case <-rescan.C:
 			fw.rewatch()
 		case <-a.watchRefresh:
@@ -294,12 +297,17 @@ func opName(op fsnotify.Op) string {
 	}
 }
 
-func (fw *fileWatcher) flush(ctx context.Context) {
+// flush publishes what the window saw. A window that saw nothing is
+// recorded at most once every quietMarkerEvery, spanning the whole quiet
+// period, unless force asks for it now (a check reading the history).
+func (fw *fileWatcher) flush(ctx context.Context, force bool) {
 	fw.mu.Lock()
 	if len(fw.pending) == 0 && fw.suppressed == 0 {
 		now := time.Now().UTC()
-		fw.agent.saveDeployHistory("file_events", fw.since, now, nil, fw.watching > 0, fw.watcher.WatchList())
-		fw.since = now
+		if force || now.Sub(fw.since) >= quietMarkerEvery {
+			fw.agent.saveDeployHistory("file_events", fw.since, now, nil, fw.watching > 0, fw.watcher.WatchList())
+			fw.since = now
+		}
 		fw.mu.Unlock()
 		return
 	}
