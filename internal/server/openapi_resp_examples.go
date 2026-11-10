@@ -1641,10 +1641,11 @@ var respExamples = map[string]string{
 	"GET /api/backups": `{
 		"backups": [` + backupManualRecordExample + `, ` + backupNightlyRecordExample + `],
 		"excluded": [
-			"MUSTRA_CREDENTIAL_ENCRYPTION_KEY, which lives in deploy/.env. Stored credentials are encrypted with it: restore onto a deployment with a different key and those rows cannot be decrypted.",
+			"MUSTRA_CREDENTIAL_ENCRYPTION_KEY, which lives in deploy/.env. Stored credentials are encrypted with it: restore onto a deployment with a different key and those rows cannot be decrypted. Set MUSTRA_BACKUP_CONFIG_RECIPIENT in deploy/.env to an age public key to include it, encrypted.",
 			"The NATS certificates in deploy/nats/certs/, also on the host."
 		],
-		"settings": ` + backupSettingsExample + `
+		"settings": ` + backupSettingsExample + `,
+		"config": {"included": false}
 	}`,
 	"POST /api/backups": backupManualRecordExample,
 	// ?confirm=replace-everything&id= last night's backup, which this

@@ -6,6 +6,15 @@ rather than a page that can drift from it.
 
 ## Unreleased
 
+### Added
+- **Backups can carry the deployment's configuration, encrypted.** Set
+  `MUSTRA_BACKUP_CONFIG_RECIPIENT` in `deploy/.env` to an [age](https://age-encryption.org)
+  public key and every backup includes `deploy/.env`, `version.env`, the NATS
+  certificates and the Cloudflare Tunnel credentials, encrypted to it: what a restore
+  needs and the database does not hold. The server never has the private key, so a
+  stolen backup does not give them away. The snapshot is taken by the root one-shot
+  service when the stack starts, which now mounts `deploy/` read-only.
+
 ## 1.4.0 — 2026-11-07
 
 Server 1.4.0, agent 1.4.0. Update agents for release notes on the Containers page,

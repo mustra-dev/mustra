@@ -23,6 +23,9 @@ type listBackupsResponse struct {
 	Backups  []BackupRecord `json:"backups"`
 	Excluded []string       `json:"excluded"`
 	Settings BackupSettings `json:"settings"`
+	// Config says whether backups carry the deployment's configuration,
+	// encrypted to the operator's age keys, and why not when they don't.
+	Config backupConfigStatus `json:"config"`
 }
 
 func (s *Server) handleListBackups(w http.ResponseWriter, r *http.Request) {
@@ -34,15 +37,18 @@ func (s *Server) handleListBackups(w http.ResponseWriter, r *http.Request) {
 	cfg := s.backupSettings(r.Context())
 	// What a backup does not carry matters as much as what it does, and the
 	// console is the only place an operator will read it.
-	writeJSONResponse(w, listBackupsResponse{
-		Backups:  all,
-		Settings: cfg,
-		Excluded: []string{
-			"MUSTRA_CREDENTIAL_ENCRYPTION_KEY, which lives in deploy/.env. " +
-				"Stored credentials are encrypted with it: restore onto a deployment with a different key and those rows cannot be decrypted.",
-			"The NATS certificates in deploy/nats/certs/, also on the host.",
-		},
-	})
+	conf := currentConfigStatus()
+	excluded := []string{
+		"MUSTRA_CREDENTIAL_ENCRYPTION_KEY, which lives in deploy/.env. " +
+			"Stored credentials are encrypted with it: restore onto a deployment with a different key and those rows cannot be decrypted. " +
+			"Set MUSTRA_BACKUP_CONFIG_RECIPIENT in deploy/.env to an age public key to include it, encrypted.",
+		"The NATS certificates in deploy/nats/certs/, also on the host.",
+	}
+	if conf.Included {
+		// Carried, but only as ciphertext only the holder of the age key opens.
+		excluded = nil
+	}
+	writeJSONResponse(w, listBackupsResponse{Backups: all, Settings: cfg, Excluded: excluded, Config: conf})
 }
 
 // createBackupRequest is the body of POST /api/backups.

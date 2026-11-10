@@ -291,6 +291,8 @@ var typeDocs = map[string]typeDoc{
 	"github.com/mustra-dev/mustra/internal/server.BackupManifest": {
 		Doc: "BackupManifest describes an archive well enough to refuse a bad one before any of it is applied.",
 		Fields: map[string]string{
+			"ConfigSHA256":         "ConfigSHA256 covers config.tar.age, the deployment's configuration encrypted to the operator's age keys (internal/configsnap), when the backup carries one; ConfigTakenAt is when that snapshot was made.",
+			"ConfigTakenAt":        "ConfigSHA256 covers config.tar.age, the deployment's configuration encrypted to the operator's age keys (internal/configsnap), when the backup carries one; ConfigTakenAt is when that snapshot was made.",
 			"IncludesPackageFiles": "IncludesPackageFiles records what the operator chose, so a restore can say what it is about to put back rather than guessing from the tar.",
 			"Note":                 "Note carries the operator's own reason for taking it.",
 			"PackageFilesSHA256":   "PackageFilesSHA256 covers every package-file member, in archive order, so they are as tamper-evident as the dump.",
@@ -382,6 +384,9 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/server.auditEventsResponse": {
 		Doc: "auditEventsResponse is what GET /api/audit answers.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.backupConfigStatus": {
+		Doc: "backupConfigStatus is the configuration snapshot as the backup page shows it: whether backups carry the configuration, and why not when they don't.",
 	},
 	"github.com/mustra-dev/mustra/internal/server.backupGuestsResponse": {
 		Doc: "backupGuestsResponse is what GET /api/backup-status?agent_id= answers: that endpoint's guests alone.",
@@ -1026,6 +1031,9 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/server.listBackupsResponse": {
 		Doc: "listBackupsResponse is what GET /api/backups answers.",
+		Fields: map[string]string{
+			"Config": "Config says whether backups carry the deployment's configuration, encrypted to the operator's age keys, and why not when they don't.",
+		},
 	},
 	"github.com/mustra-dev/mustra/internal/server.listClientProfilesResponse": {
 		Doc: "listClientProfilesResponse is what GET /api/clients/profiles answers.",

@@ -3,6 +3,7 @@ module github.com/mustra-dev/mustra
 go 1.27.3
 
 require (
+	filippo.io/age v1.3.2
 	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-ldap/ldap/v3 v3.4.15
@@ -23,6 +24,7 @@ require (
 )
 
 require (
+	filippo.io/hpke v0.4.0 // indirect
 	github.com/Azure/go-ntlmssp v0.1.1 // indirect
 	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.8 // indirect
