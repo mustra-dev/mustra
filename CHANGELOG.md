@@ -6,6 +6,12 @@ rather than a page that can drift from it.
 
 ## Unreleased
 
+### Fixed
+- **A restore is in the audit log again.** Restoring a backup terminates every database
+  connection, so the restore's own audit row went to a dead connection and was lost, and
+  the "restore requested" row was in the database the restore replaced. Audit writes now
+  retry on a fresh connection, and the completed restore's row says when it was requested.
+
 ### Added
 - **Backups can carry the deployment's configuration, encrypted.** Set
   `MUSTRA_BACKUP_CONFIG_RECIPIENT` in `deploy/.env` to an [age](https://age-encryption.org)

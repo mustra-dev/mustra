@@ -198,6 +198,7 @@ func (s *Server) handleRestoreBackup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	requestedAt := time.Now().UTC()
 	result, err := s.restoreBackup(r.Context(), path, u.Username, external)
 	if err != nil {
 		s.logger.Error("restore failed", "error", err)
@@ -216,9 +217,11 @@ func (s *Server) handleRestoreBackup(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r.Context(), auditEvent{
 		Action: "backup.restore", Actor: u.Username, Target: result.Manifest.ID, Severity: "critical",
+		// The request row was written to the database the restore just
+		// replaced, so this row, written to the restored one, says when.
 		Detail: map[string]any{
 			"taken_at": result.Manifest.CreatedAt, "applied": true,
-			"package_files": result.PackageFiles,
+			"package_files": result.PackageFiles, "requested_at": requestedAt, "external": external,
 		},
 	})
 	writeJSONResponse(w, result)
