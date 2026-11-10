@@ -628,7 +628,7 @@
         <div class="form-grid">
           <div class="field"><label><input type="checkbox" id="tel-enabled"> Collect metrics on endpoints</label></div>
           <div class="field"><label for="tel-interval">Every (seconds)</label><input id="tel-interval" type="number" min="5" max="3600" placeholder="15"></div>
-          <div class="field"><label><input type="checkbox" id="tel-systemd-failed"> Send <code>node_systemd_unit_state</code> for failed units only, one series per unit instead of five</label></div>
+          <div class="field"><label title="node_systemd_unit_state for the failed state alone: one series per unit instead of five. Rules on failed units keep working; ones that read other states do not."><input type="checkbox" id="tel-systemd-failed"> Systemd units: send failed only</label></div>
         </div>
         <div class="role-scope-grid">
           <div>
