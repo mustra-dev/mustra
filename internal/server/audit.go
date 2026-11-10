@@ -61,7 +61,7 @@ func (s *Server) audit(ctx context.Context, ev auditEvent) {
 
 	if s.store == nil {
 		s.logger.Error("AUDIT WRITE FAILED — no store", "action", ev.Action, "actor", ev.Actor)
-	} else if err := s.store.RecordAuditEvent(ctx, store.AuditEvent{
+	} else if err := s.recordAudit(ctx, store.AuditEvent{
 		Action: ev.Action, Actor: ev.Actor, Target: ev.Target, AgentID: ev.AgentID,
 		Outcome: ev.Outcome, Severity: ev.Severity, Detail: detail,
 	}); err != nil {
@@ -98,7 +98,7 @@ func (s *Server) auditStrict(ctx context.Context, ev auditEvent) error {
 			detail = string(b)
 		}
 	}
-	if err := s.store.RecordAuditEvent(ctx, store.AuditEvent{
+	if err := s.recordAudit(ctx, store.AuditEvent{
 		Action: ev.Action, Actor: ev.Actor, Target: ev.Target, AgentID: ev.AgentID,
 		Outcome: ev.Outcome, Severity: ev.Severity, Detail: detail,
 	}); err != nil {
@@ -374,4 +374,26 @@ func cefEscape(s string) string {
 	s = strings.ReplaceAll(s, `\`, `\\`)
 	s = strings.ReplaceAll(s, "|", `\|`)
 	return strings.ReplaceAll(s, "\n", " ")
+}
+
+// recordAudit writes an audit row, trying again on a fresh connection when
+// the first attempt fails. A restore terminates every database connection,
+// including the pooled ones, and the restore's own audit row used to go to a
+// dead connection and be lost (#41): the pool replaces a broken connection
+// on the next attempt, so a short retry is all it takes.
+func (s *Server) recordAudit(ctx context.Context, e store.AuditEvent) error {
+	var err error
+	for attempt := range 4 {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return err
+			case <-time.After(time.Duration(attempt) * 250 * time.Millisecond):
+			}
+		}
+		if err = s.store.RecordAuditEvent(ctx, e); err == nil {
+			return nil
+		}
+	}
+	return err
 }
