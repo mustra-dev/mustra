@@ -88,7 +88,13 @@ About page reports what is actually running.
 `docker compose pull && docker compose up -d` uses published images
 instead, `ghcr.io/mustra-dev/mustra` and
 `ghcr.io/mustra-dev/mustra-script-tools` at the tag in `MUSTRA_IMAGE_TAG`
-(default `latest`). Releases are published by `.github/workflows/release.yml`
+(default `latest`). That tag lives in `version.env`, not `.env`, so a version
+bump never opens the file with the keys and credentials: `init.sh` creates it
+from `version.env.example`, or copy that file yourself. Compose reads it when
+run from the repository root, through `compose.yaml` there, which includes
+this directory's compose file under the same project name (`deploy`), so it
+is the same stack. Run from this directory instead, pass both files:
+`docker compose --env-file .env --env-file version.env …`. Releases are published by `.github/workflows/release.yml`
 on every `v*` tag. CI compiles once and packages the same agent binaries into
 both image architectures and release downloads.
 
@@ -107,7 +113,18 @@ docker compose pull server script-tools
 docker compose up -d --no-deps --no-build script-tools server
 ```
 
-Set `MUSTRA_IMAGE_TAG` to a specific release for a repeatable deployment.
+Set `MUSTRA_IMAGE_TAG` in `version.env` to a specific release for a
+repeatable deployment.
+
+### Network subnets
+
+Docker picks each compose network's subnet from its default address pools.
+On a host that has used them up, `up` fails with "could not find an
+available, non-overlapping IPv4 address pool". Set `MUSTRA_NETWORK_SUBNET`
+and `MUSTRA_TOOLS_SUBNET` in `.env` (for example `172.30.10.0/24` and
+`172.30.11.0/24`) instead of writing an override file. Changing them on a
+running stack needs `docker compose down` first, because Docker does not
+change a network's subnet in place.
 
 ## Public access
 
@@ -359,8 +376,8 @@ uploaded file. An archive is a `pg_dump` of the database plus, optionally,
 the package files staged to endpoints — those are large and re-uploadable,
 so they are excluded by default.
 
-Two things are deliberately **not** in a backup, both of which live here in
-`deploy/` rather than in the database:
+Two things are **not** in a backup unless you ask for them, both of which
+live here in `deploy/` rather than in the database:
 
 - `MUSTRA_CREDENTIAL_ENCRYPTION_KEY` from `.env`. Stored credentials are
   encrypted with it, so restoring a database onto a deployment with a
@@ -370,7 +387,19 @@ Two things are deliberately **not** in a backup, both of which live here in
   `nats/gen-certs.sh`, not restored.
 
 Back both up by whatever means you already use for host files, and keep them
-somewhere other than the machine they came from.
+somewhere other than the machine they came from. Or have every backup carry
+them, encrypted: set `MUSTRA_BACKUP_CONFIG_RECIPIENT` in `.env` to an
+[age](https://age-encryption.org) public key made on another machine
+(`age-keygen -o mustra-backup.key`), and restart. The `data-owner` one-shot,
+which runs as root before the server, reads `.env`, `version.env`,
+`nats/certs/` and the Cloudflare Tunnel credentials through a read-only
+mount of this directory and encrypts them to that key; the server only ever
+copies the ciphertext into each backup as `config.tar.age`. A stolen backup
+therefore gives nothing away without your private key, which never comes to
+this host. The snapshot is taken at each start, so restart after changing
+those files. To restore onto a new host:
+`age -d -i mustra-backup.key config.tar.age | tar -xz -C deploy/`, start the
+stack, then restore the database from the console.
 
 A restore replaces every row and then restarts the server: the dump drops
 and recreates every object, so the pool, the settings snapshot and the live

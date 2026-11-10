@@ -235,6 +235,14 @@ else
   fi
 fi
 
+# The release to pull, apart from the secrets (version.env.example). An
+# existing install that pinned a tag in .env keeps it.
+if [ ! -f version.env ]; then
+  tag=$(env_get MUSTRA_IMAGE_TAG)
+  sed "s|^MUSTRA_IMAGE_TAG=.*|MUSTRA_IMAGE_TAG=${tag:-latest}|" version.env.example > version.env
+  echo "wrote version.env (MUSTRA_IMAGE_TAG=${tag:-latest})"
+fi
+
 if [ -f nats/certs/ca.crt ]; then
   echo "NATS certificates already exist; leaving them alone"
 else

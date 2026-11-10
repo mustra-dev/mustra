@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mustra-dev/mustra/internal/configsnap"
 	bnats "github.com/mustra-dev/mustra/internal/nats"
 	"github.com/mustra-dev/mustra/internal/server"
 	"github.com/mustra-dev/mustra/internal/server/auth"
@@ -45,6 +46,8 @@ func Main(name string) {
 		staleAfter        = fs.Duration("stale-after", envDurationOr("MUSTRA_STALE_AFTER", 30*time.Second), "time since last heartbeat before an agent is considered offline")
 		offlineExpiry     = fs.Duration("offline-expiry", envDurationOr("MUSTRA_OFFLINE_EXPIRY", 1*time.Hour), "time an agent may stay offline before it's dropped from inventory entirely")
 		logLevel          = fs.String("log-level", envOr("MUSTRA_LOG_LEVEL", "info"), "log level: debug, info, warn, error")
+		snapshotConfig    = fs.String("snapshot-config", "", "internal: encrypt this deploy directory's configuration for backups to MUSTRA_BACKUP_CONFIG_RECIPIENT, then exit (run as root by the data-owner service)")
+		snapshotOut       = fs.String("snapshot-out", "/var/lib/mustra/config-snapshot", "internal: where -snapshot-config writes")
 
 		cookieSecure = fs.Bool("cookie-secure", envBoolOr("MUSTRA_COOKIE_SECURE", true), "mark the session cookie Secure (disable only for plain-HTTP local dev)")
 		sessionMax   = fs.Duration("session-max-age", envDurationOr("MUSTRA_SESSION_MAX_AGE", 0), "absolute lifetime of a console session (default 12h)")
@@ -70,6 +73,15 @@ func Main(name string) {
 		credKeyHex = fs.String("credential-encryption-key", envSecret("MUSTRA_CREDENTIAL_ENCRYPTION_KEY"), "hex-encoded 32-byte AES-256 key encrypting the deploy-page SSH credential vault (empty disables it)")
 	)
 	flag.Parse()
+
+	if *snapshotConfig != "" {
+		// Failing here must not keep the server from starting: the status
+		// file says what went wrong, and the backup page shows it.
+		if err := configsnap.Snapshot(*snapshotConfig, *snapshotOut, os.Getenv("MUSTRA_BACKUP_CONFIG_RECIPIENT"), time.Now()); err != nil {
+			fmt.Fprintln(os.Stderr, "configuration snapshot for backups:", err)
+		}
+		return
+	}
 
 	// A LevelVar rather than a fixed level: slog reads it on every call, so
 	// the admin UI can raise the level to debug and see the effect

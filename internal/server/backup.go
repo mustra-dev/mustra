@@ -14,8 +14,9 @@ package server
 // definition of the schema that drifts from schema.sql the first time
 // somebody adds a column.
 //
-// Two things are NOT in a backup, and the console says so where an operator
-// will read it:
+// Two things are NOT in a backup unless the operator sets an age key for
+// them (backup_config.go, internal/configsnap), and the console says so where
+// an operator will read it:
 //
 //   - MUSTRA_CREDENTIAL_ENCRYPTION_KEY, which lives in .env. Stored
 //     credentials are encrypted with it, so restoring a database onto a
@@ -75,6 +76,11 @@ type BackupManifest struct {
 	// PackageFilesSHA256 covers every package-file member, in archive
 	// order, so they are as tamper-evident as the dump.
 	PackageFilesSHA256 string `json:"package_files_sha256,omitempty"`
+	// ConfigSHA256 covers config.tar.age, the deployment's configuration
+	// encrypted to the operator's age keys (internal/configsnap), when the
+	// backup carries one; ConfigTakenAt is when that snapshot was made.
+	ConfigSHA256  string     `json:"config_sha256,omitempty"`
+	ConfigTakenAt *time.Time `json:"config_taken_at,omitempty"`
 	// Signature is HMAC-SHA256 over the rest of the manifest under this
 	// server's backup signing key; see backup_sign.go.
 	Signature string `json:"signature,omitempty"`
@@ -198,8 +204,14 @@ func (s *Server) createBackup(ctx context.Context, by, note string, includePacka
 		}
 	}
 
+	configSHA, configTaken, err := addConfigSnapshot(tw)
+	if err != nil {
+		return nil, fmt.Errorf("adding the configuration snapshot: %w", err)
+	}
+
 	manifest := BackupManifest{
 		ID: id, CreatedAt: created, CreatedBy: by,
+		ConfigSHA256: configSHA, ConfigTakenAt: configTaken,
 		ServerVersion:        version.Version,
 		IncludesPackageFiles: includePackages,
 		DatabaseSHA256:       dumpSHA,

@@ -1,0 +1,15 @@
+# The deployment lives in deploy/docker-compose.yml; this lets `docker compose`
+# run from the repository root, where tools look for a compose file.
+#
+# Named "deploy" because that is the project Compose has always named it after
+# its directory: any other name would start a second stack with empty volumes
+# beside the running one. The keys and credentials come from deploy/.env, the
+# release to pull from deploy/version.env (see version.env.example), which wins
+# when both set it.
+name: deploy
+
+include:
+  - path: deploy/docker-compose.yml
+    env_file:
+      - deploy/.env
+      - deploy/version.env

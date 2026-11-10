@@ -119,7 +119,16 @@ services:
     # The recordings volume belongs to guacd (uid 1000), which writes it;
     # only its top is owned here, never the recordings, so a large one costs
     # nothing. Whichever container makes the volume first, it ends up right.
-    entrypoint: ["sh", "-c", "chown -R 65532:65532 /var/lib/mustra/output /var/lib/mustra/package-files && chown 1000:1000 /remote-recordings"]
+    #
+    # It also takes the configuration snapshot for backups (internal/configsnap):
+    # .env and the NATS certificates are root's and mode 600, and the server is
+    # not root, so only this one-shot can read them. It writes them encrypted to
+    # the age key in MUSTRA_BACKUP_CONFIG_RECIPIENT, or nothing when that is
+    # unset; the deploy directory is mounted read-only, and a failed snapshot is
+    # reported on the backup page rather than stopping the stack.
+    entrypoint: ["sh", "-c", "chown -R 65532:65532 /var/lib/mustra/output /var/lib/mustra/package-files && chown 1000:1000 /remote-recordings && { /usr/local/bin/mustra-server -snapshot-config /deploy || true; }"]
+    environment:
+      MUSTRA_BACKUP_CONFIG_RECIPIENT: ${MUSTRA_BACKUP_CONFIG_RECIPIENT:-}
     network_mode: none
     cap_drop: [ALL]
     cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
@@ -129,6 +138,8 @@ services:
       - package-files:/var/lib/mustra/package-files
       - output:/var/lib/mustra/output
       - remote-recordings:/remote-recordings
+      - ./:/deploy:ro
+      - config-snapshot:/var/lib/mustra/config-snapshot
     restart: "no"
 
   server:
@@ -178,6 +189,9 @@ services:
       # here. guacd makes them readable by its group (gid 1000), which is
       # why the server is in it.
       - remote-recordings:/remote-recordings:ro
+      # The encrypted configuration snapshot, which it copies into backups
+      # and cannot decrypt.
+      - config-snapshot:/var/lib/mustra/config-snapshot:ro
     group_add: ["1000"]
     ports:
       # The console. Sign in here directly only with MUSTRA_COOKIE_SECURE=false
@@ -253,13 +267,25 @@ services:
     restart: unless-stopped
 
 volumes:
+  config-snapshot:
   package-files:
   output:
   remote-recordings:
   nats-data:
   postgres-data:
 
-# The tools have no external route and cannot reach NATS or Postgres.
+# Docker picks each network's subnet from its default address pools unless
+# one is set here. A host that has used up those pools fails at `up`, so the
+# subnets can be fixed in .env (MUSTRA_NETWORK_SUBNET, MUSTRA_TOOLS_SUBNET);
+# left unset, the config is empty and Docker chooses, as before.
 networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${MUSTRA_NETWORK_SUBNET:-}
+  # The tools have no external route and cannot reach NATS or Postgres.
   script-tools:
     internal: true
+    ipam:
+      config:
+        - subnet: ${MUSTRA_TOOLS_SUBNET:-}

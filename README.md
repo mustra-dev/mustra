@@ -81,6 +81,19 @@ until the console answers. The first build takes a few minutes.
 On macOS, give the agent **Full Disk Access**
 ([why, and how to do it with an MDM](docs/guides/install-agents.md)).
 
+**Upgrading, or running published images instead of building:** the release to
+pull is the one line in `deploy/version.env`, apart from the keys in
+`deploy/.env`. From the repository root:
+
+```sh
+echo MUSTRA_IMAGE_TAG=1.5.0 > deploy/version.env   # or latest
+docker compose pull server script-tools
+docker compose up -d --no-deps --no-build script-tools server
+```
+
+NATS and Postgres keep running. [deploy/README.md](deploy/README.md#building-vs-pulling)
+has the details, and how to back up what a restore needs.
+
 **What leaves your network:** nothing goes to the mustra maintainers. By
 default, the server sends package names and versions to
 [OSV](https://osv.dev) (never hostnames or anything else about your fleet)
