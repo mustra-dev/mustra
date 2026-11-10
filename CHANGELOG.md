@@ -14,14 +14,10 @@ rather than a page that can drift from it.
   needs and the database does not hold. The server never has the private key, so a
   stolen backup does not give them away. The snapshot is taken by the root one-shot
   service when the stack starts, which now mounts `deploy/` read-only.
-
-## 1.4.0 — 2026-11-07
-
-Server 1.4.0, agent 1.4.0. Update agents for release notes on the Containers page,
-Arch Linux updates, and the new FreeBSD agent. Upgraded servers read GitHub's API
-when the MCP tool asks for a container's release notes.
-
-### Added
+- **Pending OS updates over MCP.** A third read-only tool, `list_pending_updates`, returns
+  each endpoint's pending operating system and package updates, with whether its last
+  check worked, so an agent sees containers and OS packages in one place. An endpoint
+  whose check failed says so rather than appearing to have nothing pending.
 - **Upgrade without opening the secrets file.** The release to pull is now in
   `deploy/version.env`, apart from the keys and credentials in `deploy/.env`; `init.sh`
   creates it, keeping a tag already pinned in `.env`. The README now describes
@@ -32,6 +28,14 @@ when the MCP tool asks for a container's release notes.
 - **Network subnets from `.env`.** `MUSTRA_NETWORK_SUBNET` and `MUSTRA_TOOLS_SUBNET` set
   the compose networks' subnets on hosts that have used up Docker's default address
   pools, instead of a hand-written override. Unset, Docker chooses, as before.
+
+## 1.4.0 — 2026-11-07
+
+Server 1.4.0, agent 1.4.0. Update agents for release notes on the Containers page,
+Arch Linux updates, and the new FreeBSD agent. Upgraded servers read GitHub's API
+when the MCP tool asks for a container's release notes.
+
+### Added
 - **See what changed before you update a container.** When an image names its GitHub
   repository (the `org.opencontainers.image.source` label most projects set), the
   Containers page links to its release notes. The MCP endpoint has a second read-only
