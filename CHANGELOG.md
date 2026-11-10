@@ -6,6 +6,19 @@ rather than a page that can drift from it.
 
 ## Unreleased
 
+### Fixed
+- **The agent no longer works at idle.** Two watchers recorded an empty history window
+  every 5 seconds, and each save re-read and decoded the whole day of history to prune it:
+  3-15% of a core and about 2-3 MB a minute of writes on a host doing nothing. Quiet
+  windows are now recorded once a minute, a deployment check asks for an up-to-date one
+  when it needs it, and pruning reads only keys, stops at the first entry it keeps no
+  more, and runs at most once a minute. Needs an agent update. Reported with a full
+  analysis by @ali3nz (#44).
+- **A restore is in the audit log again.** Restoring a backup terminates every database
+  connection, so the restore's own audit row went to a dead connection and was lost, and
+  the "restore requested" row was in the database the restore replaced. Audit writes now
+  retry on a fresh connection, and the completed restore's row says when it was requested.
+
 ### Added
 - **Backups can carry the deployment's configuration, encrypted.** Set
   `MUSTRA_BACKUP_CONFIG_RECIPIENT` in `deploy/.env` to an [age](https://age-encryption.org)
