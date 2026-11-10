@@ -24,7 +24,7 @@ func TestExpandBatchServerLabelsWin(t *testing.T) {
 		{Name: "node_short", Labels: []string{"a", "b"}, Samples: []proto.MetricSample{{Values: []string{"1"}, Value: 2}}},
 	}}
 	endpoint := [][2]string{{"job", "mustra"}, {"instance", "web01"}, {"instance_name", "web01"}}
-	got := expandBatch(b, endpoint)
+	got := expandBatch(b, endpoint, false)
 	want := []telemetrySeries{
 		{Name: "node_load1", Type: "gauge", Labels: [][2]string{{"instance", "web01"}, {"instance_name", "web01"}, {"job", "mustra"}}, Value: 0.5, TimeMs: ts.UnixMilli()},
 		{Name: "node_cpu_seconds_total", Type: "counter", Labels: [][2]string{{"cpu", "0"}, {"instance", "web01"}, {"instance_name", "web01"}, {"job", "mustra"}, {"mode", "idle"}}, Value: 12.5, TimeMs: ts.UnixMilli()},
@@ -32,6 +32,37 @@ func TestExpandBatchServerLabelsWin(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("expandBatch:\n got %+v\nwant %+v", got, want)
+	}
+}
+
+func TestExpandBatchSystemdFailedOnly(t *testing.T) {
+	ts := time.UnixMilli(1761573600000)
+	units := proto.MetricFamily{Name: "node_systemd_unit_state", Type: "gauge", Labels: []string{"name", "state", "type"}}
+	for _, st := range []string{"activating", "active", "deactivating", "failed", "inactive"} {
+		v := 0.0
+		if st == "active" {
+			v = 1
+		}
+		units.Samples = append(units.Samples, proto.MetricSample{Values: []string{"ssh.service", st, "notify"}, Value: v})
+	}
+	// A sample missing its state is dropped too: it cannot be the failed one.
+	units.Samples = append(units.Samples, proto.MetricSample{Values: []string{"cron.service"}, Value: 1})
+	b := proto.MetricsBatch{Timestamp: ts, Families: []proto.MetricFamily{units,
+		// Other families, systemd's own included, pass through untouched.
+		{Name: "node_systemd_units", Labels: []string{"state"}, Samples: []proto.MetricSample{{Values: []string{"active"}, Value: 120}}},
+	}}
+	endpoint := [][2]string{{"job", "mustra"}}
+
+	if got := len(expandBatch(b, endpoint, false)); got != 7 {
+		t.Errorf("option off: %d series, want all 7", got)
+	}
+	got := expandBatch(b, endpoint, true)
+	want := []telemetrySeries{
+		{Name: "node_systemd_unit_state", Type: "gauge", Labels: [][2]string{{"job", "mustra"}, {"name", "ssh.service"}, {"state", "failed"}, {"type", "notify"}}, Value: 0, TimeMs: ts.UnixMilli()},
+		{Name: "node_systemd_units", Labels: [][2]string{{"job", "mustra"}, {"state", "active"}}, Value: 120, TimeMs: ts.UnixMilli()},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("option on:\n got %+v\nwant %+v", got, want)
 	}
 }
 

@@ -1906,9 +1906,10 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/server.telemetryMetricsSettings": {
 		Fields: map[string]string{
-			"Collectors":      "Collectors to run; empty runs all of them.",
-			"GroupIDs":        "GroupIDs limits collection to these computer groups; empty means every endpoint.",
-			"IntervalSeconds": "IntervalSeconds is how often agents collect, 5-3600; default 15.",
+			"Collectors":        "Collectors to run; empty runs all of them.",
+			"GroupIDs":          "GroupIDs limits collection to these computer groups; empty means every endpoint.",
+			"IntervalSeconds":   "IntervalSeconds is how often agents collect, 5-3600; default 15.",
+			"SystemdFailedOnly": "SystemdFailedOnly sends node_systemd_unit_state for the \"failed\" state alone: one series per unit instead of node_exporter's five, the largest family on a typical Linux host. Rules on failed units keep working; ones that read the other states do not.",
 		},
 	},
 	"github.com/mustra-dev/mustra/internal/server.telemetryRemoteWrite": {

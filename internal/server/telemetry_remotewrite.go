@@ -144,7 +144,7 @@ func (s *Server) telemetrySendLoop(ctx context.Context) {
 			}
 			for _, e := range batch {
 				if ep, ok := endpoints[e.AgentID]; ok && ep.InScope {
-					series = append(series, expandBatch(e.Batch, ep.Labels)...)
+					series = append(series, expandBatch(e.Batch, ep.Labels, t.Metrics.SystemdFailedOnly)...)
 				}
 			}
 			err := s.remoteWrite(ctx, t.RemoteWrite.URL, t.RemoteWrite.Username, secret, series)

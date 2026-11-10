@@ -5887,7 +5887,7 @@ const threatSettingsExample = `{"auto_remediation": {"enabled": true, "after_day
 
 const telemetryExample = `{
 	"settings": {
-		"metrics": {"enabled": true, "interval_seconds": 15, "collectors": [], "group_ids": []},
+		"metrics": {"enabled": true, "interval_seconds": 15, "collectors": [], "group_ids": [], "systemd_failed_only": false},
 		"remote_write": {"enabled": true, "url": "http://prometheus.example.internal:9090/api/v1/write", "username": "", "secret_set": false},
 		"scrape": {"enabled": false},
 		"labels": {"job": "mustra", "extra": {"site": "hq"}, "groups": [{"group_id": "cgrp-1c8e4a2f6b9d43e7a5c0f2b8d6e4a1c3", "labels": {"device_class": "laptop"}}], "proxmox_guests": true}
