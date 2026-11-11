@@ -33,6 +33,8 @@ build: ## Compile everything (no binaries written)
 server: ## Build bin/mustra-server for this machine
 	CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o bin/mustra-server ./cmd/server
 
+# Agents are built with -s -w: no symbol table or DWARF, a third of what every
+# endpoint downloads. Stack traces keep their function names.
 # Agent payloads must stay identical across server-only commits/checkouts.
 # The independent agent version supplies identity without server VCS metadata.
 .PHONY: agents
@@ -51,8 +53,6 @@ agents: python-runtimes ## Cross-compile the agent for every platform into bin/a
 	for target in $(AGENT_TARGETS); do \
 	  os=$${target%/*}; arch=$${target#*/}; ext=""; [ "$$os" = windows ] && ext=.exe; \
 	  echo "  $$target"; \
-	  # -s -w drop the symbol table and DWARF: a third of the binary that every
-	  # endpoint downloads. Stack traces keep their function names.
 	  CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -buildvcs=false -ldflags="-s -w -X main.version=$(AGENT_VERSION)" \
 	    -o bin/agents/mustra-agent-$$os-$$arch$$ext ./cmd/agent; \
 	done
