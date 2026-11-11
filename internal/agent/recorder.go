@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	gnet "github.com/shirou/gopsutil/v4/net"
 	"github.com/shirou/gopsutil/v4/process"
 
 	bnats "github.com/mustra-dev/mustra/internal/nats"
@@ -206,42 +205,58 @@ func (r *recorder) networkLoop(ctx context.Context) {
 	tick := time.NewTicker(recorderPollInterval)
 	defer tick.Stop()
 	for {
-		conns, err := gnet.ConnectionsWithContext(ctx, "inet")
+		table, err := listConnections(ctx)
 		if err != nil {
 			r.setSource("network", "none")
 		} else {
 			seen := map[string]bool{}
-			for _, c := range conns {
-				proto_ := "tcp"
-				if c.Type == 2 { // SOCK_DGRAM
-					proto_ = "udp"
-				}
+			var fresh []connRow
+			for _, c := range table.rows() {
 				op := ""
 				switch {
 				case c.Status == "LISTEN":
 					op = "listen"
-				case c.Status == "ESTABLISHED" || c.Status == "SYN_SENT" || (proto_ == "udp" && c.Raddr.Port != 0):
+				case c.Status == "ESTABLISHED" || c.Status == "SYN_SENT" || (c.Proto == "udp" && c.RemotePort != 0):
 					op = "connect"
 				default:
 					continue
 				}
-				if op == "connect" && (c.Raddr.IP == "" || isLocalPeer(c.Raddr.IP)) {
+				if op == "connect" && (c.RemoteIP == "" || isLocalPeer(c.RemoteIP)) {
 					continue
 				}
-				key := fmt.Sprintf("%s|%s|%s:%d|%s:%d|%d", op, proto_, c.Laddr.IP, c.Laddr.Port, c.Raddr.IP, c.Raddr.Port, c.Pid)
+				// A socket is the same one from poll to poll by its ID, so a
+				// flow is reported once however long it lasts.
+				key := op + "|" + c.ID
 				seen[key] = true
-				if first || known[key] || c.Pid == self {
+				if first || known[key] {
 					continue
 				}
-				name := r.processName(c.Pid)
-				ev := proto.RecorderEvent{Kind: "network", Op: op, PID: c.Pid, Process: name, Protocol: proto_,
-					LocalIP: c.Laddr.IP, LocalPort: int(c.Laddr.Port), RemoteIP: c.Raddr.IP, RemotePort: int(c.Raddr.Port)}
-				if op == "listen" {
-					ev.Summary = fmt.Sprintf("%s listening on %s:%d (%s)", orUnknown(name), c.Laddr.IP, c.Laddr.Port, proto_)
-				} else {
-					ev.Summary = fmt.Sprintf("%s -> %s:%d (%s)", orUnknown(name), c.Raddr.IP, c.Raddr.Port, proto_)
+				c.Status = op
+				fresh = append(fresh, c)
+			}
+			// Only new sockets need a process, which is the expensive part.
+			if len(fresh) > 0 {
+				ids := map[string]bool{}
+				for _, c := range fresh {
+					ids[c.ID] = true
 				}
-				r.emit(ev)
+				pids := table.pidOf(ids)
+				for _, c := range fresh {
+					pid := pids[c.ID]
+					if pid == self {
+						continue
+					}
+					op := c.Status
+					name := r.processName(pid)
+					ev := proto.RecorderEvent{Kind: "network", Op: op, PID: pid, Process: name, Protocol: c.Proto,
+						LocalIP: c.LocalIP, LocalPort: int(c.LocalPort), RemoteIP: c.RemoteIP, RemotePort: int(c.RemotePort)}
+					if op == "listen" {
+						ev.Summary = fmt.Sprintf("%s listening on %s:%d (%s)", orUnknown(name), c.LocalIP, c.LocalPort, c.Proto)
+					} else {
+						ev.Summary = fmt.Sprintf("%s -> %s:%d (%s)", orUnknown(name), c.RemoteIP, c.RemotePort, c.Proto)
+					}
+					r.emit(ev)
+				}
 			}
 			known = seen
 			first = false

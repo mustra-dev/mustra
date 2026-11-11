@@ -6,11 +6,24 @@ rather than a page that can drift from it.
 
 ## Unreleased
 
+## 1.5.0 — 2026-11-11
+
+Server 1.5.0, agent 1.5.0. Update agents: they do much less at idle (two fixes below) and
+download a third smaller. Upgraded servers read GitHub's API only when an MCP tool asks for
+release notes. Backups carry the deployment's configuration only when you set an age key.
+
 ### Fixed
 - **Release candidates follow each other.** An endpoint on one numbered release
   candidate (1.5.0-rc.2) is offered the next (1.5.0-rc.3); before, two pre-releases of the
   same version were never ranked, so only the final release could move it. Other
   pre-release names are still not ranked, so nothing is ever moved backwards.
+- **The agent does less at idle, and downloads are a third smaller.** On Linux the
+  network part of the recorder read the link behind every open file of every process
+  every 5 seconds, to name the process behind each connection; it now reads the socket
+  tables and looks a process up only for a connection it has not seen before. The logon
+  watcher stopped allocating a fresh megabyte every 5 seconds. Together that is about a
+  quarter of the idle CPU of 1.5.0-rc.2. Agent binaries drop their symbol table (17 MB to
+  12 MB); stack traces keep their function names. Found by profiling an idle agent (#50).
 - **The agent no longer works at idle.** Two watchers recorded an empty history window
   every 5 seconds, and each save re-read and decoded the whole day of history to prune it:
   3-15% of a core and about 2-3 MB a minute of writes on a host doing nothing. Quiet
