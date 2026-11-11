@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -70,7 +69,9 @@ type communityCheck struct {
 }
 
 func (c communityCheck) versionFile() string {
-	return filepath.Join("/root", "."+strings.ReplaceAll(strings.ToLower(c.App), " ", ""))
+	// A Linux path whatever the build: filepath would write \root\.app on
+	// Windows, where this never runs but its tests do.
+	return "/root/." + strings.ReplaceAll(strings.ToLower(c.App), " ", "")
 }
 
 // parseCommunityScript finds the checks in an app's ct script. A pin that
