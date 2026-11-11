@@ -4,6 +4,7 @@ package agent
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"os/exec"
@@ -38,6 +39,9 @@ func (r *recorder) journalLogons(ctx context.Context) {
 	cursor := ""
 	tick := time.NewTicker(recorderPollInterval)
 	defer tick.Stop()
+	// One buffer for the life of the loop: a fresh megabyte every 5 seconds
+	// was a quarter of an idle agent's allocations (#50).
+	buf := make([]byte, 64<<10)
 	for {
 		args := []string{"-o", "json", "-q", "--no-pager", "_COMM=sshd", "_COMM=sudo", "_COMM=su", "_COMM=login"}
 		if cursor == "" {
@@ -49,8 +53,8 @@ func (r *recorder) journalLogons(ctx context.Context) {
 		out, err := exec.CommandContext(cctx, "journalctl", args...).Output()
 		cancel()
 		if err == nil {
-			sc := bufio.NewScanner(strings.NewReader(string(out)))
-			sc.Buffer(make([]byte, 1<<20), 1<<20)
+			sc := bufio.NewScanner(bytes.NewReader(out))
+			sc.Buffer(buf, 1<<20)
 			for sc.Scan() {
 				var entry struct {
 					Cursor   string `json:"__CURSOR"`

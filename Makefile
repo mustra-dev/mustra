@@ -43,7 +43,7 @@ agents: python-runtimes ## Cross-compile the agent for every platform into bin/a
 	@set -e; for arch in amd64 arm64; do \
 	  echo "  windows/$$arch tray"; \
 	  CGO_ENABLED=0 GOOS=windows GOARCH=$$arch go build -trimpath -buildvcs=false \
-	    -ldflags="-H windowsgui -X main.version=$(AGENT_VERSION)" \
+	    -ldflags="-s -w -H windowsgui -X main.version=$(AGENT_VERSION)" \
 	    -o bin/agents/mustra-tray-windows-$$arch.exe ./cmd/mustra-tray; \
 	  cp bin/agents/mustra-tray-windows-$$arch.exe internal/agent/trayembed/mustra-tray-windows-$$arch.bin; \
 	done
@@ -51,7 +51,9 @@ agents: python-runtimes ## Cross-compile the agent for every platform into bin/a
 	for target in $(AGENT_TARGETS); do \
 	  os=$${target%/*}; arch=$${target#*/}; ext=""; [ "$$os" = windows ] && ext=.exe; \
 	  echo "  $$target"; \
-	  CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -buildvcs=false -ldflags="-X main.version=$(AGENT_VERSION)" \
+	  # -s -w drop the symbol table and DWARF: a third of the binary that every
+	  # endpoint downloads. Stack traces keep their function names.
+	  CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -buildvcs=false -ldflags="-s -w -X main.version=$(AGENT_VERSION)" \
 	    -o bin/agents/mustra-agent-$$os-$$arch$$ext ./cmd/agent; \
 	done
 
