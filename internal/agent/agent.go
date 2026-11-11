@@ -177,6 +177,7 @@ func New(cfg Config) *Agent {
 	if cfg.SensorInterval <= 0 {
 		cfg.SensorInterval = 15 * time.Minute
 	}
+	defaultCommunityApps.logger = cfg.Logger
 	a := &Agent{cfg: cfg, logger: cfg.Logger, noRemoteCode: detectNoRemoteCode(), containers: newContainerCollector(!cfg.NoContainerUpdateChecks, cfg.Logger)}
 	if a.noRemoteCode {
 		a.logger.Info("inventory-and-patching mode: this endpoint refuses code from the server")
