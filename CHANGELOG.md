@@ -7,6 +7,10 @@ rather than a page that can drift from it.
 ## Unreleased
 
 ### Fixed
+- **Release candidates follow each other.** An endpoint on one numbered release
+  candidate (1.5.0-rc.2) is offered the next (1.5.0-rc.3); before, two pre-releases of the
+  same version were never ranked, so only the final release could move it. Other
+  pre-release names are still not ranked, so nothing is ever moved backwards.
 - **The agent no longer works at idle.** Two watchers recorded an empty history window
   every 5 seconds, and each save re-read and decoded the whole day of history to prune it:
   3-15% of a core and about 2-3 MB a minute of writes on a host doing nothing. Quiet
