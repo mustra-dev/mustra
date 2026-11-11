@@ -32,7 +32,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
     set -e; \
     for arch in amd64 arm64; do \
       CGO_ENABLED=0 GOOS=windows GOARCH="$arch" go build -trimpath -buildvcs=false \
-        -ldflags="-H windowsgui -X main.version=${MUSTRA_AGENT_VERSION:-${MUSTRA_VERSION}}" \
+        -ldflags="-s -w -H windowsgui -X main.version=${MUSTRA_AGENT_VERSION:-${MUSTRA_VERSION}}" \
         -o "/out/agents/mustra-tray-windows-${arch}.exe" ./cmd/mustra-tray; \
       cp "/out/agents/mustra-tray-windows-${arch}.exe" "internal/agent/trayembed/mustra-tray-windows-${arch}.bin"; \
     done; \
@@ -40,7 +40,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
       os="${target%/*}"; arch="${target#*/}"; \
       ext=""; [ "$os" = "windows" ] && ext=".exe"; \
       CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath -buildvcs=false \
-        -ldflags="-X main.version=${MUSTRA_AGENT_VERSION:-${MUSTRA_VERSION}}" \
+        -ldflags="-s -w -X main.version=${MUSTRA_AGENT_VERSION:-${MUSTRA_VERSION}}" \
         -o "/out/agents/mustra-agent-${os}-${arch}${ext}" ./cmd/agent; \
     done
 
