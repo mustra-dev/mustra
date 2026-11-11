@@ -141,7 +141,14 @@ func TestNewer(t *testing.T) {
 	for _, c := range []struct {
 		a, b string
 		want bool
-	}{{"0.35.10", "0.35.9", true}, {"0.35.9", "0.35.10", false}, {"1.0.0", "1.0.0-rc", true}, {"1.0.0-rc", "1.0.0", false}, {"dev", "1.0.0", false}} {
+	}{{"0.35.10", "0.35.9", true}, {"0.35.9", "0.35.10", false}, {"1.0.0", "1.0.0-rc", true}, {"1.0.0-rc", "1.0.0", false}, {"dev", "1.0.0", false},
+		// Numbered release candidates of one version follow each other.
+		{"1.5.0-rc.3", "1.5.0-rc.2", true}, {"1.5.0-rc.2", "1.5.0-rc.3", false}, {"1.5.0-rc.10", "1.5.0-rc.9", true},
+		{"1.5.0-rc.2", "1.5.0-rc.2", false}, {"1.5.0", "1.5.0-rc.9", true}, {"1.5.0-rc.9", "1.5.0", false},
+		{"1.6.0-rc.1", "1.5.0", true}, {"1.5.0-rc.1", "1.4.9", true},
+		// Anything else stays unranked rather than risk a downgrade.
+		{"1.5.0-rc.2", "1.5.0-beta.3", false}, {"1.5.0-beta.3", "1.5.0-rc.2", false},
+		{"1.5.0-rc2", "1.5.0-rc1", false}, {"1.5.0-rc.2", "1.5.0-rc", false}, {"1.5.0-rc.2-x", "1.5.0-rc.1", false}} {
 		if got := Newer(c.a, c.b); got != c.want {
 			t.Errorf("Newer(%q,%q)=%v", c.a, c.b, got)
 		}

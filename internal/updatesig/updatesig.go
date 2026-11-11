@@ -252,11 +252,31 @@ func Newer(a, b string) bool {
 		return false
 	}
 	// A release is newer than its own pre-releases -- an endpoint left on
-	// 0.41.8-rc is not on 0.41.8 and should be offered the real thing. Two
-	// different pre-releases of the same version are not ranked: which of
-	// -rc and -rc2 came first is a guess, and the rule here is to answer no
-	// rather than risk moving an endpoint backwards.
-	return x.pre == "" && y.pre != ""
+	// 0.41.8-rc is not on 0.41.8 and should be offered the real thing.
+	if x.pre == "" || y.pre == "" {
+		return x.pre == "" && y.pre != ""
+	}
+	// Numbered pre-releases with the same label, as this project tags them
+	// (-rc.1, -rc.2), are ranked by their number: without it an endpoint on
+	// one release candidate could never be offered the next. Any other pair
+	// of pre-releases is not ranked: which of -rc and -rc2 came first is a
+	// guess, and the rule here is to answer no rather than risk moving an
+	// endpoint backwards.
+	labelA, nA, okA := numberedPre(x.pre)
+	labelB, nB, okB := numberedPre(y.pre)
+	return okA && okB && labelA == labelB && nA > nB
+}
+
+var numberedPreRe = regexp.MustCompile(`^-(alpha|beta|rc)\.(\d{1,6})$`)
+
+// numberedPre reads "-rc.3" as ("rc", 3).
+func numberedPre(pre string) (string, int, bool) {
+	m := numberedPreRe.FindStringSubmatch(pre)
+	if m == nil {
+		return "", 0, false
+	}
+	n, err := strconv.Atoi(m[2])
+	return m[1], n, err == nil
 }
 
 var describeRe = regexp.MustCompile(`^-(\d+)-g[0-9a-f]{4,40}(-dirty)?$`)
