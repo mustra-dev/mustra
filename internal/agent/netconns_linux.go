@@ -125,9 +125,9 @@ func (t procTable) pidOf(ids map[string]bool) map[string]int32 {
 		return out
 	}
 	for _, p := range procs {
-		pid, err := strconv.Atoi(p.Name())
+		pid, err := strconv.ParseInt(p.Name(), 10, 32)
 		if err != nil {
-			continue
+			continue // not a process, or a PID beyond int32, which Linux never hands out
 		}
 		fds, err := os.ReadDir(filepath.Join("/proc", p.Name(), "fd"))
 		if err != nil {
