@@ -44,6 +44,9 @@ const (
 	communityReleaseEvery  = 6 * time.Hour
 	communityRetryEvery    = time.Hour
 	communityUpdateTimeout = 45 * time.Minute
+	// communityUpdatePasses bounds how often one apply runs the update
+	// when each run leaves the app further on but still behind.
+	communityUpdatePasses = 3
 )
 
 var (
@@ -393,4 +396,21 @@ func communityRefusal(out string) string {
 		}
 	}
 	return ""
+}
+
+// communityProgressed reports whether an update run moved an app that is
+// still pending to a different version: the script took a step and has
+// more to take. An app no longer pending needs no further run, and one at
+// the same version would only fail the same way again.
+func communityProgressed(before, after []proto.PatchInfo) bool {
+	was := make(map[string]string, len(before))
+	for _, p := range before {
+		was[p.Name] = p.CurrentVersion
+	}
+	for _, p := range after {
+		if v, ok := was[p.Name]; ok && v != p.CurrentVersion {
+			return true
+		}
+	}
+	return false
 }

@@ -1047,16 +1047,28 @@ func applyPatchesLinuxWithApps(ctx context.Context, nc *gonats.Conn, agentID str
 			return res, err
 		}
 	}
-	out, aerr := runCommunityUpdate(ctx, report)
-	if out != "" {
-		res.Output = strings.TrimSpace(res.Output + "\n\n--- community script update ---\n" + out)
-	}
-	if aerr != nil {
-		res.Failed = append(res.Failed, appNames...)
-		return res, aerr
+	// Some scripts move a major version in steps: Paperless-ngx goes to the
+	// last 2.x release and asks to be run again for 3.x. Run it again while
+	// each run moves the app forward, as someone at the console would.
+	before := defaultCommunityApps.pending(ctx)
+	var left []proto.PatchInfo
+	for pass := 1; ; pass++ {
+		out, aerr := runCommunityUpdate(ctx, report)
+		if out != "" {
+			res.Output = strings.TrimSpace(res.Output + "\n\n--- community script update ---\n" + out)
+		}
+		if aerr != nil {
+			res.Failed = append(res.Failed, appNames...)
+			return res, aerr
+		}
+		left = defaultCommunityApps.pending(ctx)
+		if pass >= communityUpdatePasses || !communityProgressed(before, left) {
+			break
+		}
+		before = left
 	}
 	// The script's own check decides; report what it left behind, if anything.
-	if left := defaultCommunityApps.pending(ctx); len(left) > 0 {
+	if len(left) > 0 {
 		for _, p := range left {
 			res.Notes = append(res.Notes, fmt.Sprintf("%s is still at %s after the update (latest %s)", strings.TrimPrefix(p.Name, communityPatchPrefix), p.CurrentVersion, p.NewVersion))
 		}

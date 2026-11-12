@@ -14,7 +14,9 @@ rather than a page that can drift from it.
   `update` command unattended, after the OS updates, and reports the script's own reason
   when it declines (an under-provisioned container, for one). An app is offered only when its
   script is in the repository the container updates from, so one installed from the
-  development repository is not offered an update its `update` command cannot find. Patch lists and block lists
+  development repository is not offered an update its `update` command cannot find. A script
+  that moves an app a step at a time (Paperless-ngx to the last 2.x, then 3.x) is run again
+  while each run moves the app forward, up to three runs. Patch lists and block lists
   apply as to any update: block `community-script:*` to hold every app back.
   Inventory-and-patching mode lists them but never runs the scripts. Needs agents on 1.6.0.
 - **The tiles on the Vulnerabilities pages open what they count.** On Exploitability,
