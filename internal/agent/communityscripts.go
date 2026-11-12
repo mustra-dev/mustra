@@ -155,12 +155,20 @@ func communityScript(updateCmd string) (repo, name string) {
 	}
 	// The generated entrypoint the framework now writes on install and on
 	// each update names the app and repository in variables.
+	// Its script is read from the repository the entrypoint names, which
+	// is not always ProxmoxVE: apps installed from the development
+	// repository (DevScripts, formerly ProxmoxVED) keep updating from it
+	// after they move, and there the script may be gone. Reading ProxmoxVE
+	// instead would offer an update that /usr/bin/update cannot run.
 	if m := communityGeneratedNameRe.FindStringSubmatch(string(raw)); m != nil {
-		repo = "ProxmoxVE"
-		if u := communityGeneratedRepoRe.FindStringSubmatch(string(raw)); u != nil {
-			repo = u[1]
+		if !communityGeneratedURLRe.Match(raw) {
+			return "ProxmoxVE", m[1]
 		}
-		return repo, m[1]
+		if u := communityGeneratedRepoRe.FindStringSubmatch(string(raw)); u != nil {
+			return u[1], m[1]
+		}
+		// A repository outside community-scripts: not one we can read.
+		return "", ""
 	}
 	m := communityScriptPathRe.FindStringSubmatch(string(raw))
 	if m == nil {
@@ -175,7 +183,8 @@ func communityScript(updateCmd string) (repo, name string) {
 
 var (
 	communityGeneratedNameRe = regexp.MustCompile(`(?m)^export UPDATE_SCRIPT_NAME="([a-z0-9][a-z0-9_-]{0,63})"\s*$`)
-	communityGeneratedRepoRe = regexp.MustCompile(`(?m)^export COMMUNITY_SCRIPTS_URL="https://raw\.githubusercontent\.com/community-scripts/(ProxmoxVED?)/main"\s*$`)
+	communityGeneratedURLRe  = regexp.MustCompile(`(?m)^export COMMUNITY_SCRIPTS_URL=`)
+	communityGeneratedRepoRe = regexp.MustCompile(`(?m)^export COMMUNITY_SCRIPTS_URL="https://raw\.githubusercontent\.com/community-scripts/([A-Za-z0-9][A-Za-z0-9_-]{0,63})/main"\s*$`)
 )
 
 // pending returns the apps that are behind, as patches. A failure to look
