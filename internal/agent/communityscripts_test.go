@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/mustra-dev/mustra/internal/proto"
 )
 
 // Excerpts of real ct scripts, in each shape the agent follows or refuses.
@@ -204,5 +206,24 @@ func TestCommunityRefusal(t *testing.T) {
 	}
 	if communityRefusal("all fine\n") != "" {
 		t.Error("found a refusal in a clean run")
+	}
+}
+
+func TestCommunityProgressed(t *testing.T) {
+	pi := func(name, cur string) proto.PatchInfo {
+		return proto.PatchInfo{Name: communityPatchPrefix + name, CurrentVersion: cur, NewVersion: "3.4.2"}
+	}
+	paperless := []proto.PatchInfo{pi("paperless", "2.20.2")}
+	if !communityProgressed(paperless, []proto.PatchInfo{pi("paperless", "2.20.15")}) {
+		t.Error("a step to 2.20.15 with 3.4.2 still pending is progress")
+	}
+	if communityProgressed(paperless, paperless) {
+		t.Error("the same version again is not progress")
+	}
+	if communityProgressed(paperless, nil) {
+		t.Error("nothing left pending needs no further run")
+	}
+	if communityProgressed(nil, []proto.PatchInfo{pi("paperless", "2.20.15")}) {
+		t.Error("an app not pending before is not one this run moved")
 	}
 }
