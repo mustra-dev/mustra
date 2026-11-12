@@ -6,6 +6,11 @@ rather than a page that can drift from it.
 
 ## Unreleased
 
+## 1.6.0 — 2026-11-12
+
+Server 1.6.0, agent 1.6.0. Update agents to get the community-script app updates and the
+Alpine pin explanation; the Vulnerabilities tiles need only the server.
+
 ### Added
 - **Updates for apps installed by the Proxmox community scripts.** On an LXC set up with
   the community scripts, the app itself (Seerr, BentoPDF, BookStack, Immich, …) is listed
@@ -25,6 +30,10 @@ rather than a page that can drift from it.
   with their CVEs and a link to each. On Levels a tile shows the endpoints at that level,
   and on Vulnerabilities a severity tile fills the search box. Press the tile again, or
   "Show all", to go back. Server only.
+- **A patch job on Alpine says when a pinned package is why updates were left over.** A
+  version pin in `/etc/apk/world` holds its package and every package built from the same
+  source, and `apk upgrade` skips them without saying so. The job still fails, and now names
+  the pinned line and what to change it to. Needs agents on 1.6.0.
 
 ## 1.5.0 — 2026-11-11
 

@@ -157,3 +157,93 @@ func apkKernelReplaced() bool {
 
 // apkUpdateTimeout bounds the index refresh before an upgrade.
 const apkUpdateTimeout = 5 * time.Minute
+
+// apkWorld lists what the administrator asked apk to keep installed, one
+// entry per line: a bare name, or a name with a version constraint.
+const apkWorld = "/etc/apk/world"
+
+// apkPin is a world entry that stops its package moving to a newer
+// version: "name=1.2-r0", "name<2", "name~1.2", or "name><checksum", which
+// apk writes for a package installed from a file.
+type apkPin struct{ Name, Entry string }
+
+// parseApkPins picks the pinning entries out of a world file. A lower
+// bound (">", ">=") holds nothing back, and "!name" is a conflict, not a
+// pin.
+func parseApkPins(world string) []apkPin {
+	var out []apkPin
+	for _, entry := range strings.Fields(world) {
+		if strings.HasPrefix(entry, "!") {
+			continue
+		}
+		i := strings.IndexAny(entry, "<>=~")
+		if i <= 0 {
+			continue
+		}
+		op := entry[i:]
+		op = op[:len(op)-len(strings.TrimLeft(op, "<>=~"))]
+		if op == ">" || op == ">=" {
+			continue
+		}
+		out = append(out, apkPin{Name: entry[:i], Entry: entry})
+	}
+	return out
+}
+
+// apkPinsHolding keeps the pins that explain a leftover update: the
+// pinned package is itself left over, or shares its source package with
+// one that is. Subpackages of one source depend on each other at the same
+// version, so a pin on one holds its siblings too.
+func apkPinsHolding(pins []apkPin, installed []apkPackage, leftover []string) []apkPin {
+	origin := map[string]string{}
+	for _, p := range installed {
+		origin[p.Name] = p.Origin
+	}
+	left, leftOrigin := map[string]bool{}, map[string]bool{}
+	for _, n := range leftover {
+		left[n] = true
+		if o := origin[n]; o != "" {
+			leftOrigin[o] = true
+		}
+	}
+	var out []apkPin
+	for _, p := range pins {
+		if left[p.Name] || (origin[p.Name] != "" && leftOrigin[origin[p.Name]]) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// apkPinAdvice says which world entries are holding updates back and how
+// to release them, or "" when there are none.
+func apkPinAdvice(pins []apkPin) string {
+	if len(pins) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("apk is holding these back: " + apkWorld + " pins a package to one version, and packages built from the same source have to match it.")
+	for _, p := range pins {
+		fmt.Fprintf(&b, "\n  To release %s, change the line %q to %q.", p.Name, p.Entry, p.Name)
+	}
+	b.WriteString("\n  Then apply the updates again.")
+	return b.String()
+}
+
+// apkWhyPending explains updates apk left alone, when a pin in the world
+// file is the reason. It is "" on a host without apk, when nothing is
+// pinned, or when the files cannot be read: no advice beats a guess.
+func apkWhyPending(leftover []string) string {
+	if len(leftover) == 0 || !apkPresent() {
+		return ""
+	}
+	world, err := os.ReadFile(apkWorld)
+	if err != nil {
+		return ""
+	}
+	db, err := os.ReadFile(apkInstalledDB)
+	if err != nil {
+		return ""
+	}
+	return apkPinAdvice(apkPinsHolding(parseApkPins(string(world)), parseApkInstalled(string(db)), leftover))
+}
