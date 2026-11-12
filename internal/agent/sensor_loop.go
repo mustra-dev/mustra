@@ -487,6 +487,11 @@ func (a *Agent) handleCommand(ctx context.Context, data []byte, intervalChans ma
 				case err == nil && len(notInstalled) > 0:
 					err = fmt.Errorf("%d of %d update(s) still pending after the install: %s",
 						len(notInstalled), len(targeted), strings.Join(notInstalled, ", "))
+					// Alpine leaves a pinned package and its siblings alone
+					// without a word; say so, and how to release it.
+					if why := apkWhyPending(notInstalled); why != "" {
+						err = fmt.Errorf("%w\n%s", err, why)
+					}
 				case len(needRestart) > 0:
 					waiting = needRestart
 					res.RebootRequired = true
