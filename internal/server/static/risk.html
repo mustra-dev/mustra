@@ -97,11 +97,22 @@
           catalogue, or with an <b>EPSS</b> probability of exploitation in the next 30 days of 1% or more. KEV first, then by EPSS.
           Click a row for the advisory, the affected endpoints and one-click patching.
         </p>
+        <div class="tile-filter-note" id="ex-filter" role="status" hidden></div>
+        <div id="ex-vuln-wrap">
         <div class="table-scroll">
           <table>
             <thead><tr><th>Exploit</th><th>Severity</th><th>CVE</th><th>What CISA calls it</th><th>EPSS</th><th>Due</th><th>Packages</th><th>Endpoints</th><th>Fix</th></tr></thead>
             <tbody id="ex-body"><tr><td class="empty" colspan="9">loading…</td></tr></tbody>
           </table>
+        </div>
+        </div>
+        <div id="ex-ep-wrap" hidden>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Endpoint</th><th>Known-exploited</th><th>CVEs</th></tr></thead>
+            <tbody id="ex-ep-body"></tbody>
+          </table>
+        </div>
         </div>
       </div>
     </div>
@@ -116,6 +127,7 @@
           have no published severity; <b>not scanned</b> for anything older, never scanned, or on a platform the scanner does not cover.
           A level from a stale scan is a guess wearing a label, so it is not stated.
         </p>
+        <div class="tile-filter-note" id="lv-filter" role="status" hidden></div>
         <div class="table-scroll">
           <table>
             <thead><tr><th>Endpoint</th><th>Platform</th><th>Level</th><th>Actionable</th><th>Findings</th><th>Last scanned</th><th>Note</th></tr></thead>
@@ -239,15 +251,57 @@ async function loadRisk() {
   renderDevices();
 }
 
+// A stat tile with a count doubles as a filter for the table under it: a
+// toggle button, pressed while its filter is on. A zero tile stays a plain
+// tile, since pressing it could only empty the table.
+function tileHtml(t) {
+  const inner = `<div class="stat-tile-label">${escapeHtml(t.label)}</div><div class="stat-tile-value ${escapeHtml(t.cls || "")}">${escapeHtml(t.value)}</div>`;
+  if (!t.filter || !t.value) return `<div class="stat-tile">${inner}</div>`;
+  return `<button type="button" class="stat-tile stat-tile-link" data-tile-filter="${escapeHtml(t.filter)}" aria-pressed="false" title="${escapeHtml(t.title)}">${inner}</button>`;
+}
+// Draws the tiles and wires each button to onToggle(filter). The pressed
+// state is set in place by syncTiles rather than by redrawing, so a tile
+// keeps keyboard focus when it is pressed.
+function drawTiles(id, tiles, onToggle) {
+  const el = document.getElementById(id);
+  el.innerHTML = tiles.map(tileHtml).join("");
+  el.querySelectorAll("[data-tile-filter]").forEach(b => b.addEventListener("click", () => onToggle(b.dataset.tileFilter)));
+}
+function syncTiles(id, active) {
+  document.querySelectorAll(`#${id} [data-tile-filter]`).forEach(b => b.setAttribute("aria-pressed", String(b.dataset.tileFilter === active)));
+}
+// What a pressed tile narrowed the table to, and the way back.
+function tileNote(id, text, onClear) {
+  const el = document.getElementById(id);
+  el.hidden = !text;
+  if (!text) { el.innerHTML = ""; return; }
+  el.innerHTML = `<span>${escapeHtml(text)}</span><button type="button" class="tiny">Show all</button>`;
+  el.querySelector("button").addEventListener("click", onClear);
+}
+// On a phone the tiles stack above the table, so bring what the tile
+// changed into view; "nearest" leaves the page alone when it already is.
+function revealFiltered(el) {
+  el.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "nearest" });
+}
+
+// The severity tiles filter through the search box, where the filter
+// stays visible and can be edited or cleared like any other search.
+function severityFilter() {
+  const m = /^severity:(\w+)$/.exec((document.getElementById("vuln-search").value || "").toLowerCase().trim());
+  return m ? m[1] : "";
+}
 function renderSeverityTiles() {
   const counts = risk.severity_counts || {};
   const order = [["critical", "off"], ["high", "off"], ["medium", ""], ["low", ""], ["unknown", ""]];
-  document.getElementById("severity-tiles").innerHTML = order.map(([sev, cls]) => `
-    <div class="stat-tile">
-      <div class="stat-tile-label">${escapeHtml(sev)}</div>
-      <div class="stat-tile-value ${escapeHtml(counts[sev] > 0 ? cls : "")}">${escapeHtml(counts[sev] || 0)}</div>
-    </div>
-  `).join("");
+  drawTiles("severity-tiles", order.map(([sev, cls]) => ({
+    label: sev, value: counts[sev] || 0, cls: counts[sev] > 0 ? cls : "", filter: sev, title: `Show ${sev} vulnerabilities`,
+  })), sev => {
+    const box = document.getElementById("vuln-search");
+    box.value = severityFilter() === sev ? "" : "severity:" + sev;
+    renderVulns();
+    revealFiltered(box);
+  });
+  syncTiles("severity-tiles", severityFilter());
 }
 
 // Groups the flat (agent, package, vuln) rows the API returns into one
@@ -277,12 +331,13 @@ function severityRank(sev) {
 
 function renderVulns() {
   const q = (document.getElementById("vuln-search").value || "").toLowerCase().trim();
+  syncTiles("severity-tiles", severityFilter());
   const body = document.getElementById("vulns-body");
   const groups = groupedVulns();
   const filtered = !q ? groups : groups.filter(g => {
     // "severity:high" is what Home's severity bars hand over, so it has to
     // be something the box can match.
-    const hay = [g.package_name, g.vuln_id, "severity:" + g.severity, ...g.cve_ids, ...g.rows.map(r => r.hostname)].join(" ").toLowerCase();
+    const hay = [g.package_name, g.vuln_id, "severity:" + (g.severity || "unknown"), ...g.cve_ids, ...g.rows.map(r => r.hostname)].join(" ").toLowerCase();
     return hay.includes(q);
   });
   if (groups.length === 0) {
@@ -486,20 +541,68 @@ function exploitBadge(g) {
   return parts.join(" ") || "";
 }
 function fmtDate(d) { return d ? new Date(d).toISOString().slice(0, 10) : "—"; }
+// Each exploitability tile narrows the table to what it counts; "endpoints"
+// swaps the vulnerability table for the endpoints carrying a KEV entry.
+const exTiles = {
+  kev: { label: "Known-exploited vulnerabilities on the fleet", note: "Known-exploited vulnerabilities", match: v => v.intel.kev },
+  endpoints: { label: "Endpoints carrying one", note: "Endpoints carrying a known-exploited vulnerability" },
+  ransomware: { label: "Used in ransomware", note: "Used in ransomware", match: v => v.intel.ransomware },
+  epss: { label: "EPSS ≥ 1%, not in KEV", note: "EPSS ≥ 1%, not in KEV", match: v => !v.intel.kev },
+};
+let exData = null, exFilter = "";
+function setExFilter(f) {
+  exFilter = exFilter === f ? "" : f;
+  renderExploitability();
+  if (exFilter) revealFiltered(document.getElementById("ex-filter"));
+}
 async function loadExploitability() {
   const resp = await fetch("/api/risk/exploitability");
   if (!resp.ok) return;
-  const d = await resp.json();
+  const d = exData = await resp.json();
   const f = d.feeds || {};
-  document.getElementById("ex-tiles").innerHTML = [
-    { label: "Known-exploited vulnerabilities on the fleet", value: d.kev_vulnerabilities || 0, cls: d.kev_vulnerabilities ? "off" : "ok" },
-    { label: "Endpoints carrying one", value: d.kev_endpoints || 0, cls: d.kev_endpoints ? "off" : "ok" },
-    { label: "Used in ransomware", value: d.ransomware || 0, cls: d.ransomware ? "off" : "ok" },
-    { label: "EPSS ≥ 1%, not in KEV", value: (d.vulnerabilities || []).filter(v => !v.intel.kev).length },
-  ].map(t => `<div class="stat-tile"><div class="stat-tile-label">${escapeHtml(t.label)}</div><div class="stat-tile-value ${escapeHtml(t.cls || "")}">${escapeHtml(t.value)}</div></div>`).join("");
+  const epss = (d.vulnerabilities || []).filter(exTiles.epss.match).length;
+  const tiles = [
+    { filter: "kev", value: d.kev_vulnerabilities || 0, cls: d.kev_vulnerabilities ? "off" : "ok", title: "Show only these vulnerabilities" },
+    { filter: "endpoints", value: d.kev_endpoints || 0, cls: d.kev_endpoints ? "off" : "ok", title: "Show these endpoints" },
+    { filter: "ransomware", value: d.ransomware || 0, cls: d.ransomware ? "off" : "ok", title: "Show only these vulnerabilities" },
+    { filter: "epss", value: epss, title: "Show only these vulnerabilities" },
+  ];
+  tiles.forEach(t => t.label = exTiles[t.filter].label);
+  // A refresh can empty the tile whose filter is on; do not strand the
+  // table on a filter that no longer has a button to release it.
+  if (exFilter && !tiles.find(t => t.filter === exFilter).value) exFilter = "";
+  drawTiles("ex-tiles", tiles, setExFilter);
   document.getElementById("ex-feeds").innerHTML = `KEV: ${f.kev_entries ? escapeHtml(f.kev_entries) + " entries, catalogue " + escapeHtml(f.kev_version || "?") + ", fetched " + escapeHtml(fmtAgo(f.kev_fetched_at)) : (f.kev_error ? '<span class="bad">' + escapeHtml(f.kev_error) + "</span>" : "not fetched yet")} · EPSS: ${f.epss_scores ? escapeHtml(f.epss_scores) + " scores dated " + escapeHtml((f.epss_date || "").slice(0, 10)) + ", fetched " + escapeHtml(fmtAgo(f.epss_fetched_at)) : (f.epss_error ? '<span class="bad">' + escapeHtml(f.epss_error) + "</span>" : "not fetched yet")}`;
+  renderExploitability();
+}
+function renderExploitability() {
+  const d = exData, f = d.feeds || {};
+  syncTiles("ex-tiles", exFilter);
+  const all = d.vulnerabilities || [];
+  const byEndpoint = exFilter === "endpoints";
+  document.getElementById("ex-vuln-wrap").hidden = byEndpoint;
+  document.getElementById("ex-ep-wrap").hidden = !byEndpoint;
+  if (byEndpoint) {
+    const eps = new Map();
+    for (const v of all.filter(exTiles.kev.match)) (v.agent_ids || []).forEach((id, i) => {
+      if (!eps.has(id)) eps.set(id, { id, hostname: (v.endpoints || [])[i] || id, cves: [] });
+      eps.get(id).cves.push(...(v.cve_ids && v.cve_ids.length ? v.cve_ids : [v.vuln_id]));
+    });
+    const rows = [...eps.values()].sort((a, b) => b.cves.length - a.cves.length || a.hostname.localeCompare(b.hostname));
+    tileNote("ex-filter", `${exTiles.endpoints.note}: ${rows.length}`, () => setExFilter("endpoints"));
+    const epBody = document.getElementById("ex-ep-body");
+    epBody.innerHTML = rows.map(e => `<tr>
+      <td><a href="/endpoint/${escapeHtml(e.id)}">${escapeHtml(e.hostname)}</a></td>
+      <td>${escapeHtml(e.cves.length)}</td>
+      <td><div class="cve-list">${[...new Set(e.cves)].map(id => `<span class="cve-chip">${escapeHtml(id)}</span>`).join("")}</div></td>
+    </tr>`).join("");
+    const edt = initDataTable(epBody.closest("table"), { storageKey: "risk-exploit-endpoints" });
+    if (edt) edt.refresh();
+    return;
+  }
+  const vs = exFilter ? all.filter(exTiles[exFilter].match) : all;
+  tileNote("ex-filter", exFilter ? `${exTiles[exFilter].note}: ${vs.length} of ${all.length}` : "", () => setExFilter(exFilter));
   const body = document.getElementById("ex-body");
-  const vs = d.vulnerabilities || [];
   if (!vs.length) { body.innerHTML = `<tr><td class="empty" colspan="9">${f.kev_entries ? "Nothing on the fleet is in the KEV catalogue or scores 1% or more on EPSS." : "The feeds have not loaded yet."}</td></tr>`; return; }
   body.innerHTML = vs.map(v => `<tr class="vuln-row" data-vuln="${escapeHtml(v.vuln_id)}">
     <td>${exploitBadge({ kev: v.intel.kev, ransomware: v.intel.ransomware, epss: v.intel.epss })}</td>
@@ -523,18 +626,30 @@ document.getElementById("ex-refresh").addEventListener("click", async () => {
   const b = document.getElementById("ex-refresh"); b.disabled = true; b.textContent = "Refreshing…";
   try { await fetch("/api/risk/intel/refresh", { method: "POST" }); await loadExploitability(); await loadRisk(); } finally { b.disabled = false; b.textContent = "Refresh feeds"; }
 });
+let lvData = null, lvFilter = "";
+function setLvFilter(l) {
+  lvFilter = lvFilter === l ? "" : l;
+  renderLevels();
+  if (lvFilter) revealFiltered(document.getElementById("lv-filter"));
+}
 async function loadLevels() {
   const resp = await fetch("/api/risk/levels");
   if (!resp.ok) return;
-  const d = await resp.json();
+  const d = lvData = await resp.json();
   const c = d.counts || {};
   document.getElementById("lv-days").textContent = d.freshness_days || 30;
   const order = [["critical", "off"], ["high", "off"], ["medium", ""], ["low", ""], ["not scored", ""], ["no vulnerabilities", "ok"], ["not scanned", ""]];
-  document.getElementById("lv-tiles").innerHTML = order.map(([l, cls]) => `<div class="stat-tile"><div class="stat-tile-label">${escapeHtml(l)}</div><div class="stat-tile-value ${escapeHtml(c[l] ? cls : "")}">${escapeHtml(c[l] || 0)}</div></div>`).join("");
-  const rows = d.endpoints || [];
-  document.getElementById("lv-status").textContent = `${rows.length} endpoint(s)`;
+  if (lvFilter && !c[lvFilter]) lvFilter = "";
+  drawTiles("lv-tiles", order.map(([l, cls]) => ({ label: l, value: c[l] || 0, cls: c[l] ? cls : "", filter: l, title: "Show only these endpoints" })), setLvFilter);
+  renderLevels();
+}
+function renderLevels() {
+  syncTiles("lv-tiles", lvFilter);
+  const all = lvData.endpoints || [];
+  document.getElementById("lv-status").textContent = `${all.length} endpoint(s)`;
   const rank = { critical: 0, high: 1, medium: 2, low: 3, "not scored": 4, "no vulnerabilities": 5, "not scanned": 6 };
-  rows.sort((a, b) => rank[a.level] - rank[b.level] || a.hostname.localeCompare(b.hostname));
+  const rows = (lvFilter ? all.filter(e => e.level === lvFilter) : [...all]).sort((a, b) => rank[a.level] - rank[b.level] || a.hostname.localeCompare(b.hostname));
+  tileNote("lv-filter", lvFilter ? `Level ${lvFilter}: ${rows.length} of ${all.length} endpoint(s)` : "", () => setLvFilter(lvFilter));
   const pill = l => ["critical", "high", "medium", "low"].includes(l) ? sevPill(l) : `<span class="sev-pill ${l === "no vulnerabilities" ? "u-bg-ok-bg u-c-ok" : "none"}">${escapeHtml(l)}</span>`;
   document.getElementById("lv-body").innerHTML = rows.map(e => `<tr>
     <td><a href="/endpoint/${escapeHtml(e.agent_id)}">${escapeHtml(e.hostname)}</a></td><td>${escapeHtml(e.os_release || e.platform || e.os)}${e.os_unsupported ? ` <span class="sev-pill critical" title="${escapeHtml("Security support ended" + (e.os_end_of_life ? " " + e.os_end_of_life : ""))}">OS end of life</span>` : ""}</td><td>${pill(e.level)}</td>

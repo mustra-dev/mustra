@@ -732,6 +732,18 @@ button.stat-tile-link { font: inherit; color: inherit; text-align: left; width: 
   transition: border-color .12s, transform .12s; }
 button.stat-tile-link:hover { border-color: var(--accent); transform: translateY(-1px); }
 button.stat-tile-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* A tile that filters the table under it stays pressed while its filter
+   is on: a doubled accent border and a tinted face, so the state does not
+   rest on colour alone. */
+button.stat-tile-link[aria-pressed="true"] { border-color: var(--accent); background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--accent); transform: none; }
+@media (prefers-reduced-motion: reduce) { button.stat-tile-link { transition: none; } button.stat-tile-link:hover { transform: none; } }
+/* What a pressed tile narrowed the table to, with the way back. */
+.tile-filter-note { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0 0 12px;
+  padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface-2); font-size: 13px; color: var(--text); }
+.tile-filter-note[hidden] { display: none; }
+@media (pointer: coarse) { .tile-filter-note button.tiny { min-height: 44px; } }
 .stat-tile-label {
   font-size: 13px;
   color: var(--text-muted);
