@@ -22,6 +22,16 @@ See which operating system and application updates each endpoint is missing, and
 3. Choose whether endpoints may restart, and confirm.
 4. Follow progress under **Recent activity**.
 
+## Apps installed by the Proxmox community scripts
+
+An LXC set up with the [Proxmox VE community scripts](https://community-scripts.org) runs an app (Seerr, BentoPDF, BookStack, …) installed from its GitHub releases, outside the package manager. mustra lists that app beside the container's OS updates when it is behind, as `community-script:<app>`, for example `community-script:bentopdf 1.1.5 → 2.8.11`.
+
+- **What counts as newer:** the app's latest GitHub release, or the version the script pins when its maintainers test each release first (Immich, for one). Apps whose script uses another source, or none, are not listed: the package manager or Docker updates those.
+- **Applying it** runs the container's own `update` command, unattended, after its OS updates. That is what you would type yourself. It downloads the app's script from GitHub and runs it as root, and some apps take minutes.
+- **It refuses on its own when it should:** a script that needs more CPU or memory than the container has stops without changing anything, and the patch run says why. Give the container what it asks for and run it again.
+- **Hold apps back** with a block list entry for `community-script:*` (or one app, `community-script:immich`). A patch run of "everything" includes them otherwise, and an app's major version can change things that need you to check afterwards.
+- **Inventory-and-patching mode** lists the apps but never runs their scripts.
+
 ## Patch on a schedule
 
 1. **Patch → Deploy & Schedule**, under **Scheduled & recurring deployments**, choose **New schedule**.

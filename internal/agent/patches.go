@@ -32,7 +32,11 @@ import (
 func collectPatches(ctx context.Context, nc *gonats.Conn, agentID string) ([]proto.PatchInfo, error) {
 	switch runtime.GOOS {
 	case "linux":
-		return collectPatchesLinux(ctx, nc, agentID)
+		patches, err := collectPatchesLinux(ctx, nc, agentID)
+		if err == nil && !inHAOSAddon() {
+			patches = append(patches, defaultCommunityApps.pending(ctx)...)
+		}
+		return patches, err
 	case "darwin":
 		return collectPatchesDarwin(ctx)
 	case "freebsd":
@@ -403,7 +407,7 @@ func applyPatches(ctx context.Context, nc *gonats.Conn, agentID string, names []
 	}
 	switch runtime.GOOS {
 	case "linux":
-		return applyPatchesLinux(ctx, nc, agentID, names, report)
+		return applyPatchesLinuxWithApps(ctx, nc, agentID, names, report)
 	case "darwin":
 		return applyPatchesDarwin(ctx, names, viaMDM, report)
 	case "freebsd":
@@ -1022,4 +1026,40 @@ func (a *Agent) collectPatchesReported(ctx context.Context) ([]proto.PatchInfo, 
 	}
 	a.publishSensor(context.WithoutCancel(ctx), proto.SensorPatchStatus, st)
 	return patches, err
+}
+
+// applyPatchesLinuxWithApps applies OS updates, then a community-script app
+// update when one is asked for, or pending when everything is. OS updates go
+// first: the app's own script installs its dependencies with the package
+// manager, against an up-to-date system. An empty list still means every
+// OS update, and only a list that names no OS update skips them.
+func applyPatchesLinuxWithApps(ctx context.Context, nc *gonats.Conn, agentID string, names []string, report patchProgress) (patchApplyResult, error) {
+	osNames, appNames := splitCommunityPatches(names)
+	runApp := len(appNames) > 0
+	if len(names) == 0 {
+		runApp = len(defaultCommunityApps.pending(ctx)) > 0
+	}
+	var res patchApplyResult
+	var err error
+	if len(names) == 0 || len(osNames) > 0 {
+		res, err = applyPatchesLinux(ctx, nc, agentID, osNames, report)
+		if err != nil || !runApp {
+			return res, err
+		}
+	}
+	out, aerr := runCommunityUpdate(ctx, report)
+	if out != "" {
+		res.Output = strings.TrimSpace(res.Output + "\n\n--- community script update ---\n" + out)
+	}
+	if aerr != nil {
+		res.Failed = append(res.Failed, appNames...)
+		return res, aerr
+	}
+	// The script's own check decides; report what it left behind, if anything.
+	if left := defaultCommunityApps.pending(ctx); len(left) > 0 {
+		for _, p := range left {
+			res.Notes = append(res.Notes, fmt.Sprintf("%s is still at %s after the update (latest %s)", strings.TrimPrefix(p.Name, communityPatchPrefix), p.CurrentVersion, p.NewVersion))
+		}
+	}
+	return res, nil
 }

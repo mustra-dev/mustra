@@ -132,7 +132,7 @@ func sensorCatalog() []sensorDoc {
 			Answers: "How far behind is this machine, and is anything security-relevant outstanding. Drives the Patches module and the compliance view.",
 			Returns: "name, current_version, new_version, severity",
 			Mechanism: []sensorMechanism{
-				{OS: "linux", How: "apt-get update then a simulated upgrade on Debian/Ubuntu; dnf/yum check-update on RHEL-family; apk on Alpine; pacman -Qu on Arch, against the sync databases as they are (the agent never runs pacman -Sy alone, which Arch warns sets up a partial upgrade). A patch list can scope this to specific repos instead of whatever the host has configured."},
+				{OS: "linux", How: "apt-get update then a simulated upgrade on Debian/Ubuntu; dnf/yum check-update on RHEL-family; apk on Alpine; pacman -Qu on Arch, against the sync databases as they are (the agent never runs pacman -Sy alone, which Arch warns sets up a partial upgrade). A patch list can scope this to specific repos instead of whatever the host has configured. On an LXC set up by the Proxmox VE community scripts, the app the script installed is also listed, as community-script:<app>: its installed version (/root/.<app>) against the latest GitHub release, or the version the script pins, read from the script its update command names. Applying it runs that update command unattended (PHS_SILENT=1) after the OS updates; it fetches and runs the script from GitHub, so inventory-and-patching mode refuses it."},
 				{OS: "darwin", How: "softwareupdate -l, Apple's own update listing tool, which queries the Software Update catalogue the machine is pointed at."},
 				{OS: "freebsd", How: "pkg version -vRl '<': packages with a newer version in the remote catalogue, which pkg refreshes when it is out of date. Base system updates (freebsd-update) are not packages and are not read. On TrueNAS CORE the check fails and says why: its updates are whole images from its own updater. On OPNsense packages are listed, and applying them is refused in favour of its firmware updater."},
 				{OS: "windows", How: "the Windows Update Agent COM API directly — Microsoft.Update.Session, CreateUpdateSearcher, searching IsInstalled=0 and IsHidden=0. Deliberately not the PSWindowsUpdate module, which is not installed by default, so this works on a stock Windows box with no prerequisites."},
@@ -387,7 +387,7 @@ func sensorSourceFiles(kind string) []string {
 	case proto.SensorDisks, proto.SensorNetwork, proto.SensorUsers, proto.SensorHardware:
 		return []string{"inventory.go"}
 	case proto.SensorPatches, proto.SensorPatchStatus:
-		return []string{"patches.go", "patchlist.go", "freebsd.go"}
+		return []string{"patches.go", "patchlist.go", "freebsd.go", "communityscripts.go"}
 	case proto.SensorPrivileges:
 		return []string{"privileges_linux.go", "privileges_darwin.go", "privileges_windows.go"}
 	case proto.SensorNeighbors:

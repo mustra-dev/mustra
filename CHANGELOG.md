@@ -6,6 +6,16 @@ rather than a page that can drift from it.
 
 ## Unreleased
 
+### Added
+- **Updates for apps installed by the Proxmox community scripts.** On an LXC set up with
+  the community scripts, the app itself (Seerr, BentoPDF, BookStack, Immich, …) is listed
+  beside the OS updates when it is behind its latest GitHub release, or behind the version
+  the script pins after its maintainers test it. Applying it runs the container's own
+  `update` command unattended, after the OS updates, and reports the script's own reason
+  when it declines (an under-provisioned container, for one). Patch lists and block lists
+  apply as to any update: block `community-script:*` to hold every app back.
+  Inventory-and-patching mode lists them but never runs the scripts. Needs agents on 1.6.0.
+
 ## 1.5.0 — 2026-11-11
 
 Server 1.5.0, agent 1.5.0. Update agents: they do much less at idle (two fixes below) and
