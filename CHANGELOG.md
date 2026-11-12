@@ -6,6 +6,11 @@ rather than a page that can drift from it.
 
 ## Unreleased
 
+## 1.6.0 — 2026-11-12
+
+Server 1.6.0, agent 1.6.0. Update agents to get the community-script app updates and the
+Alpine pin explanation; the Vulnerabilities tiles need only the server.
+
 ### Added
 - **Updates for apps installed by the Proxmox community scripts.** On an LXC set up with
   the community scripts, the app itself (Seerr, BentoPDF, BookStack, Immich, …) is listed
