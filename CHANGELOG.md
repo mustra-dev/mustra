@@ -12,7 +12,9 @@ rather than a page that can drift from it.
   beside the OS updates when it is behind its latest GitHub release, or behind the version
   the script pins after its maintainers test it. Applying it runs the container's own
   `update` command unattended, after the OS updates, and reports the script's own reason
-  when it declines (an under-provisioned container, for one). Patch lists and block lists
+  when it declines (an under-provisioned container, for one). An app is offered only when its
+  script is in the repository the container updates from, so one installed from the
+  development repository is not offered an update its `update` command cannot find. Patch lists and block lists
   apply as to any update: block `community-script:*` to hold every app back.
   Inventory-and-patching mode lists them but never runs the scripts. Needs agents on 1.6.0.
 

