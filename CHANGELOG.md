@@ -17,6 +17,12 @@ rather than a page that can drift from it.
   development repository is not offered an update its `update` command cannot find. Patch lists and block lists
   apply as to any update: block `community-script:*` to hold every app back.
   Inventory-and-patching mode lists them but never runs the scripts. Needs agents on 1.6.0.
+- **The tiles on the Vulnerabilities pages open what they count.** On Exploitability,
+  pressing a tile narrows the table to the known-exploited vulnerabilities, the ones used
+  in ransomware, or those on EPSS alone; "Endpoints carrying one" lists those endpoints
+  with their CVEs and a link to each. On Levels a tile shows the endpoints at that level,
+  and on Vulnerabilities a severity tile fills the search box. Press the tile again, or
+  "Show all", to go back. Server only.
 
 ## 1.5.0 — 2026-11-11
 
