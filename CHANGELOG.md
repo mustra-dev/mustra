@@ -6,7 +6,9 @@ rather than a page that can drift from it.
 
 ## Unreleased
 
-Server only; agents need no update.
+## 1.6.1 — 2026-11-13
+
+Server 1.6.1, agent 1.6.0. Server only; agents need no update.
 
 ### Fixed
 - **The Software Catalog shows where a published package is already installed.** It
