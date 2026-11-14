@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"github.com/mustra-dev/mustra/internal/proto"
 )
@@ -18,6 +20,29 @@ var identifier = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{0,63}$`)
 var pathID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,96}$`)
 var hash = regexp.MustCompile(`^[a-fA-F0-9]{64}$`)
 var versionParts = regexp.MustCompile(`[0-9]+|[A-Za-z]+`)
+
+// The server checks a pattern against every installed app on every
+// endpoint to fill the catalog, which compiled it a million times on one
+// page load. Patterns come from package definitions, so there are few; the
+// cap only bounds memory if something feeds in arbitrary ones.
+var patterns sync.Map
+var patternCount atomic.Int32
+
+func compiledPattern(want string) (*regexp.Regexp, error) {
+	if r, ok := patterns.Load(want); ok {
+		return r.(*regexp.Regexp), nil
+	}
+	r, e := regexp.Compile(want)
+	if e != nil {
+		return nil, e
+	}
+	if patternCount.Load() < 1024 {
+		if _, loaded := patterns.LoadOrStore(want, r); !loaded {
+			patternCount.Add(1)
+		}
+	}
+	return r, nil
+}
 
 func CompareVersion(a, b string) int {
 	aa, bb := versionParts.FindAllString(strings.TrimPrefix(a, "v"), -1), versionParts.FindAllString(strings.TrimPrefix(b, "v"), -1)
@@ -96,7 +121,7 @@ func Compare(actual any, op, want string) (bool, error) {
 	case "contains":
 		return strings.Contains(fmt.Sprint(actual), want), nil
 	case "matches":
-		r, e := regexp.Compile(want)
+		r, e := compiledPattern(want)
 		if e != nil {
 			return false, e
 		}

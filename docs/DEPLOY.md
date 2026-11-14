@@ -43,6 +43,14 @@ software state; action validation verifies the desired result. Command exit
 success alone does not establish deployment success. A validation retry window
 supports installers whose observable state settles after the process exits.
 
+The catalog's counts come from the server. When a published variant's detection
+is an application check or the built-in installed-apps sensor without
+parameters, the server evaluates it against each endpoint's last app inventory
+to show Installed, Update eligible or Install eligible. Any other detection
+shows Install eligible until the endpoint runs it. Either way the endpoint runs
+detection again before acting, so a stale inventory changes the count, not the
+outcome.
+
 Checks support files/directories, file hashes and versions, registry values,
 applications, services, processes, OS/architecture, RAM, volume-specific free
 space, custom scripts and existing sensors. Compose AND/OR/NOT expressions and

@@ -6,6 +6,18 @@ rather than a page that can drift from it.
 
 ## Unreleased
 
+Server only; agents need no update.
+
+### Fixed
+- **The Software Catalog shows where a published package is already installed.** It
+  used to count every endpoint on a supported platform as "install eligible", because
+  only the agent ran the package's detection. When detection is an application check or
+  the installed-apps sensor without parameters, the server now answers it from each
+  endpoint's last app inventory, with the same matching the agent uses, so those
+  endpoints show Installed (or Update eligible when the revision names a newer
+  version). Other detections still show eligible and are decided on the endpoint.
+  Deployments are unchanged: the agent still checks before it acts.
+
 ## 1.6.0 — 2026-11-12
 
 Server 1.6.0, agent 1.6.0. Update agents to get the community-script app updates and the

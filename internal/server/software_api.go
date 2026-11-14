@@ -550,7 +550,7 @@ func meetsRequirements(pkg store.SoftwarePackage, a store.AgentRecord) (bool, st
 }
 
 func evaluateApplicability(pkg store.SoftwarePackage, a store.AgentRecord,
-	apps map[string]string, scoped map[string]bool) (state, found, reason string) {
+	apps agentApps, scoped map[string]bool) (state, found, reason string) {
 
 	if scoped != nil && !scoped[a.AgentID] {
 		return stateNotApplicable, "", "outside this package's computer groups"
@@ -562,6 +562,19 @@ func evaluateApplicability(pkg store.SoftwarePackage, a store.AgentRecord,
 		}
 		if pkg.Kind == store.KindAction {
 			return stateInstallEligible, "", "Runs on every invocation for this platform"
+		}
+		if installed, found, ok := detectFromInventory(v.Detection, apps.rows); ok {
+			_, canUpdate := v.Actions["update"]
+			switch {
+			case !installed:
+				return stateInstallEligible, "", "Not in this endpoint's last app inventory"
+			case found == "":
+				return stateInstalled, "installed", "Found in this endpoint's last app inventory"
+			case v.Version != "" && found != v.Version && !sameReleaseVersion(found, v.Version) && canUpdate:
+				return stateUpdateEligible, found, "Last app inventory shows " + found
+			default:
+				return stateInstalled, found, "Found in this endpoint's last app inventory"
+			}
 		}
 		return stateInstallEligible, v.Version, "Fresh detection and requirements run on the endpoint"
 	}
@@ -581,7 +594,7 @@ func evaluateApplicability(pkg store.SoftwarePackage, a store.AgentRecord,
 		return agentVersionState(version.Agent(), a.AgentVersion, ops, a.OS)
 	}
 
-	found = matchInstalled(pkg.Detect, pkg.Name, apps)
+	found = matchInstalled(pkg.Detect, pkg.Name, apps.byName)
 	switch {
 	case found == "":
 		if ops.Install == "" {
@@ -596,6 +609,52 @@ func evaluateApplicability(pkg store.SoftwarePackage, a store.AgentRecord,
 	default:
 		return stateInstalled, found, ""
 	}
+}
+
+// detectFromInventory answers a published revision's detection check from
+// the endpoint's last installed-apps snapshot, so the catalog can say where
+// a package is already installed instead of calling every endpoint eligible.
+// It only answers checks that read nothing but that sensor's built-in rows
+// (an app check, or the installed_apps sensor without parameters), using
+// the same row matching the agent runs. Anything else, or a snapshot that
+// doesn't exist yet, reports ok=false and the agent's fresh check decides,
+// as before. This is display: dispatch of a published revision still only
+// asks whether it applies, and the agent re-checks before acting.
+func detectFromInventory(c *proto.DeployCheck, rows []map[string]any) (installed bool, version string, ok bool) {
+	if c == nil || rows == nil {
+		return false, "", false
+	}
+	check := *c
+	switch {
+	case c.Kind == "app" && c.Name != "" && c.Parameter == "":
+		check.Quantifier = "any"
+		check.Rows = []proto.DeployPredicate{{Field: "name", Operator: "eq", Value: c.Name}}
+		if c.Field != "" {
+			check.Rows = append(check.Rows, proto.DeployPredicate{Field: c.Field, Operator: c.Operator, Value: c.Value})
+		}
+	case c.Kind == "sensor" && c.SensorID == string(proto.SensorInstalledApps) && c.Sensor == nil && len(c.Inputs) == 0:
+		for _, p := range c.Rows {
+			if p.Parameter != "" {
+				return false, "", false
+			}
+		}
+	default:
+		return false, "", false
+	}
+	installed, err := deploy.Rows(rows, check, nil)
+	if err != nil {
+		return false, "", false
+	}
+	if installed && (check.Quantifier == "" || check.Quantifier == "any") {
+		one := check
+		for _, row := range rows {
+			if hit, err := deploy.Rows([]map[string]any{row}, one, nil); err == nil && hit {
+				version, _ = row["version"].(string)
+				break
+			}
+		}
+	}
+	return installed, version, true
 }
 
 // hasCommandFor reports whether this package can actually carry out an
@@ -686,14 +745,23 @@ func matchInstalled(detect store.SoftwareDetect, fallbackName string, apps map[s
 	return version
 }
 
+// agentApps is one endpoint's last installed-apps snapshot: by lowercase
+// name for legacy detection, and as the sensor's own rows for a published
+// revision's detection check, which compares names exactly as the agent
+// does (case and all).
+type agentApps struct {
+	byName map[string]string
+	rows   []map[string]any
+}
+
 // installedAppsByAgent loads every endpoint's installed-apps snapshot as
 // lowercased name -> version. One query for the whole fleet.
-func (s *Server) installedAppsByAgent(ctx context.Context) (map[string]map[string]string, error) {
+func (s *Server) installedAppsByAgent(ctx context.Context) (map[string]agentApps, error) {
 	rows, err := s.store.ListSensorDataForSensor(ctx, string(proto.SensorInstalledApps))
 	if err != nil {
 		return nil, err
 	}
-	out := make(map[string]map[string]string, len(rows))
+	out := make(map[string]agentApps, len(rows))
 	for _, row := range rows {
 		var apps []proto.InstalledApp
 		if err := json.Unmarshal(row.Data, &apps); err != nil {
@@ -703,7 +771,11 @@ func (s *Server) installedAppsByAgent(ctx context.Context) (map[string]map[strin
 		for _, app := range apps {
 			byName[strings.ToLower(app.Name)] = app.Version
 		}
-		out[row.AgentID] = byName
+		var raw []map[string]any
+		if json.Unmarshal(row.Data, &raw) != nil {
+			raw = nil
+		}
+		out[row.AgentID] = agentApps{byName: byName, rows: raw}
 	}
 	return out, nil
 }
