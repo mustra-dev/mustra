@@ -1635,6 +1635,37 @@ CREATE TABLE IF NOT EXISTS patch_observations (
 -- (progress reported by the agent), 'pending_restart' (finished, reboot
 -- outstanding), 'skipped' (nothing permitted by patch lists).
 CREATE INDEX IF NOT EXISTS idx_agent_actions_waiting ON agent_actions (status) WHERE status = 'waiting';
+-- And, for a patch job checked for the endpoint's health afterwards:
+-- 'verifying' (restarted, watched until it has stayed up) and 'degraded'
+-- (installed, but services that ran before no longer do).
+
+-- When the endpoint last booted, from the uptime in its facts: how the
+-- server tells that an endpoint a patch job restarted has come back.
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS boot_time TIMESTAMPTZ;
+
+-- A patch job that restarted its endpoint, watched by the server until the
+-- endpoint has come back and stayed up. The server owns this because an
+-- endpoint hung by a bad kernel cannot report its own failure: one that
+-- never comes back, or goes quiet inside the stability window, fails the
+-- job. state: restarting, stabilizing (back on a new boot), then healthy,
+-- failed or not_restarted.
+CREATE TABLE IF NOT EXISTS patch_restart_watches (
+    action_id        TEXT PRIMARY KEY REFERENCES agent_actions(id) ON DELETE CASCADE,
+    agent_id         TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    run_id           TEXT NOT NULL DEFAULT '',
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    checkin_deadline TIMESTAMPTZ NOT NULL,
+    -- The agent sends a health report once it has stayed up, and the job
+    -- fails without one; older agents are judged on check-ins alone.
+    reports_health   BOOLEAN NOT NULL DEFAULT false,
+    kernel_before    TEXT NOT NULL DEFAULT '',
+    kernel_updates   TEXT[] NOT NULL DEFAULT '{}',
+    booted_at        TIMESTAMPTZ,
+    state            TEXT NOT NULL DEFAULT 'restarting',
+    detail           TEXT NOT NULL DEFAULT '',
+    closed_at        TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_patch_restart_watches_open ON patch_restart_watches (agent_id) WHERE closed_at IS NULL;
 
 -- Typed Enforce policies. kind is '' for a hand-written policy, else one
 -- of internal/enforcekinds (windows_firewall, bitlocker, defender,

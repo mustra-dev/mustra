@@ -11,17 +11,20 @@ import (
 func TestPatchRestartNote(t *testing.T) {
 	ctx := context.Background()
 	for _, c := range []struct {
-		mode         string
-		required, ok bool
-		want         string
+		mode     string
+		required bool
+		blocked  string
+		want     string
 	}{
-		{"", true, true, ""},
-		{"always", true, false, "did not finish cleanly"},
-		{"if_required", true, false, "did not finish cleanly"},
-		{"if_required", false, true, "No restart needed"},
+		{"", true, "", ""},
+		{"always", true, "the updates did not finish cleanly.", "did not finish cleanly"},
+		{"if_required", true, "the updates did not finish cleanly.", "did not finish cleanly"},
+		{"always", true, "services stopped working after the updates.", "Not restarting: services stopped"},
+		{"if_required", false, "", "No restart needed"},
 	} {
-		if got := patchRestartNote(ctx, c.mode, 5, c.required, c.ok); !strings.Contains(got, c.want) || (c.want == "" && got != "") {
-			t.Errorf("%+v: %q", c, got)
+		got, scheduled := patchRestartNote(ctx, c.mode, 5, c.required, c.blocked)
+		if scheduled || !strings.Contains(got, c.want) || (c.want == "" && got != "") {
+			t.Errorf("%+v: %q scheduled=%v", c, got, scheduled)
 		}
 	}
 }

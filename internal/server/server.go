@@ -533,6 +533,7 @@ func Run(ctx context.Context, cfg Config) error {
 	go s.revealSchedulerLoop(ctx)
 	go s.guideLoop(ctx)
 	go s.patchWaitLoop(ctx)
+	go s.patchRestartWatchLoop(ctx)
 	go s.macOSMDMWatchLoop(ctx)
 	go s.certRenewLoop(ctx)
 	go s.appCredLoop(ctx)

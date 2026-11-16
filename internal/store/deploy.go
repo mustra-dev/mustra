@@ -338,7 +338,7 @@ WHERE p.completion_announced_at IS NULL AND p.started_at >= $1
 }
 
 // actionOpenStatuses are the agent action states a run is still waiting on.
-var actionOpenStatuses = []string{"started", "running", "downloading", "installing", "waiting", "pending_restart"}
+var actionOpenStatuses = []string{"started", "running", "downloading", "installing", "waiting", "pending_restart", "verifying"}
 
 // ClaimRunCompletion claims announcing that a run has finished, once, when
 // every deploy job and agent action it has is final. A patch run must also have

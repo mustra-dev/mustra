@@ -48,18 +48,21 @@ const DEPLOYMENT_STATUS_GROUPS = [
   { key: "pending_restart", label: "Pending Restart", tone: "warn",
     hint: "Installed; not in effect until the endpoint restarts",
     has: s => s === "pending_restart" },
+  { key: "verifying", label: "Verifying", tone: "warn",
+    hint: "Restarted for the updates; watching that the endpoint stays up and its services keep running",
+    has: s => s === "verifying" },
   { key: "complete", label: "Complete", tone: "ok",
     hint: "Finished and reported success, or nothing was permitted to run",
     has: s => ["succeeded", "skipped"].includes(s) },
   { key: "error", label: "Error", tone: "bad",
-    hint: "Reported a failure, timed out, never reached a connected agent, or the window never opened",
-    has: s => ["failed", "timed_out", "no_response", "expired"].includes(s) },
+    hint: "Reported a failure, broke services that were running, did not come back healthy from its restart, timed out, never reached a connected agent, the window never opened, or was held back",
+    has: s => ["failed", "degraded", "timed_out", "no_response", "expired", "cancelled"].includes(s) },
 ];
 
 const DEPLOYMENT_GROUP_COLORS = {
   waiting: "var(--viz-warning)", in_progress: "var(--viz-progress)",
   downloading: "color-mix(in srgb, var(--viz-progress) 55%, transparent)", installing: "var(--viz-progress)",
-  pending_restart: "var(--viz-warning)", complete: "var(--viz-good)", error: "var(--viz-critical)",
+  pending_restart: "var(--viz-warning)", verifying: "var(--viz-progress)", complete: "var(--viz-good)", error: "var(--viz-critical)",
 };
 
 // A run still working, whichever stage it reports (see deploymentStatus).
@@ -86,6 +89,9 @@ function deploymentStatusPill(status, detail) {
     case "succeeded": return pill("ok", "succeeded" + suffix);
     case "skipped": return pill("none", "skipped", "Nothing was permitted to run");
     case "pending restart": return pill("warn", "pending restart");
+    case "verifying": return pill("live", "verifying", "Restarted; watching that the endpoint stays healthy");
+    case "degraded": return pill("bad", "degraded", "Installed, but services that were running stopped");
+    case "cancelled": return pill("bad", "cancelled", detail || "");
     case "waiting": return pill("none", "waiting for window", detail || "");
     case "downloading": case "installing": return pill("live", status + suffix);
     case "running": return pill("live", "running");
@@ -495,7 +501,7 @@ function mountDeploymentDashboard(root, opts) {
     // Failures collapsed by message: twenty machines failing the same way
     // is one problem to fix, not twenty.
     const errs = new Map();
-    devices.filter(a => ["failed", "timed_out", "no_response", "expired"].includes(a.status)).forEach(a => {
+    devices.filter(a => deploymentGroupFor(a.status)?.key === "error").forEach(a => {
       const key = (a.detail || "(no detail reported)").split("\n")[0].slice(0, 160);
       if (!errs.has(key)) errs.set(key, []);
       errs.get(key).push(a.name || "—");

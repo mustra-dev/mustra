@@ -207,8 +207,8 @@ func (s *Store) RecordHeartbeat(ctx context.Context, agentID string, at time.Tim
 func (s *Store) RecordFacts(ctx context.Context, facts proto.Facts) error {
 	const q = `
 INSERT INTO agents (agent_id, hostname, os, arch, site, agent_version, platform,
-                    platform_version, kernel_version, cpu_count, mem_total_mb, ips, last_facts, settings, watch_revision)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+                    platform_version, kernel_version, cpu_count, mem_total_mb, ips, last_facts, settings, watch_revision, boot_time)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
 ON CONFLICT (agent_id) DO UPDATE SET
     hostname = $2,
     os = $3,
@@ -224,6 +224,7 @@ ON CONFLICT (agent_id) DO UPDATE SET
     last_facts = $13,
     settings = $14,
     watch_revision = $15,
+    boot_time = coalesce($16, agents.boot_time),
     managed = true,
     retired_at = NULL,
     retired_reason = '',
@@ -242,10 +243,17 @@ ON CONFLICT (agent_id) DO UPDATE SET
 			settings = b
 		}
 	}
+	// Uptime is whole seconds, so the boot time moves by a second between
+	// reports; it is only compared with times minutes apart.
+	var boot *time.Time
+	if facts.UptimeSec > 0 && !facts.Timestamp.IsZero() {
+		b := facts.Timestamp.Add(-time.Duration(facts.UptimeSec) * time.Second).Truncate(time.Second)
+		boot = &b
+	}
 	tag, err := s.pool.Exec(ctx, q,
 		facts.AgentID, facts.Hostname, facts.OS, facts.Arch, facts.Site, facts.AgentVer,
 		facts.Platform, facts.PlatformVer, facts.KernelVer, facts.CPUCount, int64(facts.MemTotalMB),
-		ips, facts.Timestamp, settings, facts.WatchRevision,
+		ips, facts.Timestamp, settings, facts.WatchRevision, boot,
 	)
 	if err != nil {
 		return fmt.Errorf("record facts: %w", err)
