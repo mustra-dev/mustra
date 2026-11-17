@@ -2223,7 +2223,7 @@ details.dd-output summary { cursor: pointer; color: var(--accent); font-size: 12
 .dv-seg { flex: 1; min-width: 4px; height: 100%; padding: 0; border: 0; border-radius: 0; cursor: pointer; }
 .dv-seg:disabled { cursor: default; opacity: 1; }
 .dv-seg:hover:not(:disabled) { filter: brightness(1.15); }
-.dv-stages { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin: 12px 0 4px; }
+.dv-stages { display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 10px; margin: 12px 0 4px; }
 .dv-stage { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 4px 10px; text-align: left;
   border: 0; border-left: 3px solid var(--stage); border-radius: 0; background: none; cursor: pointer; }
 .dv-stage:hover:not(:disabled) { background: var(--surface-2); }

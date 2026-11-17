@@ -40,6 +40,9 @@ func TestDeploymentStatus(t *testing.T) {
 		{"every endpoint offline is no response", fresh, map[string]int{"no_response": 2}, "no response"},
 		{"offline alongside success is partial", fresh, map[string]int{"no_response": 1, "succeeded": 1}, "partial"},
 		{"offline alongside timeout is not success", fresh, map[string]int{"no_response": 1, "timed_out": 1}, "failed"},
+		{"broken services are a failure", fresh, map[string]int{"degraded": 1}, "failed"},
+		{"broken services alongside success is partial", fresh, map[string]int{"degraded": 1, "succeeded": 3}, "partial"},
+		{"a restart still being watched is not done", old, map[string]int{"verifying": 1, "succeeded": 1}, "verifying"},
 	}
 
 	for _, tc := range cases {

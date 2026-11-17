@@ -226,7 +226,7 @@ func (s *Server) announceRunCompleted(ctx context.Context, runID string) {
 		total += n
 	}
 	parts := []string{fmt.Sprintf("%d of %d succeeded", ok, total)}
-	for _, st := range []string{"failed", "timed_out", "expired", "cancelled", "interrupted", "unsupported"} {
+	for _, st := range []string{"failed", "degraded", "timed_out", "expired", "cancelled", "interrupted", "unsupported"} {
 		if counts[st] > 0 {
 			parts = append(parts, fmt.Sprintf("%d %s", counts[st], strings.ReplaceAll(st, "_", " ")))
 		}

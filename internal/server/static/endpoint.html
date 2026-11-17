@@ -1202,7 +1202,7 @@ async function renderActivity(el) {
     return;
   }
   const KIND = { patch_apply: "Patch job", catalog_install: "Software install", agent_deploy: "Agent deployment" };
-  const TONE = { succeeded: ["var(--ok-bg)", "var(--ok)"], failed: ["var(--off-bg)", "var(--off)"] };
+  const TONE = { succeeded: ["var(--ok-bg)", "var(--ok)"], failed: ["var(--off-bg)", "var(--off)"], degraded: ["var(--off-bg)", "var(--off)"] };
   el.innerHTML = `
     <div class="table-scroll table-scroll-y">
       <table>

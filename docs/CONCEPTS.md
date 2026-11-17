@@ -292,10 +292,41 @@ A patch action reports its **status** plainly: *waiting*
 (held until the endpoint's maintenance window opens, for up to a day),
 *downloading*, *installing* (with *– retry N* when the agent waited out a
 package manager lock), *pending restart* (installed but not in effect),
-*succeeded*, *skipped* (the lists permitted nothing), *failed*, *timed out*
-and *expired*. Deployments group devices under those headings. "Awaiting
+*verifying* (restarted for the updates and being watched), *succeeded*,
+*skipped* (the lists permitted nothing), *failed*, *degraded* (installed,
+but services that ran before no longer do), *timed out*, *expired* and
+*cancelled*. Deployments group devices under those headings. "Awaiting
 user acceptance" is not modelled: mustra does not prompt users before
 installing patches.
+
+A patch job checks that the endpoint **still works**, not only that the
+updates are installed. Before it starts, the agent notes the systemd
+services that are running and enabled, the ones already failed, and the
+running kernel. Afterwards it checks those services again for between 30
+seconds and two minutes. The watch lasts long enough that a service
+restarting after its upgrade is not misread, and that one which
+crash-loops into `failed`, or keeps restarting, is caught. A service that
+ran before and does not now makes the job *degraded*, names the service,
+and cancels the job's restart. Services already failed beforehand do not
+count. This runs on Linux with systemd; other endpoints report that their
+services were not checked.
+
+A job that **restarts** its endpoint is watched by the server, not the
+agent: an endpoint hung by a bad kernel cannot report anything. The
+endpoint has to boot again and check in within 10 minutes of the restart
+being due. It then has to stay up for 10 minutes after boot, long enough
+for a kernel that oopses a few minutes in. The agent checks its services
+against the pre-patch list once it is back, and again at the end of that
+window. A job whose endpoint never comes back, goes quiet inside the
+window, fails either check, or keeps heartbeating without sending its
+final check fails. The failure names the kernel update the job installed
+and the kernel the endpoint booted. A restart that never happened (still
+up on the same boot) leaves the job *pending restart*.
+
+A degraded or failed check raises a critical notification linked to the
+endpoint. Endpoints in the same run still waiting for their maintenance
+window are *cancelled* with the reason instead of receiving the same
+updates. Nothing is rolled back automatically.
 
 A device whose **check for pending updates fails** keeps its last list, so
 the Patch page flags it as **Patch check failing**, with the error and since

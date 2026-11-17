@@ -287,6 +287,23 @@ func (s *Server) consumeActionResults(ctx context.Context) (jetstream.ConsumeCon
 		// The agent's check after a restart closes the action it left at
 		// "pending restart"; it is not a new run, so nothing else fires.
 		if res.Verification {
+			// A job that restarted the endpoint is watched until it has
+			// stayed up (patch_restart_watch.go); its reports go there.
+			w, err := s.store.OpenPatchRestartWatch(ctx, res.AgentID, res.ActionID)
+			if err != nil {
+				s.retryOrTerm(msg, "patch verification", err)
+				return
+			}
+			if w != nil {
+				if err := s.consumeWatchedVerification(ctx, res, *w); err != nil {
+					s.retryOrTerm(msg, "patch verification", err)
+					return
+				}
+				s.logger.Info("patch job checked after restart", "agent_id", res.AgentID, "action_id", res.ActionID,
+					"ok", res.OK, "stability", res.Stability)
+				msg.Ack()
+				return
+			}
 			status := "failed"
 			switch {
 			case res.OK && res.RebootRequired:
@@ -294,6 +311,7 @@ func (s *Server) consumeActionResults(ctx context.Context) (jetstream.ConsumeCon
 			case res.OK:
 				status = "succeeded"
 			}
+			status = patchHealthStatus(res, status)
 			closed, err := s.store.VerifyPendingRestart(ctx, res.AgentID, res.ActionID, status, safeTruncate(res.Detail, 2000))
 			if err != nil {
 				s.retryOrTerm(msg, "patch verification", err)
@@ -302,7 +320,10 @@ func (s *Server) consumeActionResults(ctx context.Context) (jetstream.ConsumeCon
 			if closed {
 				s.afterRemediation(ctx, res.AgentID)
 			}
-			if closed && status == "failed" {
+			switch {
+			case closed && status == "degraded":
+				s.reportPatchHealthFailure(ctx, res.AgentID, "", res.RunID, status, safeTruncate(res.Detail, 2000))
+			case closed && status == "failed":
 				s.notify(ctx, "warning", "Patch", "Updates still pending after a restart",
 					safeTruncate(strings.TrimSpace(res.Detail), 300), "/patches#deployments")
 			}
@@ -322,6 +343,13 @@ func (s *Server) consumeActionResults(ctx context.Context) (jetstream.ConsumeCon
 		case res.TimedOut:
 			status = "timed_out"
 		}
+		// Installed but services broken is its own outcome; a job that
+		// restarts the endpoint is pending that restart even when the
+		// updates themselves did not need one, and is watched through it.
+		status = patchHealthStatus(res, status)
+		if status == "succeeded" && s.restartScheduled(ctx, res) {
+			status = "pending_restart"
+		}
 		detail := res.Detail
 		if res.Attempt > 1 {
 			detail = fmt.Sprintf("Retry %d.\n%s", res.Attempt-1, detail)
@@ -329,6 +357,11 @@ func (s *Server) consumeActionResults(ctx context.Context) (jetstream.ConsumeCon
 		if err := s.store.FinishAgentAction(ctx, res.AgentID, res.ActionID, status, detail); err != nil {
 			s.logger.Warn("finish action from result failed", "action_id", res.ActionID, "error", err)
 			s.retryOrTerm(msg, "action result", err)
+			return
+		}
+		if err := s.watchPatchRestart(ctx, res, status); err != nil {
+			s.logger.Warn("watching patch restart failed", "action_id", res.ActionID, "error", err)
+			s.retryOrTerm(msg, "patch restart watch", err)
 			return
 		}
 		if res.Kind == "patch_apply" {
@@ -339,7 +372,9 @@ func (s *Server) consumeActionResults(ctx context.Context) (jetstream.ConsumeCon
 		// waiting to be discovered. Success is deliberately silent: a tray
 		// that fills up with things that went fine is a tray people stop
 		// opening, and then the one that mattered is missed too.
-		if status != "succeeded" && status != "pending_restart" {
+		if status == "degraded" {
+			s.reportPatchHealthFailure(ctx, res.AgentID, "", res.RunID, status, res.Detail)
+		} else if status != "succeeded" && status != "pending_restart" {
 			severity := "warning"
 			title := "Patch run failed on an endpoint"
 			if status == "timed_out" {

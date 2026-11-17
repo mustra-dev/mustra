@@ -6,6 +6,27 @@ rather than a page that can drift from it.
 
 ## Unreleased
 
+### Fixed
+- **A patch run no longer reports success when it broke the endpoint.** "Verified: all N
+  update(s) are installed" only proved the packages were there. A patch job now notes the
+  services that are running and enabled, the ones already failed, and the running kernel
+  before it starts. It checks the services again afterwards, for up to two minutes, so a
+  service still restarting is not misread and one that crash-loops into `failed` is caught.
+  A service that ran before and does not now (an app update whose new binary needs a newer
+  glibc, say) marks the job **degraded**, names the service, and cancels the job's restart.
+  Services that were already failed do not count. Service checks run on Linux with systemd.
+- **A patch job that restarts its endpoint is watched until the endpoint has stayed up.**
+  The endpoint must check in again within 10 minutes of the restart and stay up for 10
+  minutes after boot; meanwhile the job reads **verifying**. The server owns this check,
+  because an endpoint hung by a bad kernel cannot report its own failure. An endpoint that
+  never comes back, goes quiet inside the window, or keeps sending heartbeats without
+  completing its own health check fails the job. The failure names the kernel update it
+  installed and the kernel it booted. A failure raises a critical notification linked to
+  the endpoint's activity. Endpoints in the same run still waiting for their maintenance
+  window are held back (cancelled, with the reason) rather than given the same updates.
+  Server and agent: an older agent's restart is judged on its check-ins alone, and an
+  older server ignores the new reports.
+
 ## 1.6.1 — 2026-11-13
 
 Server 1.6.1, agent 1.6.0. Server only; agents need no update.

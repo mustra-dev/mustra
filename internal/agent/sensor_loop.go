@@ -429,13 +429,17 @@ func (a *Agent) handleCommand(ctx context.Context, data []byte, intervalChans ma
 			// now. Checked again afterwards, because a package manager
 			// exiting 0 is not the same as the update being installed.
 			targeted := names
+			var pending []proto.PatchInfo
 			if len(targeted) == 0 {
 				if before, berr := collectPatches(actx, a.nc, a.agentID); berr == nil {
+					pending = before
 					for _, p := range before {
 						targeted = append(targeted, p.Name)
 					}
 				}
 			}
+			// And what it must not break: checked again once it is done.
+			baseline := a.patchHealthBaseline(actx)
 			res, err := applyPatches(actx, a.nc, a.agentID, names, viaMDM, progress)
 			for _, u := range res.PrepareForUser {
 				go a.prepareMacOSUpdate(context.WithoutCancel(ctx), runID, actionID, u)
@@ -503,14 +507,28 @@ func (a *Agent) handleCommand(ctx context.Context, data []byte, intervalChans ma
 			// A killed child process reports a generic non-zero exit, so
 			// ask the context — not the error — whether we ran out of time.
 			timedOut := errors.Is(actx.Err(), context.DeadlineExceeded)
-			// A job left waiting on a restart is checked again once the
-			// endpoint is back (patch_verify.go), so it ends verified or not
-			// rather than at "pending restart" forever.
-			if err == nil && !timedOut && res.RebootRequired {
-				if len(waiting) == 0 {
-					waiting = targeted
+			// Installed is not the same as working: the services that ran
+			// before the job must still run after it (patch_health.go).
+			health := &proto.PatchHealth{KernelBefore: baseline.Kernel, Unchecked: baseline.Unchecked}
+			degraded := ""
+			if !timedOut && len(targeted) > 0 {
+				var herr error
+				health, herr = a.checkPatchHealth(ctx, baseline, true)
+				switch {
+				case len(health.Regressed) > 0:
+					degraded = fmt.Sprintf("%d service(s) stopped working after the updates: %s",
+						len(health.Regressed), describeRegressions(health.Regressed))
+				case herr != nil:
+					degraded = "the services could not be checked after the updates: " + herr.Error()
 				}
-				a.rememberPatchVerification(patchVerification{RunID: runID, ActionID: actionID, Names: waiting, Saved: time.Now()})
+			}
+			health.KernelUpdates = kernelUpdates(targeted, pending)
+			if degraded != "" {
+				if err == nil {
+					err = errors.New(degraded)
+				} else {
+					out = degraded + "\n" + out
+				}
 			}
 			switch {
 			case timedOut:
@@ -531,14 +549,37 @@ func (a *Agent) handleCommand(ctx context.Context, data []byte, intervalChans ma
 			// The restart the console asked for, scheduled before the
 			// result goes out so the result can say so; the countdown is at
 			// least a minute, so the report reaches the server first.
-			if note := patchRestartNote(ctx, rebootMode, rebootWarn, res.RebootRequired, err == nil && !timedOut); note != "" {
+			blocked := ""
+			switch {
+			case degraded != "":
+				blocked = "services stopped working after the updates; look at them before restarting."
+			case err != nil || timedOut:
+				blocked = "the updates did not finish cleanly."
+			}
+			note, restarting := patchRestartNote(ctx, rebootMode, rebootWarn, res.RebootRequired, blocked)
+			if note != "" {
 				a.logger.Info("patch restart", "mode", rebootMode, "note", note)
 				detail = note + "\n" + detail
+			}
+			if restarting {
+				health.RestartScheduled, health.RestartInMinutes = true, max(1, rebootWarn)
+			}
+			// A job left waiting on a restart is checked again once the
+			// endpoint is back (patch_verify.go), so it ends verified or not
+			// rather than at "pending restart" forever; one that restarted
+			// the endpoint itself is also watched until it has stayed up.
+			if err == nil && !timedOut && (res.RebootRequired || restarting) {
+				if len(waiting) == 0 {
+					waiting = targeted
+				}
+				a.rememberPatchVerification(patchVerification{RunID: runID, ActionID: actionID, Names: waiting, Saved: time.Now(),
+					Restarting: restarting, Baseline: &baseline, KernelUpdates: health.KernelUpdates})
 			}
 			a.reportActionResult(ctx, proto.AgentActionResult{
 				RunID: runID, ActionID: actionID, Kind: "patch_apply",
 				OK: err == nil, TimedOut: timedOut, Detail: detail,
 				RebootRequired: res.RebootRequired, Attempt: res.Attempts,
+				Health: health,
 			})
 			// The list just checked is what the console shows next, so a
 			// finished job and its device's pending count agree at once.

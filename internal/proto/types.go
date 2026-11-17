@@ -1005,6 +1005,17 @@ type AgentActionResult struct {
 	// reporting a new run. Older servers ignore the field and simply
 	// record the final state, which is still the right answer.
 	Verification bool `json:"verification,omitempty"`
+	// Stability marks the agent's last report on a patch job that
+	// restarted the endpoint, sent once it has stayed up for the stability
+	// window after boot. Sent with Verification set, so an older server
+	// treats it as a verification of an action it has already closed and
+	// changes nothing.
+	Stability bool `json:"stability,omitempty"`
+	// Health is the endpoint's state after a patch job compared with
+	// before it: services that stopped, the kernel it runs and the kernel
+	// updates it installed. Agents before it was added send none, and the
+	// server then has only check-ins to go on after a restart.
+	Health *PatchHealth `json:"health,omitempty"`
 	// Attempt counts retries of the same run (a package-manager lock held
 	// by unattended-upgrades, say); the console shows "– Retry N".
 	Attempt   int       `json:"attempt,omitempty"`
@@ -1014,6 +1025,46 @@ type AgentActionResult struct {
 	// sentiment score computed by parsing a human-readable sentence would
 	// break the first time somebody's free text contained a comma.
 	Survey *SurveyAnswers `json:"survey,omitempty"`
+}
+
+// PatchHealth is what an apply_patches job found when it checked that the
+// endpoint still works, not only that the updates are installed: an update
+// can install cleanly and still leave a service unable to start or a
+// kernel that oopses minutes after boot.
+type PatchHealth struct {
+	// Checked is true when services were compared. Unchecked says why not
+	// (no systemd, an OS whose services are not checked yet).
+	Checked   bool   `json:"checked"`
+	Unchecked string `json:"unchecked,omitempty"`
+	// KernelBefore is the kernel running when the job started, Kernel the
+	// one running when this report was made (after a restart, the new one).
+	KernelBefore string `json:"kernel_before,omitempty"`
+	Kernel       string `json:"kernel,omitempty"`
+	// KernelUpdates are the kernel packages the job installed, "name
+	// version", which a restart boots into.
+	KernelUpdates []string `json:"kernel_updates,omitempty"`
+	// Regressed are services that were running and enabled before the job
+	// and are not running now, or that kept restarting while watched.
+	Regressed []UnitRegression `json:"regressed,omitempty"`
+	// AlreadyFailed were failed before the job started; they do not count
+	// against it.
+	AlreadyFailed []string `json:"already_failed,omitempty"`
+	// RestartScheduled is true when the job scheduled a restart, which the
+	// server then watches for: the endpoint must come back and stay up.
+	RestartScheduled bool `json:"restart_scheduled,omitempty"`
+	RestartInMinutes int  `json:"restart_in_minutes,omitempty"`
+	// AgentConnected is whether the agent had its broker connection when
+	// the check ran.
+	AgentConnected bool `json:"agent_connected"`
+}
+
+// UnitRegression is one service a patch job left worse than it found it.
+type UnitRegression struct {
+	Unit   string `json:"unit"`
+	Before string `json:"before"` // "active (running)"
+	After  string `json:"after"`  // "failed (failed)", "not installed"
+	// Restarts is how many times systemd restarted it since the job began.
+	Restarts int `json:"restarts,omitempty"`
 }
 
 // PackageFileRef is one payload the endpoint should fetch before running a

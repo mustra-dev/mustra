@@ -159,7 +159,7 @@ func deploymentStatus(run store.PatchJobRun, counts map[string]int) string {
 	for _, n := range counts {
 		total += n
 	}
-	failures := counts["failed"] + counts["cancelled"] + counts["interrupted"] + counts["expired"] + counts["unsupported"]
+	failures := counts["failed"] + counts["degraded"] + counts["cancelled"] + counts["interrupted"] + counts["expired"] + counts["unsupported"]
 	// Skipped (nothing permitted by patch lists) and pending restart
 	// (installed, reboot outstanding) are both non-failures; the second
 	// is called out on its own when it is all a run has to show.
@@ -186,6 +186,10 @@ func deploymentStatus(run store.PatchJobRun, counts map[string]int) string {
 			return "downloading"
 		}
 		return "running"
+	// Restarted for patches and being watched to stay up: not done until
+	// the watch says so, and bounded by it (patch_restart_watch.go).
+	case counts["verifying"] > 0:
+		return "verifying"
 	// Held for a maintenance window: not stalled, however long it takes,
 	// because the wait itself is bounded by patchWaitLoop.
 	case counts["waiting"] > 0:

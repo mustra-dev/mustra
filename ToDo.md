@@ -96,3 +96,10 @@ Open work, kept here so it can be picked up. Add to it when deferring something,
 ## Windows
 
 - [ ] Sign the Windows agent. Unsigned, its updater can be blocked by Defender attack surface reduction rules.
+
+## Patch health checks
+
+- [ ] Check services after patching on Windows (automatic services that were running) and macOS (launchd daemons). Only Linux with systemd compares services today; other endpoints get the server's restart watch alone.
+- [ ] Let an operator release a run held back after a failed health check, rather than starting a new deployment for the endpoints it cancelled.
+- [ ] Hold scheduled patch runs too, not only the waiting actions of the run that failed: the schedule firing again still rolls the same kernel to more endpoints.
+- [ ] Optional application probes (an HTTP URL or TCP port per endpoint or group) for apps whose systemd unit stays active while the app is broken.
