@@ -6,6 +6,19 @@ rather than a page that can drift from it.
 
 ## Unreleased
 
+## 1.6.2 — 2026-11-19
+
+Server 1.6.2, agent 1.6.2. Update the server and agents: both carry the Go security fix,
+and agents need 1.6.2 for the patch-run health checks below.
+
+### Security
+- Built with Go 1.27.4, which fixes GO-2026-6859 (a race in `net/http`'s
+  `MaxBytesReader` could crash an HTTP/1 server). mustra reached it through the
+  console's HTTP server and the agent's local Self Service server. Server and agent.
+- `golang.org/x/crypto` is updated to v0.59.0, which addresses GO-2026-5932 in its
+  deprecated `openpgp` package. mustra does not call that package; the update clears
+  the advisory from scans.
+
 ### Fixed
 - **A patch run no longer reports success when it broke the endpoint.** "Verified: all N
   update(s) are installed" only proved the packages were there. A patch job now notes the
