@@ -44,7 +44,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
         -o "/out/agents/mustra-agent-${os}-${arch}${ext}" ./cmd/agent; \
     done
 
-FROM --platform=$BUILDPLATFORM alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a AS python-runtimes
+FROM --platform=$BUILDPLATFORM alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf AS python-runtimes
 RUN apk add --no-cache python3 ca-certificates
 COPY tools/python-runtime/ /tools/
 RUN python3 /tools/package.py /out/agents
@@ -68,10 +68,10 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
       -o /out/mustra-server ./cmd/server
 
 # CA data is architecture-independent; installing it natively avoids QEMU.
-FROM --platform=$BUILDPLATFORM alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a AS certificates
+FROM --platform=$BUILDPLATFORM alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf AS certificates
 RUN apk add --no-cache ca-certificates
 
-FROM alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
+FROM alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf
 # pg_dump and psql, for Administration -> Backup. Pinned to the same major
 # as the postgres service in docker-compose.yml: pg_dump refuses to dump a
 # server newer than itself, so a client that drifts behind turns backups off
