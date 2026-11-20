@@ -20,7 +20,7 @@ import (
 
 // Compiler is the Go release custom Go sensors are built with: the one in
 // go.mod, which TestCompilerMatchesGoMod holds it to.
-const Compiler = "go1.27.3"
+const Compiler = "go1.27.4"
 const MaxArtifact = 16 << 20
 
 type Request struct {
