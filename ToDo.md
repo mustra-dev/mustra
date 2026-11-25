@@ -47,6 +47,13 @@ Open work, kept here so it can be picked up. Add to it when deferring something,
 - [ ] Let the Appearance preview show the server's own Self Service categories. It shows sample categories today, because the sample packages would have to be filed under real ones to mean anything.
 - [ ] Decide whether catalog package names should be unique. Nothing prevents two packages with the same name, which is how four entries called ShareX happened; the causes of that are fixed, but the shape is still possible. Uniqueness is not obviously right — the same application from two vendors is a real case — so this is a decision, not a fix.
 
+## Device replacement
+
+- [ ] Match products to packages across operating systems by vendor and name when replacing a Windows laptop with a Mac (or back): today a package matches only through a variant for the old endpoint's OS.
+- [ ] Copy what is not software as well: the old endpoint's computer-group memberships, attributes (owner, location) and Self Service grants.
+- [ ] Retire the old endpoint, or set its lifecycle state, when the job finishes.
+- [ ] Prune finished jobs after a retention period; they are kept indefinitely today.
+
 ## Sensor examples
 
 - [ ] Expand standalone examples to typed schemas and closer built-in parity where useful. Current examples use text records and explicitly document omitted fields, agent state, and integrations; they are not exact collector copies.

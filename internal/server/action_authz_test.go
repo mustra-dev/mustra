@@ -36,6 +36,7 @@ var dispatchingRoutes = []string{
 	"POST /api/patches/schedules/{id}/enabled", "DELETE /api/patches/schedules/{id}",
 	"POST /api/reveal/rule-sets", "PUT /api/reveal/rule-sets/{id}",
 	"POST /api/patch-policies", "PUT /api/patch-policies/{id}", "DELETE /api/patch-policies/{id}", "POST /api/patch-policies/import",
+	"POST /api/device-replacements",
 }
 
 func TestEndpointActionRoutesAreGated(t *testing.T) {

@@ -266,6 +266,45 @@ mustra has not watched them long enough to call anything unused.
 The rollup runs a minute after the server starts and every 15 minutes; the
 Refresh button runs it now. The table exports as CSV.
 
+## Device replacement — one laptop's software onto the next
+
+**Deploy → Device Replacement** takes an old endpoint and the one replacing it
+and works out what to install. The old endpoint's installed-apps snapshot is
+normalised into products the way Inventory & Usage does it, leaving out
+components (libraries, runtimes, drivers, OS updates). A product the new
+endpoint's inventory already has is *already present*. For one it lacks,
+every enabled software package in the catalog is asked, with its own
+detection, whether it recognises any of that product's rows on the old
+endpoint; the first that does and would install on the new endpoint
+(evaluateApplicability: platform, requirements, computer groups, detection)
+is *will install*, preferring a published release, then by name. A package
+that detects it there already makes it *already present*; one outside its
+groups, outside the caller's content sets or without an install for that
+system puts the product under *no matching package* with the reason, as does
+a product nothing detects. A detection mustra can only answer on the
+endpoint (a file or a script) cannot match from inventory.
+
+Each package chosen goes to the ordinary software deployment with the new
+endpoint as its only explicit target, never an empty list (which means the
+fleet), so access, content sets, parameters, maintenance windows, audit and
+per-device results are the deployment's own. The start request itself is
+an endpoint action on the new endpoint: one approval covers the job, and on
+approval the comparison is made again. Each package's result is read from
+its run's action on the new endpoint: installed, failed, timed out, or no
+response (the agent was offline, or the job expired or sat unaccepted for
+three hours), with skipped (a legacy package outside its window) and not
+started (the deployment refused it) beside them. The job finishes when
+every package has one.
+
+Endpoints are named by agent ID, hostname or hardware serial. A hostname or
+serial matching more than one endpoint is refused rather than guessed; the
+new endpoint must not be retired, the old one may be, and endpoints of
+different operating systems need `allow_cross_os`. With a ticket number and
+an enabled ServiceNow integration, the finished report becomes a work note
+on the ticket through the integration's URL and credentials. The integration
+raises incidents, but notes go to any task table: INC, RITM, REQ, SCTASK and
+CHG numbers are looked up in theirs, a bare sys_id is an incident's.
+
 ## Patch lists, block lists, and what a patch run reports
 
 macOS itself on Apple Silicon installs only through an MDM; everything else needs

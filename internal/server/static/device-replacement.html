@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Device Replacement — mustra</title>
+<link rel="icon" href="/static/brand/favicon.ico" sizes="any">
+<link rel="icon" href="/static/brand/app-icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/brand/app-icon-256.png">
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/theme.js"></script>
+<style>
+  .hint { font-size: 12.5px; color: var(--text-muted); margin: -6px 0 14px; line-height: 1.55; max-width: 78ch; }
+  .muted { color: var(--text-muted); font-size: var(--fs-meta); }
+  .dr-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0 16px; align-items: end; }
+  .dr-form .field select, .dr-form .field input[type=text] { width: 100%; }
+  .dr-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
+  .dr-actions label { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; }
+  th.dr-check { width: 36px; }
+  .dr-pair { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; margin: 0 0 12px; font-size: 14px; }
+  .dr-pair b { font-weight: 600; }
+  .dr-warn { margin: 0 0 12px; padding-left: 18px; color: var(--warn); font-size: 13px; }
+  .dr-section { margin-top: 18px; }
+  .dr-section h3 { font-size: 14px; font-weight: 600; margin: 0 0 8px; }
+  .dr-section h3 .muted { font-weight: 400; margin-left: 6px; }
+  .dr-products { display: block; color: var(--text-muted); font-size: var(--fs-meta); overflow-wrap: anywhere; }
+  .dr-detail { color: var(--text-muted); font-size: var(--fs-meta); overflow-wrap: anywhere; max-width: 60ch; }
+  .pill { font-size: var(--fs-meta); padding: 2px 8px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
+  .pill.installed, .pill.completed, .pill.posted { background: var(--ok-bg); color: var(--ok); }
+  .pill.failed, .pill.refused { background: var(--off-bg); color: var(--off); }
+  .pill.timed_out, .pill.no_response, .pill.partial, .pill.skipped, .pill.not_configured, .pill.awaiting_approval { background: var(--warn-bg); color: var(--warn); }
+  .pill.pending, .pill.running { background: var(--surface-2); color: var(--text); }
+  tr.dr-job { cursor: pointer; }
+  tr.dr-job[aria-selected="true"] td { background: var(--surface-2); }
+  tr.dr-job:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .dr-arrow { color: var(--text-muted); padding: 0 4px; }
+</style>
+</head>
+<body>
+  <div class="app-shell">
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+    <aside class="sidebar-rail" id="sidebar-rail"></aside>
+    <aside class="sidebar-flyout" id="sidebar-flyout"></aside>
+    <main>
+      <div id="dr-page-head"></div>
+
+      <div class="panel">
+        <div class="panel-header"><h2>Replace a device</h2></div>
+        <p class="hint">
+          Compares the old endpoint's installed software with the new one's and matches what is missing to
+          Software Catalog packages by each package's own detection. Installs run as ordinary deployments to the
+          new endpoint only, under the usual access checks, approvals and maintenance windows.
+        </p>
+        <form id="dr-form" class="dr-form" autocomplete="off">
+          <div class="field"><label for="dr-old">Old endpoint</label>
+            <input id="dr-old" type="text" list="dr-agents" placeholder="Hostname or agent ID" required></div>
+          <div class="field"><label for="dr-new">New endpoint</label>
+            <input id="dr-new" type="text" list="dr-agents-managed" placeholder="Hostname or agent ID" required></div>
+          <div class="field"><label for="dr-ticket">Ticket (optional)</label>
+            <input id="dr-ticket" type="text" maxlength="64" placeholder="RITM0012345" aria-describedby="dr-ticket-hint"></div>
+        </form>
+        <p class="muted u-m-0-0-10" id="dr-ticket-hint">A ServiceNow number (INC, RITM, REQ, SCTASK, CHG) or an incident's sys_id gets the final report as a work note when the ServiceNow integration is enabled.</p>
+        <div class="dr-actions">
+          <button type="submit" form="dr-form" class="primary" id="dr-compare">Compare</button>
+          <label><input type="checkbox" id="dr-cross"> Allow a different operating system</label>
+        </div>
+        <datalist id="dr-agents"></datalist>
+        <datalist id="dr-agents-managed"></datalist>
+      </div>
+
+      <div class="panel" id="dr-preview" hidden>
+        <div class="panel-header"><h2 id="dr-preview-title">Comparison</h2></div>
+        <div id="dr-preview-body"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><h2>Replacements</h2><span class="scan-status" id="dr-status"></span></div>
+        <div class="table-scroll rows-10">
+          <table class="table-compact" id="dr-jobs-table">
+            <thead><tr><th>Started</th><th>Old → new</th><th>Ticket</th><th>Requested by</th><th>Status</th><th>Packages</th><th>No match</th></tr></thead>
+            <tbody id="dr-jobs"><tr><td class="empty" colspan="7">loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel" id="dr-report" hidden>
+        <div class="panel-header"><h2 id="dr-report-title">Report</h2><span class="scan-status" id="dr-report-status"></span></div>
+        <div id="dr-report-body"></div>
+      </div>
+    </main>
+  </div>
+
+<script src="/static/app.js"></script>
+<script>
+const statusLabel = {
+  pending: "Pending", running: "Running", awaiting_approval: "Awaiting approval", installed: "Installed",
+  failed: "Failed", timed_out: "Timed out", no_response: "No response", skipped: "Skipped", refused: "Not started",
+  completed: "Completed", partial: "Partial",
+  posted: "Posted", not_configured: "No integration",
+};
+const noteLabel = { pending: "Report pending", posted: "Report posted", failed: "Report failed", not_configured: "No ServiceNow integration", skipped: "Not a ServiceNow ticket" };
+let agentsByID = {};
+let jobs = [];
+let selected = "";
+let preview = null;
+let pollTimer = null;
+let agentsLoaded;
+const agentsReady = new Promise(resolve => { agentsLoaded = resolve; });
+
+// The button stays disabled while its request runs; failures are said in
+// a toast, so nothing flashes "done" after one.
+async function busy(btn, run) {
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.setAttribute("aria-busy", "true");
+  try { await run(); } finally { btn.disabled = false; btn.removeAttribute("aria-busy"); }
+}
+
+// The products a package stands for, when they are named differently.
+function replaces(it) {
+  const p = (it.products || []).join(", ");
+  return p === it.package_name ? "" : p;
+}
+
+function pill(status, label) {
+  return `<span class="pill ${escapeHtml(status)}">${escapeHtml(label || statusLabel[status] || status)}</span>`;
+}
+
+document.addEventListener("mustra:user", () => {
+  renderPageHead("dr-page-head", "/device-replacement", { title: "Device Replacement", icon: "deploy",
+    sub: "Move an old laptop's software to its replacement and report what happened." });
+  loadAgents().finally(agentsLoaded);
+  loadJobs();
+});
+window.addEventListener("hashchange", () => openJob(location.hash.slice(1)));
+
+async function loadAgents() {
+  const r = await fetch("/api/agents");
+  if (!r.ok) return;
+  const list = (await r.json()).agents || [];
+  agentsByID = {};
+  const all = [], managed = [];
+  for (const a of list) {
+    agentsByID[a.agent_id] = a;
+    const opt = `<option value="${escapeHtml(a.agent_id)}">${escapeHtml(a.hostname)} · ${escapeHtml(osLabel(a.os))}${a.managed ? "" : " · retired"}</option>`;
+    all.push(opt);
+    if (a.managed) managed.push(opt);
+  }
+  document.getElementById("dr-agents").innerHTML = all.join("");
+  document.getElementById("dr-agents-managed").innerHTML = managed.join("");
+}
+
+// A value picked from the list is an agent ID; anything typed is a
+// hostname, which the server resolves and refuses if it is ambiguous.
+function deviceRef(prefix, value) {
+  value = value.trim();
+  return agentsByID[value] ? { [prefix + "_agent_id"]: value } : { [prefix + "_hostname"]: value };
+}
+
+function requestBody() {
+  return Object.assign({}, deviceRef("old", document.getElementById("dr-old").value),
+    deviceRef("new", document.getElementById("dr-new").value),
+    { allow_cross_os: document.getElementById("dr-cross").checked });
+}
+
+document.getElementById("dr-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById("dr-compare");
+  await busy(btn, async () => {
+    // A name typed before the endpoint list arrived is still read as an ID
+    // when it is one.
+    await agentsReady;
+    const r = await fetch("/api/device-replacements/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(requestBody()) });
+    if (!r.ok) { showToast(await r.text(), "error"); return; }
+    preview = await r.json();
+    renderPreview();
+  });
+});
+
+function productList(items, cols) {
+  if (!items.length) return `<p class="muted">None.</p>`;
+  return `<div class="table-scroll rows-10"><table class="table-compact"><thead><tr>${cols.map(c => `<th>${escapeHtml(c[0])}</th>`).join("")}</tr></thead><tbody>${
+    items.map(p => `<tr>${cols.map(c => `<td>${/* safe-html: each column renderer escapes what it shows */ c[1](p)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+}
+
+function renderPreview() {
+  const p = preview;
+  const panel = document.getElementById("dr-preview");
+  panel.hidden = false;
+  const inv = (e) => e.inventory_at ? `inventory ${fmtAgo(e.inventory_at)}` : "no inventory yet";
+  const install = p.will_install || [];
+  let html = `<p class="dr-pair"><b>${escapeHtml(p.old.hostname)}</b> <span class="muted">${escapeHtml(osLabel(p.old.os))} · ${escapeHtml(inv(p.old))}</span>
+    <span class="dr-arrow" aria-hidden="true">→</span>
+    <b>${escapeHtml(p.new.hostname)}</b> <span class="muted">${escapeHtml(osLabel(p.new.os))} · ${p.new.online ? "online" : "offline"} · ${escapeHtml(inv(p.new))}</span></p>`;
+  if ((p.warnings || []).length) html += `<ul class="dr-warn">${p.warnings.map(w => `<li>${escapeHtml(w)}</li>`).join("")}</ul>`;
+  html += `<section class="dr-section"><h3>Will install<span class="muted">${escapeHtml(install.length)}</span></h3>`;
+  html += install.length ? `<div class="table-scroll rows-10"><table class="table-compact"><thead><tr><th class="dr-check"><input type="checkbox" id="dr-all" checked aria-label="Install every package"></th><th>Package</th><th>Version</th><th>Replaces</th></tr></thead><tbody>${
+    install.map(it => `<tr><td><input type="checkbox" class="dr-pick" value="${escapeHtml(it.package_id)}" checked aria-label="Install ${escapeHtml(it.package_name)}"></td>
+      <td><strong>${escapeHtml(it.package_name)}</strong>${it.detail ? `<span class="dr-products">${escapeHtml(it.detail)}</span>` : ""}</td>
+      <td>${escapeHtml(it.version || "—")}</td>
+      <td><span class="dr-products">${escapeHtml((it.products || []).join(", "))}</span></td></tr>`).join("")}</tbody></table></div>`
+    : `<p class="muted">No catalog package covers anything the new endpoint is missing.</p>`;
+  html += `</section>`;
+  html += `<section class="dr-section"><h3>No matching package<span class="muted">${escapeHtml((p.no_match || []).length)}</span></h3>${productList(p.no_match || [], [
+    ["Software", x => `<strong>${escapeHtml(x.name)}</strong>${x.vendor ? `<span class="dr-products">${escapeHtml(x.vendor)}</span>` : ""}`],
+    ["Version on old", x => escapeHtml(x.old_version || "—")],
+    ["Why", x => `<span class="dr-detail">${escapeHtml(x.reason || "")}</span>`],
+  ])}</section>`;
+  html += `<section class="dr-section"><h3>Already on the new endpoint<span class="muted">${escapeHtml((p.already_present || []).length)}</span></h3>${productList(p.already_present || [], [
+    ["Software", x => `<strong>${escapeHtml(x.name)}</strong>`],
+    ["Old", x => escapeHtml(x.old_version || "—")],
+    ["New", x => escapeHtml(x.new_version || "—")],
+    ["How", x => `<span class="dr-detail">${escapeHtml(x.reason || "")}</span>`],
+  ])}</section>`;
+  html += `<div class="dr-actions u-m-16-0-8"><button type="button" class="primary" id="dr-start"></button>
+    <span class="muted" id="dr-start-note"></span></div>`;
+  document.getElementById("dr-preview-body").innerHTML = html;
+  const all = document.getElementById("dr-all");
+  const picks = () => [...document.querySelectorAll(".dr-pick")];
+  const update = () => {
+    const n = picks().filter(c => c.checked).length;
+    const btn = document.getElementById("dr-start");
+    btn.textContent = n ? `Install ${n} ${n === 1 ? "package" : "packages"} on ${p.new.hostname}` : "Record without installing";
+    document.getElementById("dr-start-note").textContent = n ? "" : "The job finishes at once and reports the comparison to the ticket.";
+    if (all) { all.checked = n === picks().length; all.indeterminate = n > 0 && n < picks().length; }
+  };
+  if (all) all.addEventListener("change", () => { picks().forEach(c => { c.checked = all.checked; }); update(); });
+  picks().forEach(c => c.addEventListener("change", update));
+  update();
+  document.getElementById("dr-start").addEventListener("click", startJob);
+  panel.scrollIntoView({ block: "start", behavior: "smooth" });
+}
+
+async function startJob() {
+  const btn = document.getElementById("dr-start");
+  const picks = [...document.querySelectorAll(".dr-pick")];
+  // The endpoints the comparison resolved, not whatever the fields say now.
+  const body = { old_agent_id: preview.old.agent_id, new_agent_id: preview.new.agent_id,
+    allow_cross_os: preview.old.os !== preview.new.os, ticket: document.getElementById("dr-ticket").value.trim() };
+  // Sent as exclusions so an unticked package is the only thing left out:
+  // an empty include list would mean "everything".
+  body.exclude_package_ids = picks.filter(c => !c.checked).map(c => c.value);
+  if (picks.length && !picks.some(c => c.checked)) body.exclude_package_ids = picks.map(c => c.value);
+  await busy(btn, async () => {
+    const r = await fetch("/api/device-replacements", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (r.status === 202) {
+      const a = await r.json();
+      showToast(a.message || "Parked for approval", "info");
+      return;
+    }
+    if (!r.ok) { showToast(await r.text(), "error"); return; }
+    const job = await r.json();
+    document.getElementById("dr-preview").hidden = true;
+    showToast(`Replacement started: ${job.items.length} ${job.items.length === 1 ? "package" : "packages"} for ${job.new_hostname}`, "ok");
+    location.hash = job.id;
+    await loadJobs();
+  });
+}
+
+async function loadJobs() {
+  const r = await fetch("/api/device-replacements");
+  if (r.status === 401) { window.location.href = "/login"; return; }
+  if (!r.ok) {
+    document.getElementById("dr-jobs").innerHTML = `<tr><td class="empty" colspan="7">could not load replacements: ${escapeHtml(await r.text())}</td></tr>`;
+    return;
+  }
+  jobs = (await r.json()).jobs || [];
+  const running = jobs.filter(j => j.status === "running").length;
+  document.getElementById("dr-status").textContent = jobs.length ? `${jobs.length} ${jobs.length === 1 ? "replacement" : "replacements"}${running ? `, ${running} running` : ""}` : "";
+  renderJobs();
+  openJob(location.hash.slice(1));
+  clearTimeout(pollTimer);
+  if (running) pollTimer = setTimeout(loadJobs, 15000);
+}
+
+function renderJobs() {
+  const body = document.getElementById("dr-jobs");
+  if (!jobs.length) {
+    body.innerHTML = `<tr><td class="empty" colspan="7">no device has been replaced yet</td></tr>`;
+    return;
+  }
+  body.innerHTML = jobs.map(j => {
+    const installed = (j.counts || {}).installed || 0;
+    return `<tr class="dr-job" tabindex="0" data-id="${escapeHtml(j.id)}" aria-selected="${j.id === selected}">
+      <td data-sort="${escapeHtml(j.created_at)}" title="${escapeHtml(fmtTime(j.created_at))}">${escapeHtml(fmtAgo(j.created_at))}</td>
+      <td><strong>${escapeHtml(j.old_hostname)}</strong><span class="dr-arrow" aria-hidden="true">→</span><strong>${escapeHtml(j.new_hostname)}</strong></td>
+      <td>${escapeHtml(j.ticket || "—")}</td>
+      <td>${escapeHtml(j.requested_by)}${j.source === "api" ? ' <span class="muted">API</span>' : ""}</td>
+      <td data-sort="${escapeHtml(j.status)}">${pill(j.status)}</td>
+      <td data-sort="${escapeHtml(j.items.length)}">${escapeHtml(installed)} of ${escapeHtml(j.items.length)} installed</td>
+      <td data-sort="${escapeHtml(j.no_match.length)}">${escapeHtml(j.no_match.length)}</td>
+    </tr>`;
+  }).join("");
+  body.querySelectorAll("tr.dr-job").forEach(tr => {
+    const go = () => { location.hash = tr.dataset.id; };
+    tr.addEventListener("click", go);
+    tr.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+  });
+  const dt = initDataTable(body.closest("table"), { storageKey: "device-replacements" });
+  if (dt) dt.refresh();
+}
+
+async function openJob(id) {
+  selected = id;
+  document.querySelectorAll("tr.dr-job").forEach(tr => tr.setAttribute("aria-selected", String(tr.dataset.id === id)));
+  const panel = document.getElementById("dr-report");
+  if (!id) { panel.hidden = true; return; }
+  let job = jobs.find(j => j.id === id);
+  if (!job) {
+    const r = await fetch("/api/device-replacements/" + encodeURIComponent(id));
+    if (!r.ok) { panel.hidden = true; return; }
+    job = await r.json();
+  }
+  panel.hidden = false;
+  document.getElementById("dr-report-title").textContent = `${job.old_hostname} → ${job.new_hostname}`;
+  document.getElementById("dr-report-status").innerHTML = pill(job.status);
+  const note = job.ticket
+    ? `<p class="dr-pair"><span>Ticket <b>${escapeHtml(job.ticket)}</b></span> ${pill(job.note_status || "pending", noteLabel[job.note_status] || job.note_status)}
+        ${job.note_detail ? `<span class="muted">${escapeHtml(job.note_detail)}</span>` : ""}</p>` : "";
+  const meta = `<p class="muted u-m-0-0-12">Started ${escapeHtml(fmtTime(job.created_at))} by ${escapeHtml(job.requested_by)}${job.finished_at ? ` · finished ${escapeHtml(fmtTime(job.finished_at))}` : ""} · <a href="/endpoint/${escapeHtml(job.new_agent_id)}">${escapeHtml(job.new_hostname)}</a></p>`;
+  const items = job.items.length ? `<div class="table-scroll"><table class="table-compact"><thead><tr><th>Package</th><th>Result</th><th>Detail</th><th>Deployment</th></tr></thead><tbody>${
+    job.items.map(it => `<tr><td><strong>${escapeHtml(it.package_name)}</strong>${replaces(it) ? `<span class="dr-products">${escapeHtml(replaces(it))}</span>` : ""}</td>
+      <td>${pill(it.status)}</td>
+      <td><span class="dr-detail">${escapeHtml(it.detail || "")}</span></td>
+      <td>${it.run_id ? `<a href="/software#deployments" title="${escapeHtml(it.run_id)}">${escapeHtml(shortId(it.run_id) || "Deployments")}</a>` : it.approval_id ? `<a href="/access#approvals">approval</a>` : "—"}</td></tr>`).join("")}</tbody></table></div>`
+    : `<p class="muted">Nothing was installed.</p>`;
+  const nomatch = `<section class="dr-section"><h3>No matching package<span class="muted">${escapeHtml(job.no_match.length)}</span></h3>${productList(job.no_match, [
+    ["Software", x => `<strong>${escapeHtml(x.name)}</strong>`],
+    ["Version on old", x => escapeHtml(x.old_version || "—")],
+    ["Why", x => `<span class="dr-detail">${escapeHtml(x.reason || "")}</span>`],
+  ])}</section><p class="muted u-m-8-0-0">${escapeHtml(job.already_present.length)} already on the new endpoint.</p>`;
+  document.getElementById("dr-report-body").innerHTML = note + meta + items + nomatch;
+}
+</script>
+</body>
+</html>

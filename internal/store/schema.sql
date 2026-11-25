@@ -3012,3 +3012,32 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_ring_rollouts_open_source ON ring_rollouts
 
 -- A patch schedule that rolls out through a plan instead of all at once.
 ALTER TABLE patch_schedules ADD COLUMN IF NOT EXISTS plan_id TEXT NOT NULL DEFAULT '';
+
+-- Device replacement: one job per old endpoint whose software is installed on
+-- the endpoint that replaces it. Items, the products already present and those
+-- with no matching package are kept as JSON with the job, so its report
+-- survives the endpoints being renamed, retired or deleted. No foreign keys
+-- to agents for the same reason.
+CREATE TABLE IF NOT EXISTS device_replacements (
+    id              TEXT PRIMARY KEY,
+    old_agent_id    TEXT NOT NULL,
+    old_hostname    TEXT NOT NULL DEFAULT '',
+    old_os          TEXT NOT NULL DEFAULT '',
+    new_agent_id    TEXT NOT NULL,
+    new_hostname    TEXT NOT NULL DEFAULT '',
+    new_os          TEXT NOT NULL DEFAULT '',
+    ticket          TEXT NOT NULL DEFAULT '',
+    allow_cross_os  BOOLEAN NOT NULL DEFAULT false,
+    requested_by    TEXT NOT NULL DEFAULT '',
+    source          TEXT NOT NULL DEFAULT 'console',
+    items           JSONB NOT NULL DEFAULT '[]',
+    already_present JSONB NOT NULL DEFAULT '[]',
+    no_match        JSONB NOT NULL DEFAULT '[]',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    finished_at     TIMESTAMPTZ,
+    note_status     TEXT NOT NULL DEFAULT '',
+    note_detail     TEXT NOT NULL DEFAULT '',
+    noted_at        TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_device_replacements_created ON device_replacements (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_device_replacements_open ON device_replacements (created_at) WHERE finished_at IS NULL;

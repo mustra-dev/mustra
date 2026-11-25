@@ -344,6 +344,12 @@ var routeDocs = map[string]routeDoc{
 	"POST /api/enforce/rollouts/{id}/abort":   {NoBody: true, Resp: store.RingRollout{}, Errors: []int{404, 409, 500}},
 	"POST /api/enforce/policies/{id}/rollout": {Body: startEnforceRolloutRequest{}, Resp: store.RingRollout{}, Errors: []int{400, 404, 409, 500}},
 
+	// device-replacements
+	"GET /api/device-replacements":          {Resp: listDeviceReplacementsResponse{}, Errors: []int{500}},
+	"POST /api/device-replacements":         {Body: deviceReplacementRequest{}, Resp: deviceReplacementView{}, Errors: []int{400, 403, 404, 409, 500, 503}},
+	"GET /api/device-replacements/{id}":     {Resp: deviceReplacementView{}, Errors: []int{404, 500}},
+	"POST /api/device-replacements/preview": {Body: deviceReplacementPreviewRequest{}, Resp: deviceReplacementPreviewResponse{}, Errors: []int{400, 403, 404, 409, 500}},
+
 	// directory
 	"GET /api/directory":       {Resp: directoryView{}, Errors: []int{500}},
 	"POST /api/directory":      {Body: directoryUpdate{}, Resp: directoryView{}, Errors: []int{400, 500}},
