@@ -733,6 +733,25 @@ var routeDocs = map[string]routeDoc{
 	"PUT /api/admin/tokens/{id}":         {Body: updateAPITokenRequest{}, Resp: store.APIToken{}, Errors: []int{400, 403, 404, 409, 500, 503}},
 	"POST /api/admin/tokens/{id}/revoke": {NoBody: true, Status: 204, Errors: []int{500, 503}},
 
+	// triage
+	"GET /api/triage/items": {Query: []queryParam{
+		{Name: "status", Enum: []string{"new", "in_progress", "waiting", "resolved"}, Desc: "only items in this status"},
+		{Name: "source", Desc: "only items from this source (servicenow, self_service, alert, api, manual)"},
+		{Name: "assignee", Desc: "only items assigned to this username"},
+		{Name: "agent_id", Desc: "only items about this endpoint"},
+		flag("open", "leave out resolved items"),
+	}, Resp: listTriageResponse{}, Errors: []int{400, 500}},
+	"POST /api/triage/items":                      {Body: createTriageRequest{}, Resp: triageItemResponse{}, Also: []int{201}, Errors: []int{400, 500}},
+	"GET /api/triage/items/{id}":                  {Resp: triageDetailResponse{}, Errors: []int{404, 500}},
+	"PUT /api/triage/items/{id}":                  {Body: updateTriageRequest{}, Resp: triageItemResponse{}, Errors: []int{400, 404, 409, 500}},
+	"GET /api/triage/items/{id}/context":          {Resp: triageContextResponse{}, Errors: []int{404, 500}},
+	"POST /api/triage/items/{id}/notes":           {Body: addTriageNoteRequest{}, Resp: triageNotesResponse{}, Errors: []int{400, 404, 500}},
+	"POST /api/triage/items/{id}/fix":             {Body: triageFixRequest{}, Resp: triageFixResponse{}, Also: []int{202}, Errors: []int{400, 404, 409, 500}},
+	"POST /api/triage/items/{id}/similar/preview": {Body: triageSimilarRequest{}, Resp: triageSimilarPreview{}, Errors: []int{400, 403, 404, 409, 500}},
+	"POST /api/triage/items/{id}/similar":         {Body: triageSimilarRequest{}, Resp: triageSimilarResponse{}, Status: 202, Errors: []int{400, 403, 404, 409, 500}},
+	"POST /api/triage/items/{id}/sync":            {NoBody: true, Resp: triageSyncResponse{}, Errors: []int{404, 409, 500}},
+	"POST /api/guide/{id}/triage":                 {NoBody: true, Resp: triageItemResponse{}, Also: []int{201}, Errors: []int{404, 500}},
+
 	// tracked-products
 	"GET /api/tracked-products":         {Resp: listTrackedProductsResponse{}, Errors: []int{500}},
 	"POST /api/tracked-products":        {Body: store.TrackedProduct{}, Resp: store.TrackedProduct{}, Errors: []int{400, 404, 500}},

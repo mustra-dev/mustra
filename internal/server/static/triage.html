@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Triage — mustra</title>
+<link rel="icon" href="/static/brand/favicon.ico" sizes="any">
+<link rel="icon" href="/static/brand/app-icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/brand/app-icon-256.png">
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/theme.js"></script>
+<style>
+  .hint { font-size: 12px; color: var(--text-muted); margin: -6px 0 12px; line-height: 1.55; max-width: 90ch; }
+  .filters { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; margin-bottom: 10px; }
+  .filters .field { margin: 0; }
+  .tq-table td { vertical-align: top; }
+  .tq-title { font-weight: 600; color: var(--text); text-decoration: none; }
+  .tq-title:hover { color: var(--accent); text-decoration: underline; }
+  .tq-meta { font-size: var(--fs-meta); color: var(--text-muted); margin-top: 2px; }
+  .tq-none { color: var(--warn); }
+  .st { display: inline-block; font-size: var(--fs-meta); padding: 2px 9px; border-radius: 999px; font-weight: 650; white-space: nowrap; }
+  .st.new { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+  .st.in_progress { background: var(--warn-bg); color: var(--warn); }
+  .st.waiting { background: var(--surface-3); color: var(--text-muted); }
+  .st.resolved { background: var(--ok-bg); color: var(--ok); }
+  .st.bad { background: var(--off-bg); color: var(--off); }
+  .st.good { background: var(--ok-bg); color: var(--ok); }
+  .st.muted { background: var(--surface-2); color: var(--text-muted); }
+
+  .tq-back { display: inline-block; margin-bottom: 10px; font-size: 13px; color: var(--accent); text-decoration: none; }
+  .tq-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); gap: 16px; align-items: start; }
+  @media (max-width: 1080px) { .tq-grid { grid-template-columns: minmax(0, 1fr); } }
+  .tq-desc { white-space: pre-wrap; line-height: 1.55; font-size: 14px; margin: 0; overflow-wrap: anywhere; }
+  .tq-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px 18px; margin: 6px 0 4px; }
+  .tq-fact { text-decoration: none; color: var(--text); display: block; border-radius: var(--radius-sm); }
+  .tq-fact:hover .tq-fact-v, .tq-fact:focus-visible .tq-fact-v { color: var(--accent); }
+  .tq-fact-k { font-size: 12px; color: var(--text-muted); }
+  .tq-fact-v { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.2; }
+  .tq-fact-v.bad { color: var(--off); }
+  .tq-fact-v.ok { color: var(--ok); }
+  .tq-fact-s { font-size: 12px; color: var(--text-muted); }
+  .tq-ep { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; margin-bottom: 8px; }
+  .tq-ep-name { font-size: 17px; font-weight: 650; color: var(--text); text-decoration: none; }
+  .tq-ep-name:hover { color: var(--accent); text-decoration: underline; }
+  .tq-sub { font-size: 13px; font-weight: 650; margin: 16px 0 6px; display: flex; gap: 8px; align-items: baseline; }
+  .tq-sub a { font-weight: 400; font-size: 12px; color: var(--accent); text-decoration: none; margin-left: auto; }
+  .tq-list { list-style: none; margin: 0; padding: 0; }
+  .tq-list li { padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; display: flex; gap: 10px; align-items: baseline; }
+  .tq-list li:last-child { border-bottom: 0; }
+  .tq-list .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .tq-list .when { color: var(--text-muted); font-size: 12px; white-space: nowrap; }
+  .tq-empty { color: var(--text-muted); font-size: 13px; padding: 4px 0; }
+  .tq-side .panel { margin-bottom: 16px; }
+  .tq-side .field select, .tq-side .field input, .tq-side .field textarea, .tq-new .field select, .tq-new .field textarea {
+    width: 100%; padding: 8px 10px; border-radius: var(--radius-md); border: 1px solid var(--border-input);
+    background: var(--input-bg); color: var(--text); font: inherit; }
+  .tq-side .field textarea, .tq-new .field textarea { min-height: 72px; resize: vertical; }
+  .tq-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .tq-row > .field { flex: 1; min-width: 140px; }
+  .tq-timeline li { display: block; }
+  .tq-timeline .who { font-size: 12px; color: var(--text-muted); }
+  .tq-timeline .body { white-space: pre-wrap; font-size: 13px; margin-top: 2px; overflow-wrap: anywhere; }
+  .tq-timeline li.note .body { color: var(--text); }
+  .tq-timeline li:not(.note) .body { color: var(--text-muted); }
+  .tq-msg { font-size: 13px; margin-top: 8px; }
+  .tq-msg.err { color: var(--off); }
+  .tq-msg.ok { color: var(--ok); }
+  .tq-sync { font-size: 13px; padding: 8px 10px; border-radius: var(--radius-md); margin-top: 10px; }
+  .tq-sync.failed { background: var(--off-bg); color: var(--off); }
+  .tq-sync.sent { background: var(--ok-bg); color: var(--ok); }
+  .tq-cands li button { margin-left: auto; }
+  .tq-new .field { margin-bottom: 10px; }
+</style>
+</head>
+<body>
+  <div class="app-shell">
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+    <aside class="sidebar-rail" id="sidebar-rail"></aside>
+    <aside class="sidebar-flyout" id="sidebar-flyout"></aside>
+    <main>
+      <div id="triage-page-head"></div>
+
+      <section id="tq-queue" hidden>
+        <div class="stat-tiles" id="tq-tiles"></div>
+        <div class="panel">
+          <div class="panel-header"><h2>Queue</h2><span class="scan-status" id="tq-count"></span></div>
+          <p class="hint">Tickets from ServiceNow, alerts sent over from the Guide, and items filed by hand or through the API, each tied to the endpoint it is about. An item whose endpoint could not be matched for certain waits as <strong>unattached</strong> until somebody chooses.</p>
+          <div class="filters">
+            <div class="field"><label for="tf-status">Status</label><select id="tf-status">
+              <option value="open">open</option><option value="">all</option><option value="new">new</option><option value="in_progress">in progress</option><option value="waiting">waiting</option><option value="resolved">resolved</option></select></div>
+            <div class="field"><label for="tf-source">Source</label><select id="tf-source"><option value="">all</option></select></div>
+            <div class="field"><label for="tf-who">Assigned</label><select id="tf-who"><option value="">anyone</option><option value="me">to me</option><option value="none">nobody</option></select></div>
+            <div class="field"><label for="tf-q">Search</label><input id="tf-q" class="search-input" type="search" placeholder="title, ticket or hostname"></div>
+          </div>
+          <div id="tq-list"></div>
+        </div>
+      </section>
+
+      <section id="tq-item" hidden>
+        <a class="tq-back" href="/triage">← Triage queue</a>
+        <div class="tq-grid">
+          <div>
+            <div class="panel">
+              <div class="panel-header"><h2>What was reported</h2><span id="ti-source" class="scan-status"></span></div>
+              <p class="tq-desc" id="ti-desc"></p>
+            </div>
+            <div class="panel">
+              <div class="panel-header"><h2>The endpoint now</h2><span class="scan-status" id="ti-ep-note"></span></div>
+              <div id="ti-context"></div>
+            </div>
+          </div>
+          <div class="tq-side">
+            <div class="panel">
+              <div class="panel-header"><h2>Work it</h2><span id="ti-status"></span></div>
+              <div id="ti-work"></div>
+            </div>
+            <div class="panel" id="ti-fix-panel" hidden>
+              <div class="panel-header"><h2>Fix this endpoint</h2></div>
+              <div id="ti-fix"></div>
+            </div>
+            <div class="panel" id="ti-similar-panel" hidden>
+              <div class="panel-header"><h2>Apply to similar endpoints</h2></div>
+              <div id="ti-similar"></div>
+            </div>
+            <div class="panel">
+              <div class="panel-header"><h2>Timeline</h2></div>
+              <div id="ti-notes"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+<script src="/static/app.js"></script>
+<script>
+const STATUS = { new: "New", in_progress: "In progress", waiting: "Waiting on someone", resolved: "Resolved" };
+let me = null, canWork = false, canRun = false;
+let queue = { items: [], counts: {}, sources: {} };
+let tileFilter = "";
+const itemId = new URLSearchParams(location.search).get("id");
+
+document.addEventListener("mustra:user", (e) => {
+  me = e.detail || {};
+  canWork = hasPermission(me, "alerts.triage");
+  canRun = canWork && hasPermission(me, "deploy.manage");
+  if (itemId) {
+    renderPageHead("triage-page-head", "/triage", { title: "Triage item" });
+    document.getElementById("tq-item").hidden = false;
+    loadItem();
+  } else {
+    renderPageHead("triage-page-head", "/triage", { title: "Triage" });
+    document.getElementById("tq-queue").hidden = false;
+    if (canWork) {
+      const actions = document.getElementById("triage-page-head-actions");
+      actions.innerHTML = '<button class="primary" id="tq-new-btn" type="button">New item</button>';
+      document.getElementById("tq-new-btn").addEventListener("click", openNewItem);
+    }
+    loadQueue();
+  }
+});
+
+function statusChip(s) { return `<span class="st ${escapeHtml(s)}">${escapeHtml(STATUS[s] || s)}</span>`; }
+async function failText(resp) { return (await resp.text()).trim() || `HTTP ${resp.status}`; }
+
+// ---- the queue --------------------------------------------------------------
+
+async function loadQueue() {
+  const resp = await fetch("/api/triage/items");
+  if (resp.status === 401) { location.href = "/login"; return; }
+  if (!resp.ok) { document.getElementById("tq-list").innerHTML = `<div class="empty">${escapeHtml(await failText(resp))}</div>`; return; }
+  queue = await resp.json();
+  const sel = document.getElementById("tf-source"), prev = sel.value;
+  sel.innerHTML = '<option value="">all</option>' + Object.entries(queue.sources || {}).sort((a, b) => a[1].localeCompare(b[1]))
+    .map(([k, v]) => `<option value="${escapeHtml(k)}">${escapeHtml(v)}</option>`).join("");
+  sel.value = prev;
+  renderQueue();
+}
+
+function renderQueue() {
+  const c = queue.counts || {};
+  const tiles = [
+    { key: "new", label: "New", value: c.new || 0 },
+    { key: "in_progress", label: "In progress", value: c.in_progress || 0 },
+    { key: "waiting", label: "Waiting", value: c.waiting || 0 },
+    { key: "unattached", label: "Unattached", value: c.unattached || 0, cls: c.unattached ? "off" : "" },
+    { key: "resolved", label: "Resolved", value: c.resolved || 0 },
+  ];
+  document.getElementById("tq-tiles").innerHTML = tiles.map(t =>
+    `<button type="button" class="stat-tile stat-tile-link" data-tile="${escapeHtml(t.key)}" aria-pressed="${tileFilter === t.key}">
+      <div class="stat-tile-label">${escapeHtml(t.label)}</div><div class="stat-tile-value ${escapeHtml(t.cls || "")}">${escapeHtml(t.value)}</div></button>`).join("");
+  document.querySelectorAll("[data-tile]").forEach(b => b.addEventListener("click", () => {
+    tileFilter = tileFilter === b.dataset.tile ? "" : b.dataset.tile;
+    if (tileFilter && tileFilter !== "unattached") document.getElementById("tf-status").value = tileFilter;
+    else if (!tileFilter) document.getElementById("tf-status").value = "open";
+    renderQueue();
+  }));
+
+  const status = document.getElementById("tf-status").value, source = document.getElementById("tf-source").value;
+  const who = document.getElementById("tf-who").value, q = document.getElementById("tf-q").value.trim().toLowerCase();
+  const shown = (queue.items || []).filter(it =>
+    (status === "" || (status === "open" ? it.status !== "resolved" : it.status === status)) &&
+    (tileFilter !== "unattached" || (!it.agent_id && it.status !== "resolved")) &&
+    (!source || it.source === source) &&
+    (who === "" || (who === "me" ? it.assignee === me.username : !it.assignee)) &&
+    (!q || [it.title, it.external_number, it.hostname, it.ref_hostname, it.assignee].some(v => (v || "").toLowerCase().includes(q))));
+  document.getElementById("tq-count").textContent = `${shown.length} shown`;
+  const el = document.getElementById("tq-list");
+  if (!shown.length) {
+    el.innerHTML = (queue.items || []).length
+      ? '<div class="empty">Nothing matches these filters.</div>'
+      : '<div class="empty">The queue is empty. Items arrive from ServiceNow through the API, from the Guide with <strong>Send to triage</strong>, or with <strong>New item</strong>.</div>';
+    return;
+  }
+  el.innerHTML = `<div class="table-scroll"><table class="tq-table"><thead><tr>
+      <th scope="col">Item</th><th scope="col">Endpoint</th><th scope="col">Status</th><th scope="col">Assigned</th><th scope="col">Updated</th></tr></thead><tbody>` +
+    shown.map(it => `<tr>
+      <td><a class="tq-title" href="/triage?id=${encodeURIComponent(it.id)}">${escapeHtml(it.title)}</a>
+        <div class="tq-meta">${escapeHtml((queue.sources || {})[it.source] || it.source)}${it.external_number ? " · " + escapeHtml(it.external_number) : ""}</div></td>
+      <td>${it.agent_id ? escapeHtml(it.hostname || it.agent_id) : `<span class="tq-none">not chosen</span>${it.ref_hostname ? `<div class="tq-meta">said: ${escapeHtml(it.ref_hostname)}</div>` : ""}`}</td>
+      <td>${statusChip(it.status)}</td>
+      <td>${it.assignee ? escapeHtml(it.assignee) : '<span class="tq-meta">—</span>'}</td>
+      <td title="${escapeHtml(fmtTime(it.updated_at))}">${escapeHtml(fmtAgo(it.updated_at))}</td></tr>`).join("") +
+    "</tbody></table></div>";
+}
+["tf-status", "tf-source", "tf-who"].forEach(id => document.getElementById(id).addEventListener("change", () => { tileFilter = ""; renderQueue(); }));
+document.getElementById("tf-q").addEventListener("input", renderQueue);
+
+function openNewItem() {
+  openModal("New triage item", `<form class="tq-new" id="tn-form">
+      <div class="field"><label for="tn-title">Title</label><input id="tn-title" required maxlength="300" autocomplete="off"></div>
+      <div class="field"><label for="tn-desc">What was reported</label><textarea id="tn-desc"></textarea></div>
+      <div class="field"><label for="tn-host">Endpoint hostname</label><input id="tn-host" autocomplete="off" list="tn-hosts">
+        <datalist id="tn-hosts"></datalist></div>
+      <div class="field"><label for="tn-serial">or serial number</label><input id="tn-serial" autocomplete="off"></div>
+      <div class="field"><label for="tn-ref">Ticket number (optional)</label><input id="tn-ref" autocomplete="off" maxlength="100"></div>
+      <div class="tq-msg err" id="tn-msg" role="alert"></div>
+      <button class="primary" type="submit">File it</button></form>`, async wrap => {
+    fetch("/api/agents").then(r => r.ok ? r.json() : { agents: [] }).then(d => {
+      wrap.querySelector("#tn-hosts").innerHTML = (d.agents || []).map(a => `<option value="${escapeHtml(a.hostname)}"></option>`).join("");
+    });
+    wrap.querySelector("#tn-title").focus();
+    wrap.querySelector("#tn-form").addEventListener("submit", async e => {
+      e.preventDefault();
+      const body = { source: "manual", title: wrap.querySelector("#tn-title").value, description: wrap.querySelector("#tn-desc").value,
+        hostname: wrap.querySelector("#tn-host").value, serial: wrap.querySelector("#tn-serial").value,
+        external_number: wrap.querySelector("#tn-ref").value };
+      const resp = await fetch("/api/triage/items", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!resp.ok) { wrap.querySelector("#tn-msg").textContent = await failText(resp); return; }
+      const data = await resp.json();
+      location.href = "/triage?id=" + encodeURIComponent(data.item.id);
+    });
+  });
+}
+
+// ---- one item ---------------------------------------------------------------
+
+let item = null, detail = null;
+
+async function loadItem() {
+  const resp = await fetch(`/api/triage/items/${encodeURIComponent(itemId)}`);
+  if (resp.status === 401) { location.href = "/login"; return; }
+  if (!resp.ok) { document.getElementById("tq-item").innerHTML = `<a class="tq-back" href="/triage">← Triage queue</a><div class="empty">${escapeHtml(await failText(resp))}</div>`; return; }
+  detail = await resp.json();
+  item = detail.item;
+  document.title = item.title + " — Triage — mustra";
+  const head = document.querySelector("#triage-page-head .page-title");
+  if (head) head.textContent = item.title;
+  const sub = document.querySelector("#triage-page-head .page-sub");
+  if (sub) sub.textContent = `Opened ${fmtAgo(item.created_at)} by ${item.created_by || "mustra"}`;
+  const srcLabel = { servicenow: "ServiceNow", alert: "Guide alert", api: "API", manual: "Filed by hand", self_service: "Self Service" }[item.source] || item.source;
+  const ext = item.external_url && safeUrl(item.external_url) ? ` · <a href="${escapeHtml(safeUrl(item.external_url))}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.external_number || "open the ticket")} ↗</a>`
+    : (item.external_number ? " · " + escapeHtml(item.external_number) : "");
+  document.getElementById("ti-source").innerHTML = escapeHtml(srcLabel) + ext;
+  document.getElementById("ti-desc").textContent = item.description || "No description was given.";
+  document.getElementById("ti-status").innerHTML = statusChip(item.status);
+  renderWork();
+  renderNotes();
+  renderFix();
+  renderSimilar();
+  loadContext();
+}
+
+async function updateItem(body, msgEl) {
+  const resp = await fetch(`/api/triage/items/${encodeURIComponent(item.id)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (!resp.ok) { if (msgEl) { msgEl.className = "tq-msg err"; msgEl.textContent = await failText(resp); } return false; }
+  await loadItem();
+  return true;
+}
+
+function renderWork() {
+  const el = document.getElementById("ti-work");
+  const parts = [];
+  parts.push(`<div class="tq-meta">Assigned to ${item.assignee ? escapeHtml(item.assignee) : "nobody"}${item.resolved_at ? ` · resolved ${escapeHtml(fmtAgo(item.resolved_at))} by ${escapeHtml(item.resolved_by)}` : ""}</div>`);
+  if (canWork) {
+    const moves = detail.transitions || [];
+    parts.push(`<div class="tq-row u-m-8-0-0">
+      <div class="field"><label for="tw-status">Move to</label><select id="tw-status"><option value="">keep ${escapeHtml((STATUS[item.status] || "").toLowerCase())}</option>${moves.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(STATUS[s])}</option>`).join("")}</select></div>
+      <div class="field"><label for="tw-assignee">Assignee</label><input id="tw-assignee" value="${escapeHtml(item.assignee || "")}" placeholder="username" autocomplete="off"></div></div>
+      <div class="field"><label for="tw-note">Note${item.source === "servicenow" ? " (sent to the ticket when you resolve)" : ""}</label><textarea id="tw-note"></textarea></div>
+      <div class="tq-row"><button class="primary" type="button" id="tw-save">Save</button>
+        ${item.assignee !== me.username ? '<button class="secondary" type="button" id="tw-take">Take it</button>' : ""}</div>
+      <div class="tq-msg" id="tw-msg" role="status"></div>`);
+  }
+  if (item.source === "servicenow" && item.sync_state) {
+    parts.push(`<div class="tq-sync ${escapeHtml(item.sync_state)}">${item.sync_state === "sent"
+      ? `Resolution posted to ${escapeHtml(item.external_number || "the ticket")} ${escapeHtml(fmtAgo(item.sync_at))}.`
+      : `The resolution did not reach ServiceNow: ${escapeHtml(item.sync_error)}`}
+      ${item.sync_state === "failed" && canWork ? '<div class="u-m-6-0-0"><button class="tiny" type="button" id="tw-resync">Send it again</button></div>' : ""}</div>`);
+  }
+  el.innerHTML = parts.join("");
+  if (!canWork) return;
+  const msg = document.getElementById("tw-msg");
+  document.getElementById("tw-save").addEventListener("click", ev => withButtonState(ev.currentTarget, async () => {
+    const body = {};
+    const st = document.getElementById("tw-status").value;
+    if (st) body.status = st;
+    const a = document.getElementById("tw-assignee").value.trim();
+    if (a !== (item.assignee || "")) body.assignee = a;
+    const note = document.getElementById("tw-note").value.trim();
+    if (note) body.note = note;
+    if (!Object.keys(body).length) { msg.className = "tq-msg"; msg.textContent = "Nothing changed."; return; }
+    await updateItem(body, msg);
+  }));
+  document.getElementById("tw-take")?.addEventListener("click", ev => withButtonState(ev.currentTarget, async () => {
+    const body = { assignee: me.username };
+    if (item.status === "new") body.status = "in_progress";
+    await updateItem(body, msg);
+  }));
+  document.getElementById("tw-resync")?.addEventListener("click", ev => withButtonState(ev.currentTarget, async () => {
+    const resp = await fetch(`/api/triage/items/${encodeURIComponent(item.id)}/sync`, { method: "POST" });
+    if (!resp.ok) { showToast(await failText(resp), "error"); return; }
+    await loadItem();
+  }));
+}
+
+function renderNotes() {
+  const el = document.getElementById("ti-notes");
+  const notes = (detail.notes || []).slice().reverse();
+  el.innerHTML = (canWork ? `<div class="field"><label for="tn-note">Add a note</label><textarea id="tn-note"></textarea></div>
+      <button class="secondary" type="button" id="tn-add">Add note</button><div class="tq-msg err" id="tn-note-msg" role="alert"></div>` : "") +
+    `<ul class="tq-list tq-timeline u-m-8-0-0">${notes.map(n => `<li class="${escapeHtml(n.kind)}">
+      <div class="who">${escapeHtml(n.author || "mustra")} · <span title="${escapeHtml(fmtTime(n.created_at))}">${escapeHtml(fmtAgo(n.created_at))}</span></div>
+      <div class="body">${escapeHtml(n.body)}</div></li>`).join("")}</ul>`;
+  document.getElementById("tn-add")?.addEventListener("click", ev => withButtonState(ev.currentTarget, async () => {
+    const body = document.getElementById("tn-note").value.trim();
+    if (!body) return;
+    const resp = await fetch(`/api/triage/items/${encodeURIComponent(item.id)}/notes`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body }) });
+    if (!resp.ok) { document.getElementById("tn-note-msg").textContent = await failText(resp); return; }
+    await loadItem();
+  }));
+}
+
+// ---- the endpoint, as mustra knows it --------------------------------------
+
+async function loadContext() {
+  const el = document.getElementById("ti-context");
+  const note = document.getElementById("ti-ep-note");
+  // Unattached, the reason is said beside the choice instead.
+  note.textContent = item.agent_id ? (item.endpoint_match || "") : "";
+  if (!item.agent_id) {
+    el.innerHTML = renderAttach();
+    wireAttach();
+    return;
+  }
+  el.innerHTML = '<div class="tq-empty">Loading…</div>';
+  const resp = await fetch(`/api/triage/items/${encodeURIComponent(item.id)}/context`);
+  if (!resp.ok) { el.innerHTML = `<div class="empty">${escapeHtml(await failText(resp))}</div>`; return; }
+  const cx = await resp.json();
+  if (!cx.endpoint) {
+    el.innerHTML = `<div class="empty">The endpoint this item was about (${escapeHtml(item.agent_id)}) is no longer in inventory.</div>` + renderAttach();
+    wireAttach();
+    return;
+  }
+  el.innerHTML = renderContext(cx) + (canWork ? '<div class="u-m-8-0-0"><button class="tiny" type="button" id="ta-change">Not this endpoint?</button></div><div id="ta-wrap"></div>' : "");
+  document.getElementById("ta-change")?.addEventListener("click", () => {
+    document.getElementById("ta-wrap").innerHTML = renderAttach(true);
+    wireAttach();
+  });
+}
+
+function countOf(list, state) { return ((list || []).find(c => c.state === state) || {}).count || 0; }
+function sumOf(list) { return (list || []).reduce((n, c) => n + c.count, 0); }
+
+function renderContext(cx) {
+  const ep = cx.endpoint, id = encodeURIComponent(ep.agent_id);
+  const restricted = new Set(cx.restricted || []);
+  const fact = (href, k, v, cls, s) => `<a class="tq-fact" href="${escapeHtml(safeUrl(href))}"><div class="tq-fact-k">${escapeHtml(k)}</div>
+    <div class="tq-fact-v ${escapeHtml(cls || "")}">${escapeHtml(v)}</div>${s ? `<div class="tq-fact-s">${escapeHtml(s)}</div>` : ""}</a>`;
+  const vulnCrit = countOf(cx.vulnerabilities, "critical"), vulnHigh = countOf(cx.vulnerabilities, "high");
+  const compFail = countOf(cx.compliance.counts, "fail"), compTotal = sumOf(cx.compliance.counts);
+  const enfBad = sumOf(cx.enforce.counts) - countOf(cx.enforce.counts, "compliant") - countOf(cx.enforce.counts, "remediated");
+  const facts = [
+    cx.health ? fact("/health", "Performance", `${cx.health.score}`, cx.health.score < 70 ? "bad" : "", cx.health.band)
+      : fact("/health", "Performance", "—", "", restricted.has("performance") ? "not in your content sets" : "not reported"),
+    cx.patches ? fact("/patches", "Patches pending", `${cx.patches.pending}`, cx.patches.security ? "bad" : (cx.patches.pending ? "" : "ok"), `${cx.patches.security} security`)
+      : fact("/patches", "Patches pending", "—", "", restricted.has("patches") ? "not in your content sets" : "not reported"),
+    fact("/risk#vulns", "Vulnerabilities", `${sumOf(cx.vulnerabilities)}`, vulnCrit ? "bad" : "", `${vulnCrit} critical · ${vulnHigh} high`),
+    fact("/compliance", "Compliance failing", compTotal ? `${compFail}` : "—", compFail ? "bad" : (compTotal ? "ok" : ""), compTotal ? `of ${compTotal} checks` : "not scanned"),
+    fact("/enforce", "Enforce not holding", `${enfBad}`, enfBad ? "bad" : "ok", `of ${sumOf(cx.enforce.counts)} settings`),
+    fact("/guide", "Open alerts", `${cx.alerts.length}`, cx.alerts.length ? "bad" : "ok", ""),
+    fact("/integrity", "Changes, 7 days", `${cx.changes.total}`, "", ""),
+  ];
+  const hw = [ep.manufacturer, ep.model].filter(Boolean).join(" ");
+  const sub = (title, link, linkText) => `<div class="tq-sub">${escapeHtml(title)}${link ? `<a href="${escapeHtml(safeUrl(link))}">${escapeHtml(linkText || "Open →")}</a>` : ""}</div>`;
+  const list = (rows, empty) => rows.length ? `<ul class="tq-list">${/* safe-html: rows are built from escaped values above */ rows.join("")}</ul>` : `<div class="tq-empty">${escapeHtml(empty)}</div>`;
+  const when = iso => `<span class="when" title="${escapeHtml(fmtTime(iso))}">${escapeHtml(fmtAgo(iso))}</span>`;
+  const out = [];
+  out.push(`<div class="tq-ep"><a class="tq-ep-name" href="/endpoint/${id}">${escapeHtml(ep.hostname)}</a>
+    <span class="badge-pill ${ep.online ? "online" : "offline"}">${ep.online ? "online" : "offline"}</span>
+    <span class="tq-meta">${escapeHtml(osDisplay(ep))} · agent ${escapeHtml(ep.agent_version || "?")}${ep.site ? " · " + escapeHtml(ep.site) : ""}</span></div>
+    <div class="tq-meta">${ep.last_heartbeat ? "last heard from " + escapeHtml(fmtAgo(ep.last_heartbeat)) : "never heard from"}${hw ? " · " + escapeHtml(hw) : ""}${ep.serial ? " · serial " + escapeHtml(ep.serial) : ""}${ep.uptime_hours ? ` · up ${escapeHtml(Math.round(ep.uptime_hours / 24))} days` : ""}${!ep.managed ? " · retired" : ""}</div>`);
+  out.push(`<div class="tq-facts">${facts.join("")}</div>`);
+  if (restricted.size) out.push(`<div class="tq-meta">Not shown, because your content sets do not include them: ${escapeHtml([...restricted].join(", "))}.</div>`);
+
+  out.push(sub("Open alerts", "/guide", "Guide →"));
+  out.push(list(cx.alerts.map(a => `<li><span class="st ${a.severity === "critical" || a.severity === "high" ? "bad" : "muted"}">${escapeHtml(a.severity)}</span><span class="grow">${escapeHtml(a.title)}</span>${when(a.last_seen)}</li>`), "No open alerts about this endpoint."));
+
+  out.push(sub("Recent deployments and actions", `/endpoint/${id}#actions`));
+  const acts = [
+    ...cx.deployments.map(d => ({ at: d.created_at, html: `<span class="st ${d.status === "succeeded" ? "good" : (["failed", "timed_out", "expired"].includes(d.status) ? "bad" : "muted")}">${escapeHtml(d.status.replace("_", " "))}</span><span class="grow">${escapeHtml(d.operation)} ${escapeHtml(d.package)}</span>` })),
+    ...cx.actions.map(a => ({ at: a.started_at, html: `<span class="st ${a.status === "succeeded" ? "good" : (a.status === "failed" ? "bad" : "muted")}">${escapeHtml(a.status.replace("_", " "))}</span><span class="grow">${escapeHtml(a.summary || a.kind)}${a.requested_by ? ` <span class="tq-meta">by ${escapeHtml(a.requested_by)}</span>` : ""}</span>` })),
+  ].sort((a, b) => (b.at || "").localeCompare(a.at || "")).slice(0, 10);
+  out.push(list(acts.map(a => `<li>${/* safe-html: built from escaped values above */ a.html}${when(a.at)}</li>`), "Nothing has been run on it recently."));
+
+  if (cx.compliance.failing.length || cx.enforce.failing.length) {
+    out.push(sub("Not compliant", "/compliance", "Comply →"));
+    out.push(list([...cx.enforce.failing.map(f => `<li><span class="st bad">${escapeHtml(f.state)}</span><span class="grow">${escapeHtml(f.title)} <span class="tq-meta">Enforce · ${escapeHtml(f.policy)}</span></span></li>`),
+      ...cx.compliance.failing.map(f => `<li><span class="st bad">${escapeHtml(f.severity || "fail")}</span><span class="grow">${escapeHtml(f.title)} <span class="tq-meta">${escapeHtml(f.policy)}</span></span></li>`)], ""));
+  }
+  if (cx.patches && cx.patches.items.length) {
+    out.push(sub(`Pending patches (${cx.patches.pending})`, "/patches"));
+    out.push(list(cx.patches.items.map(p => `<li>${p.severity === "security" ? '<span class="st bad">security</span>' : ""}<span class="grow">${escapeHtml(p.name)} <span class="tq-meta">${escapeHtml([p.current_version, p.new_version].filter(Boolean).join(" → "))}</span></span>${p.restart_required ? '<span class="tq-meta">restarts</span>' : ""}</li>`), ""));
+  }
+  out.push(sub(`File changes, last 7 days (${cx.changes.total})`, "/integrity#changes"));
+  out.push(list(cx.changes.recent.map(c => `<li><span class="st ${c.expected ? "muted" : "bad"}">${escapeHtml(c.kind)}</span><span class="grow">${escapeHtml(c.path)}${c.expected && c.because ? ` <span class="tq-meta">${escapeHtml(c.because)}</span>` : ""}</span>${when(c.detected_at)}</li>`), "No watched file changed."));
+  if (cx.software) {
+    out.push(sub(`Software (${cx.software.count} installed) — most recent`, `/endpoint/${id}#software`));
+    out.push(list(cx.software.recent.map(a => `<li><span class="grow">${escapeHtml(a.name)} <span class="tq-meta">${escapeHtml(a.version || "")}</span></span><span class="when">${escapeHtml(a.install_date)}</span></li>`), "The platform records no install dates."));
+  }
+  if (cx.other_items.length) {
+    out.push(sub("Other open items about it"));
+    out.push(list(cx.other_items.map(o => `<li>${statusChip(o.status)}<span class="grow"><a class="tq-title" href="/triage?id=${encodeURIComponent(o.id)}">${escapeHtml(o.title)}</a></span>${when(o.updated_at)}</li>`), ""));
+  }
+  return out.join("");
+}
+
+function renderAttach(changing) {
+  if (!canWork) return item.agent_id ? "" : '<div class="empty">No endpoint is attached to this item yet.</div>';
+  const cands = detail.candidates || [];
+  return `${changing ? "" : `<p class="tq-empty">${escapeHtml(item.endpoint_match || "No endpoint is attached yet.")}</p>`}
+    ${cands.length ? `<div class="tq-sub">Which one is it?</div><ul class="tq-list tq-cands">${cands.map(c => `<li><span class="grow"><strong>${escapeHtml(c.hostname)}</strong>
+      <span class="tq-meta">${escapeHtml(osLabel(c.os))}${c.serial ? " · serial " + escapeHtml(c.serial) : ""} · <a href="/endpoint/${encodeURIComponent(c.agent_id)}">open</a></span></span>
+      <button class="tiny" type="button" data-attach="${escapeHtml(c.agent_id)}">This one</button></li>`).join("")}</ul>` : ""}
+    <div class="tq-row u-m-8-0-0"><div class="field u-m-0"><label for="ta-host">Choose the endpoint by hostname</label><input id="ta-host" list="ta-hosts" autocomplete="off"><datalist id="ta-hosts"></datalist></div>
+      <button class="secondary u-as-end" type="button" id="ta-set">Attach</button></div>
+    ${item.agent_id ? '<div class="u-m-8-0-0"><button class="tiny danger" type="button" id="ta-detach">Detach the endpoint</button></div>' : ""}
+    <div class="tq-msg err" id="ta-msg" role="alert"></div>`;
+}
+
+let agentsCache = null;
+async function wireAttach() {
+  if (!canWork) return;
+  const msg = document.getElementById("ta-msg");
+  document.querySelectorAll("[data-attach]").forEach(b => b.addEventListener("click", () => updateItem({ agent_id: b.dataset.attach }, msg)));
+  document.getElementById("ta-detach")?.addEventListener("click", () => updateItem({ agent_id: "" }, msg));
+  if (!agentsCache) agentsCache = await fetch("/api/agents").then(r => r.ok ? r.json() : { agents: [] }).then(d => d.agents || []);
+  const dl = document.getElementById("ta-hosts");
+  if (dl) dl.innerHTML = agentsCache.map(a => `<option value="${escapeHtml(a.hostname)}"></option>`).join("");
+  document.getElementById("ta-set")?.addEventListener("click", () => {
+    const h = document.getElementById("ta-host").value.trim().toLowerCase();
+    const hits = agentsCache.filter(a => a.hostname.toLowerCase() === h);
+    if (hits.length !== 1) { msg.textContent = hits.length ? `${hits.length} endpoints are called that; choose from the list above or open the endpoint.` : "No endpoint has that hostname."; return; }
+    updateItem({ agent_id: hits[0].agent_id }, msg);
+  });
+}
+
+// ---- fix one, then many -----------------------------------------------------
+
+const OUTCOME = { succeeded: "good", failed: "bad", timed_out: "bad", partial: "bad", expired: "bad", cancelled: "bad", approval_denied: "bad", approval_expired: "bad", approval_failed: "bad" };
+function outcomeChip(f) {
+  const o = f.outcome || f.state;
+  return `<span class="st ${escapeHtml(OUTCOME[o] || "muted")}">${escapeHtml(o.replace(/_/g, " "))}</span>`;
+}
+
+let fixChoices = null;
+async function renderFix() {
+  const panel = document.getElementById("ti-fix-panel");
+  const fixes = detail.fixes || [];
+  panel.hidden = !((canRun && item.status !== "resolved") || fixes.length);
+  if (panel.hidden) return;
+  const el = document.getElementById("ti-fix");
+  const runList = fixes.length ? `<ul class="tq-list">${fixes.slice().reverse().map(f => `<li>${outcomeChip(f)}<span class="grow">${escapeHtml(f.name)} <span class="tq-meta">${escapeHtml(f.kind)} · ${escapeHtml(f.requested_by)}${f.detail ? " · " + escapeHtml(f.detail) : ""}${f.approval_id && !f.run_id ? ' · <a href="/access#approvals">approval</a>' : ""}</span></span>
+    <span class="when">${escapeHtml(fmtAgo(f.created_at))}</span></li>`).join("")}</ul>` : "";
+  if (!canRun || !item.agent_id || item.status === "resolved") {
+    el.innerHTML = runList || "";
+    if (canRun && !item.agent_id) el.innerHTML += '<div class="tq-empty">Attach the endpoint first.</div>';
+    return;
+  }
+  el.innerHTML = `<p class="hint u-m-0-0-8">Runs on ${escapeHtml(item.hostname || item.agent_id)} only, as you, through the same checks as Deploy and Playbooks.</p>
+    <div class="field"><label for="tf-what">Package or playbook</label><select id="tf-what"><option value="">loading…</option></select></div>
+    <button class="primary" type="button" id="tf-run">Run on this endpoint</button>
+    <div class="tq-msg" id="tf-msg" role="status"></div>${runList ? `<div class="tq-sub">Run from this item</div>${runList}` : ""}`;
+  if (!fixChoices) {
+    const [sw, pb] = await Promise.all([
+      fetch("/api/software").then(r => r.ok ? r.json() : { packages: [] }),
+      fetch("/api/playbooks").then(r => r.ok ? r.json() : { playbooks: [] }),
+    ]);
+    fixChoices = {
+      action: (sw.packages || []).filter(p => p.deploy_revision && p.kind === "action").sort((a, b) => a.name.localeCompare(b.name)),
+      software: (sw.packages || []).filter(p => p.deploy_revision && p.kind !== "action").sort((a, b) => a.name.localeCompare(b.name)),
+      playbooks: (pb.playbooks || []).filter(p => p.enabled !== false).sort((a, b) => a.name.localeCompare(b.name)),
+    };
+  }
+  const opt = (v, label) => `<option value="${escapeHtml(v)}">${escapeHtml(label)}</option>`;
+  document.getElementById("tf-what").innerHTML = '<option value="">choose…</option>' +
+    (fixChoices.playbooks.length ? `<optgroup label="Playbooks">${fixChoices.playbooks.map(p => opt("playbook:" + p.id, p.name)).join("")}</optgroup>` : "") +
+    (fixChoices.action.length ? `<optgroup label="Actions">${fixChoices.action.map(p => opt("package:run:" + p.id, p.name)).join("")}</optgroup>` : "") +
+    (fixChoices.software.length ? `<optgroup label="Install software">${fixChoices.software.map(p => opt("package:install:" + p.id, p.name)).join("")}</optgroup>` : "");
+  document.getElementById("tf-run").addEventListener("click", ev => withButtonState(ev.currentTarget, async () => {
+    const v = document.getElementById("tf-what").value, msg = document.getElementById("tf-msg");
+    if (!v) { msg.className = "tq-msg err"; msg.textContent = "Choose what to run."; return; }
+    const parts = v.split(":");
+    const body = parts[0] === "playbook" ? { kind: "playbook", playbook_id: parts.slice(1).join(":") }
+      : { kind: "package", operation: parts[1], package_id: parts.slice(2).join(":") };
+    const resp = await fetch(`/api/triage/items/${encodeURIComponent(item.id)}/fix`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!resp.ok) { msg.className = "tq-msg err"; msg.textContent = await failText(resp); await loadItem(); return; }
+    const data = await resp.json();
+    showToast(data.message, "ok");
+    await loadItem();
+  }));
+}
+
+function renderSimilar() {
+  const panel = document.getElementById("ti-similar-panel");
+  const done = (detail.fixes || []).filter(f => f.outcome === "succeeded");
+  const rollouts = detail.rollouts || [];
+  panel.hidden = !(rollouts.length || (canRun && done.length));
+  if (panel.hidden) return;
+  const el = document.getElementById("ti-similar");
+  const st = { pending: "muted", approved: "good", denied: "bad", expired: "bad", failed: "bad" };
+  const list = rollouts.length ? `<ul class="tq-list">${rollouts.slice().reverse().map(r => `<li><span class="st ${escapeHtml(st[r.approval_state] || "muted")}">${escapeHtml(r.approval_state === "pending" ? "waiting for approval" : r.approval_state)}</span>
+    <span class="grow">${escapeHtml(r.agent_ids.length)} endpoint(s) of ${escapeHtml(r.target_kind)} ${escapeHtml(r.target_name)}
+      <span class="tq-meta">asked by ${escapeHtml(r.requested_by)}${r.decided_by ? " · decided by " + escapeHtml(r.decided_by) : ""} · <a href="/access#approvals">Approvals</a></span></span></li>`).join("")}</ul>` : "";
+  if (!canRun || !done.length) { el.innerHTML = list; return; }
+  el.innerHTML = `<p class="hint u-m-0-0-8">Once a fix has worked here, ask for it on the endpoints a group or saved question finds. Somebody else approves it under Access → Approvals before anything runs.</p>
+    <div class="field"><label for="ts-fix">Fix</label><select id="ts-fix">${done.map(f => `<option value="${escapeHtml(f.id)}">${escapeHtml(f.name)}</option>`).join("")}</select></div>
+    <div class="field"><label for="ts-target">Endpoints</label><select id="ts-target"><option value="">loading…</option></select></div>
+    <div class="tq-row"><button class="secondary" type="button" id="ts-preview">Show the endpoints</button></div>
+    <div id="ts-out"></div>${list ? `<div class="tq-sub">Asked for</div>${list}` : ""}`;
+  Promise.all([
+    fetch("/api/groups").then(r => r.ok ? r.json() : { groups: [] }),
+    fetch("/api/interact/saved").then(r => r.ok ? r.json() : { questions: [] }),
+  ]).then(([g, q]) => {
+    const sel = document.getElementById("ts-target");
+    if (!sel) return;
+    sel.innerHTML = '<option value="">choose…</option>' +
+      ((g.groups || []).length ? `<optgroup label="Computer groups">${g.groups.map(x => `<option value="group:${escapeHtml(x.id)}">${escapeHtml(x.name)}</option>`).join("")}</optgroup>` : "") +
+      ((q.questions || []).length ? `<optgroup label="Saved queries">${q.questions.map(x => `<option value="question:${escapeHtml(x.id)}">${escapeHtml(x.name)}</option>`).join("")}</optgroup>` : "");
+  });
+  const body = () => {
+    const t = document.getElementById("ts-target").value;
+    if (!t) return null;
+    const [kind, ...rest] = t.split(":");
+    const b = { fix_id: document.getElementById("ts-fix").value };
+    b[kind === "group" ? "group_id" : "question_id"] = rest.join(":");
+    return b;
+  };
+  document.getElementById("ts-preview").addEventListener("click", ev => withButtonState(ev.currentTarget, async () => {
+    const out = document.getElementById("ts-out"), b = body();
+    if (!b) { out.innerHTML = '<div class="tq-msg err">Choose a group or a saved query.</div>'; return; }
+    const resp = await fetch(`/api/triage/items/${encodeURIComponent(item.id)}/similar/preview`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) });
+    if (!resp.ok) { out.innerHTML = `<div class="tq-msg err">${escapeHtml(await failText(resp))}</div>`; return; }
+    const pv = await resp.json();
+    out.innerHTML = `<div class="tq-sub">${escapeHtml(pv.endpoints.length)} endpoint(s) of ${escapeHtml(pv.target_name)}</div>
+      ${pv.dropped ? `<div class="tq-meta">${escapeHtml(pv.dropped)} more are outside your management rights and are left out.</div>` : ""}
+      <ul class="tq-list">${pv.endpoints.slice(0, 50).map(e => `<li><span class="grow">${escapeHtml(e.hostname)} <span class="tq-meta">${escapeHtml(osLabel(e.os))}</span></span><span class="tq-meta">${e.online ? "online" : "offline"}</span></li>`).join("")}
+      ${pv.endpoints.length > 50 ? `<li class="tq-meta">and ${escapeHtml(pv.endpoints.length - 50)} more</li>` : ""}</ul>
+      <button class="primary u-m-8-0-0" type="button" id="ts-ask">Ask for approval on these ${escapeHtml(pv.endpoints.length)}</button>
+      <div class="tq-msg" id="ts-msg" role="status"></div>`;
+    document.getElementById("ts-ask").addEventListener("click", ev2 => withButtonState(ev2.currentTarget, async () => {
+      const r2 = await fetch(`/api/triage/items/${encodeURIComponent(item.id)}/similar`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) });
+      const msg = document.getElementById("ts-msg");
+      if (!r2.ok) { msg.className = "tq-msg err"; msg.textContent = await failText(r2); return; }
+      showToast((await r2.json()).message, "ok");
+      await loadItem();
+    }));
+  }));
+}
+
+setInterval(() => { if (!document.hidden && !itemId) loadQueue(); }, 60000);
+</script>
+</body>
+</html>

@@ -464,6 +464,22 @@ func (s *Server) routes() http.Handler {
 	protected.Handle("POST /api/guide/{id}/dismiss", permAny(auth.PermAlertsTriage, auth.PermSettingsManage, hf(s.handleGuideDismiss)))
 	protected.Handle("POST /api/guide/{id}/undismiss", permAny(auth.PermAlertsTriage, auth.PermSettingsManage, hf(s.handleGuideDismiss)))
 	protected.Handle("GET /guide", guidePageHandler())
+	// Triage queue (triage_api.go). Reading it is fleet.read; working an
+	// item is alerts.triage, and so is filing one through the API (how a
+	// ServiceNow business rule sends tickets, with a token holding it). A
+	// fix also passes the permission check and gate of the route it runs.
+	protected.HandleFunc("GET /api/triage/items", s.handleListTriage)
+	protected.Handle("POST /api/triage/items", perm(auth.PermAlertsTriage, hf(s.handleCreateTriage)))
+	protected.HandleFunc("GET /api/triage/items/{id}", s.handleGetTriage)
+	protected.Handle("PUT /api/triage/items/{id}", perm(auth.PermAlertsTriage, hf(s.handleUpdateTriage)))
+	protected.HandleFunc("GET /api/triage/items/{id}/context", s.handleTriageContext)
+	protected.Handle("POST /api/triage/items/{id}/notes", perm(auth.PermAlertsTriage, hf(s.handleAddTriageNote)))
+	protected.Handle("POST /api/triage/items/{id}/fix", perm(auth.PermAlertsTriage, hf(s.handleTriageFix)))
+	protected.Handle("POST /api/triage/items/{id}/similar/preview", perm(auth.PermAlertsTriage, hf(s.handleTriageSimilarPreview)))
+	protected.Handle("POST /api/triage/items/{id}/similar", perm(auth.PermAlertsTriage, hf(s.handleTriageSimilar)))
+	protected.Handle("POST /api/triage/items/{id}/sync", perm(auth.PermAlertsTriage, hf(s.handleTriageSync)))
+	protected.Handle("POST /api/guide/{id}/triage", perm(auth.PermAlertsTriage, hf(s.handleGuideToTriage)))
+	protected.Handle("GET /triage", staticPageHandler("static/triage.html"))
 	// Help: the step-by-step guides, open to every account, roles or not.
 	protected.Handle("GET /help", helpPageHandler())
 	protected.HandleFunc("GET /api/help", s.handleHelpIndex)

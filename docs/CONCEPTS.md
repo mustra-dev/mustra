@@ -1610,6 +1610,42 @@ history nobody clears. A dismissed item stays dismissed while its condition
 persists and comes back if the condition goes away and returns — you
 dismissed the old occurrence, not the next one.
 
+## Triage — a ticket, its endpoint, and the fix
+
+The Guide says what is wrong with the fleet; a support ticket says what is
+wrong for somebody. **Triage** is the queue where the second kind is worked,
+each item next to the endpoint it is about. Items come from a **source**:
+ServiceNow (a business rule or flow calls `POST /api/triage/items` with an API
+token holding `alerts.triage`; nothing polls ServiceNow), an alert an operator
+sends over from the Guide, a script, or a person. Sources are a table, so
+another part of mustra can file into the queue under its own name. The same
+source and external reference is one item: a ticket sent twice updates it.
+
+An item names its endpoint by agent ID, hostname or serial number. It is
+attached only when those agree on exactly one endpoint; two machines with one
+hostname, or a hostname and a serial that disagree, leave it **unattached**
+with the candidates listed, because acting on the wrong endpoint is worse
+than asking. Its page reads the endpoint's state from what mustra already
+holds (Performance, patches, vulnerabilities, Comply, Enforce, Guide alerts,
+file changes, deployments and actions), collecting nothing new.
+
+**Fix one, then many.** A fix runs an existing package or playbook on the
+item's endpoint through the ordinary Deploy or Playbooks route, so the
+route's permission, management rights, action group and approval policies
+all apply, and the target is the endpoint alone (`POST /api/playbooks/{id}/run`
+accepts `agent_ids` for this; they narrow the playbook's own targeting and never
+widen it, so a playbook runs only on an endpoint it already targets). Once the fix has succeeded there, the
+operator may ask for it on the endpoints a computer group or saved query
+matches. That always becomes an approval request, policy or not: the
+requester cannot approve it, it expires in eight hours, and approving replays
+the route as the requester. The endpoints are resolved once and named in the
+request, so a group deleted or edited while it waits cannot widen it, and a
+group already deleted is refused rather than read as "everyone".
+
+Resolving an item from ServiceNow writes a work note on its ticket through
+the ServiceNow integration's URL and credentials, and the item records
+whether it arrived (with a retry). The ticket's state is left to ServiceNow.
+
 ## Reveal — sensitive data where it lives
 
 Which endpoints hold card numbers, Social Security numbers, private keys,

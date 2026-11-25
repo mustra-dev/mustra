@@ -931,6 +931,23 @@ var bodyExamples = map[string]string{
 	"POST /api/admin/tokens":     `{"name": "Copilot in VS Code (read-only)", "permissions": ["fleet.read"], "expires_days": 90, "mcp_only": true}`,
 	"PUT /api/admin/tokens/{id}": `{"name": "SIEM session transcript export", "permissions": ["sessions.audit", "alerts.triage"], "approval_exempt": false, "mcp_only": false}`,
 
+	// triage: a ServiceNow incident about web-01, worked from its item.
+	"POST /api/triage/items": `{
+		"source": "servicenow",
+		"external_ref": "9d385017c611228701d22104cc95c371",
+		"external_number": "INC0010023",
+		"external_url": "https://example.service-now.com/nav_to.do?uri=incident.do?sys_id=9d385017c611228701d22104cc95c371",
+		"title": "Deployment scripts fail on web-01: jq not found",
+		"description": "The nightly release job stops at its first JSON step.",
+		"hostname": "web-01",
+		"serial": "VMW-42-1c-8e-4a-2f-6b-9d"
+	}`,
+	"PUT /api/triage/items/{id}":                  `{"status": "in_progress", "assignee": "jdoe", "note": "jq is missing; installing it"}`,
+	"POST /api/triage/items/{id}/notes":           `{"body": "Release job passes again after the install."}`,
+	"POST /api/triage/items/{id}/fix":             `{"kind": "package", "package_id": "sw-7d3b9f1a5e2c48b6a0d4f8e2c6b1a9d5", "operation": "install"}`,
+	"POST /api/triage/items/{id}/similar/preview": `{"fix_id": "trf-3e7a1c9f5b2d48e6a0c4d8b2f6e1a9c3", "group_id": "cgrp-1c8e4a2f6b9d43e7a5c0f2b8d6e4a1c3"}`,
+	"POST /api/triage/items/{id}/similar":         `{"fix_id": "trf-3e7a1c9f5b2d48e6a0c4d8b2f6e1a9c3", "group_id": "cgrp-1c8e4a2f6b9d43e7a5c0f2b8d6e4a1c3"}`,
+
 	// tracked-products
 	"POST /api/tracked-products":     trackedProductExample,
 	"PUT /api/tracked-products/{id}": trackedProductExample,

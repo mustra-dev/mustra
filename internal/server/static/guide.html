@@ -56,7 +56,9 @@
 <script src="/static/app.js"></script>
 <script>
 let items = [];
-document.addEventListener("mustra:user", () => {
+let canTriage = false;
+document.addEventListener("mustra:user", (e) => {
+  canTriage = hasPermission(e.detail, "alerts.triage");
   renderPageHead("guide-page-head", "/guide", { title: "Guide" });
   load();
 });
@@ -92,9 +94,17 @@ function render() {
       return `<div class="g-item ${escapeHtml(n.severity)}${closed ? " closed" : ""}"><span class="stripe"></span>
         <div><div class="kind">${escapeHtml(n.kind)} · ${escapeHtml(n.source)} <span class="sev ${escapeHtml(n.severity)}">${escapeHtml(n.severity)}</span></div>
           <div class="title">${escapeHtml(n.title)}</div><div class="detail">${escapeHtml(n.detail || "")}</div><div class="meta">${state}</div></div>
-        <div class="side">${n.link ? `<a href="${escapeHtml(safeUrl(n.link))}">Open →</a>` : ""}${!n.resolved_at ? (n.dismissed_at ? `<button class="tiny" data-undismiss="${escapeHtml(n.id)}">bring back</button>` : `<button class="tiny" data-dismiss="${escapeHtml(n.id)}">dismiss</button>`) : ""}</div></div>`;
+        <div class="side">${n.link ? `<a href="${escapeHtml(safeUrl(n.link))}">Open →</a>` : ""}${canTriage && !n.resolved_at ? `<button class="tiny" data-triage="${escapeHtml(n.id)}">Send to triage</button>` : ""}${!n.resolved_at ? (n.dismissed_at ? `<button class="tiny" data-undismiss="${escapeHtml(n.id)}">bring back</button>` : `<button class="tiny" data-dismiss="${escapeHtml(n.id)}">dismiss</button>`) : ""}</div></div>`;
     }).join("");
   el.querySelectorAll("[data-dismiss]").forEach(b => b.addEventListener("click", async () => { await fetch(`/api/guide/${encodeURIComponent(b.dataset.dismiss)}/dismiss`, { method: "POST" }); load(); refreshGuide(); }));
+  // An alert someone has to work becomes a triage item about its endpoint;
+  // sending it twice opens the same item.
+  el.querySelectorAll("[data-triage]").forEach(b => b.addEventListener("click", async () => {
+    const resp = await fetch(`/api/guide/${encodeURIComponent(b.dataset.triage)}/triage`, { method: "POST" });
+    if (!resp.ok) { showToast(await resp.text(), "error"); return; }
+    const data = await resp.json();
+    window.location.href = "/triage?id=" + encodeURIComponent(data.item.id);
+  }));
   el.querySelectorAll("[data-undismiss]").forEach(b => b.addEventListener("click", async () => { await fetch(`/api/guide/${encodeURIComponent(b.dataset.undismiss)}/undismiss`, { method: "POST" }); load(); refreshGuide(); }));
 }
 ["gf-show"].forEach(id => document.getElementById(id).addEventListener("change", () => load()));

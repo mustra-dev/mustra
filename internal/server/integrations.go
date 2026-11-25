@@ -413,10 +413,16 @@ func integrationPostJSON(ctx context.Context, target string, payload any, header
 var integrationClient = &http.Client{Timeout: 15 * time.Second}
 
 func integrationPost(ctx context.Context, target string, raw []byte, headers map[string]string) error {
+	return integrationSend(ctx, http.MethodPost, target, raw, headers)
+}
+
+// integrationSend is integrationPost with the method chosen: updating a
+// ServiceNow record is a PATCH (triage_servicenow.go).
+func integrationSend(ctx context.Context, method, target string, raw []byte, headers map[string]string) error {
 	if u, err := url.Parse(target); err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
 		return errors.New("the integration has no valid URL")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(raw))
+	req, err := http.NewRequestWithContext(ctx, method, target, bytes.NewReader(raw))
 	if err != nil {
 		return err
 	}
