@@ -1168,6 +1168,23 @@ type EnforceSetting struct {
 	// while still running, every half hour, forever. False here means
 	// "check it and report; do not touch it".
 	Enforce bool `json:"enforce,omitempty"`
+
+	// Benchmark names the hardening check this setting was created from,
+	// when it was (Comply's "Create Enforce setting"). The server uses it
+	// to link a second request for the same check to this setting rather
+	// than copy it; it is not sent to agents.
+	Benchmark *EnforceBenchmarkRef `json:"benchmark,omitempty"`
+}
+
+// EnforceBenchmarkRef is the benchmark check an Enforce setting came from.
+type EnforceBenchmarkRef struct {
+	// PolicyID is the compliance policy (benchmark) holding the check.
+	PolicyID string `json:"policy_id"`
+	// PolicyName is the benchmark's name when the setting was created,
+	// kept so the reference still reads after the benchmark is deleted.
+	PolicyName string `json:"policy_name,omitempty"`
+	// CheckID is the check's ID within the benchmark.
+	CheckID string `json:"check_id"`
 }
 
 // EnforceResult is one setting's outcome on one endpoint.

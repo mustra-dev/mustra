@@ -345,6 +345,8 @@ var routeDocs = map[string]routeDoc{
 	// enforce
 	"POST /api/enforce/compile":                            {Body: enforceCompileRequest{}, Resp: enforceCompileResponse{}, Errors: []int{400}},
 	"GET /api/enforce/coverage":                            {Resp: enforceCoverageResponse{}, Errors: []int{500}},
+	"POST /api/enforce/from-checks":                        {Body: enforceFromChecksRequest{}, Resp: enforceFromChecksResponse{}, Errors: []int{400, 404, 500}},
+	"POST /api/enforce/from-checks/preview":                {Body: enforceFromChecksPreviewRequest{}, Resp: enforceFromChecksPreviewResponse{}, Errors: []int{400, 404, 500}},
 	"GET /api/enforce/kinds":                               {Resp: enforceKindsResponse{}},
 	"GET /api/enforce/policies":                            {Resp: listEnforcePoliciesResponse{}, Errors: []int{500}},
 	"POST /api/enforce/policies":                           {Body: enforcePolicyRequest{}, Resp: saveEnforcePolicyResponse{}, Errors: []int{400, 500}},

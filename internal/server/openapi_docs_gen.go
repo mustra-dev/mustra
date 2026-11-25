@@ -190,6 +190,14 @@ var typeDocs = map[string]typeDoc{
 			"Primary": "Primary draws the button as the emphasised one. At most one.",
 		},
 	},
+	"github.com/mustra-dev/mustra/internal/proto.EnforceBenchmarkRef": {
+		Doc: "EnforceBenchmarkRef is the benchmark check an Enforce setting came from.",
+		Fields: map[string]string{
+			"CheckID":    "CheckID is the check's ID within the benchmark.",
+			"PolicyID":   "PolicyID is the compliance policy (benchmark) holding the check.",
+			"PolicyName": "PolicyName is the benchmark's name when the setting was created, kept so the reference still reads after the benchmark is deleted.",
+		},
+	},
 	"github.com/mustra-dev/mustra/internal/proto.EnforceResult": {
 		Doc: "EnforceResult is one setting's outcome on one endpoint.\n\nThe states are deliberately more than pass/fail, because \"it was wrong and I fixed it\" and \"it was wrong and I could not fix it\" are the two answers anyone actually wants, and both are invisible in a boolean.",
 		Fields: map[string]string{
@@ -200,6 +208,7 @@ var typeDocs = map[string]typeDoc{
 	"github.com/mustra-dev/mustra/internal/proto.EnforceSetting": {
 		Doc: "EnforceSetting is one thing that must be true, and what to run when it isn't. Remediation is per platform and may be blank: a setting with no remediation for the platform it lands on reports drift rather than pretending it was fixed.",
 		Fields: map[string]string{
+			"Benchmark": "Benchmark names the hardening check this setting was created from, when it was (Comply's \"Create Enforce setting\"). The server uses it to link a second request for the same check to this setting rather than copy it; it is not sent to agents.",
 			"Condition": "all (default) | any | none",
 			"Enforce":   "Enforce is decided per (endpoint, setting) by the server and sent with the command, rather than being a property of the policy the agent reads for itself. The server is the only party that knows this remediation has already failed three times in a row on this machine, and a remediation that has failed three times will fail a fourth — while still running, every half hour, forever. False here means \"check it and report; do not touch it\".",
 		},
@@ -470,6 +479,28 @@ var typeDocs = map[string]typeDoc{
 		Doc: "backupsResponse is what GET /api/backup-status answers.",
 		Fields: map[string]string{
 			"Systems": "Systems are the connected backup systems (Proxmox Backup Server, Rubrik), each with what it protects.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.benchmarkCheckRef": {
+		Doc: "benchmarkCheckRef names one check in one benchmark (compliance policy).",
+	},
+	"github.com/mustra-dev/mustra/internal/server.benchmarkSettingDraft": {
+		Doc: "benchmarkSettingDraft is the setting a check would become.",
+		Fields: map[string]string{
+			"Effect":      "Effect says, when there are unsupported rules, what they do to the setting's result.",
+			"Existing":    "Existing are the Enforce settings already made from this check.",
+			"FixAllowed":  "FixAllowed is false when an unsupported rule means a fix could never be confirmed by the re-check.",
+			"Platform":    "Platform is the one the rules were judged for: the destination policy's, else the benchmark's.",
+			"Rationale":   "Remediation and Rationale are the benchmark's own text.",
+			"Remediation": "Remediation and Rationale are the benchmark's own text.",
+			"Setting":     "Setting is what would be saved. When a fix is allowed, the platform's fix holds the benchmark's remediation as comments.",
+			"Unsupported": "Unsupported lists the rules the engine cannot read, every one of them; none is left out of Setting.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.benchmarkSettingOutcome": {
+		Doc: "benchmarkSettingOutcome is what became of one check.",
+		Fields: map[string]string{
+			"Unsupported": "Unsupported counts the setting's rules the engine cannot read.",
 		},
 	},
 	"github.com/mustra-dev/mustra/internal/server.cancelDeployRequest": {
@@ -835,6 +866,40 @@ var typeDocs = map[string]typeDoc{
 	"github.com/mustra-dev/mustra/internal/server.enforceCoverageResponse": {
 		Doc: "enforceCoverageResponse is what GET /api/enforce/coverage answers.",
 	},
+	"github.com/mustra-dev/mustra/internal/server.enforceDestination": {
+		Doc: "enforceDestination is a policy the settings could be added to: custom, in report mode, and for a platform that fits.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.enforceFromCheck": {
+		Doc: "enforceFromCheck is one check to make a setting from, with the operator's name and fixes.",
+		Fields: map[string]string{
+			"Name": "Name replaces the check's title as the setting's name.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.enforceFromChecksPreviewRequest": {
+		Doc: "enforceFromChecksPreviewRequest is the body of POST /api/enforce/from-checks/preview.",
+		Fields: map[string]string{
+			"Checks":   "Checks are the benchmark checks to translate.",
+			"PolicyID": "PolicyID is the Enforce policy they would be added to, if one is chosen; its platform decides which rules count as unsupported.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.enforceFromChecksPreviewResponse": {
+		Doc: "enforceFromChecksPreviewResponse is what POST /api/enforce/from-checks/preview answers.",
+		Fields: map[string]string{
+			"Platform": "Platform is the one a new policy would get, or \"\" when the checks come from benchmarks for different platforms.",
+			"Policies": "Policies are the existing policies these settings could be added to.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.enforceFromChecksRequest": {
+		Doc: "enforceFromChecksRequest is the body of POST /api/enforce/from-checks. PolicyID adds the settings to that policy, which must be a custom one in report mode; without it a new report-mode policy is created from Name, Description and GroupID.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.enforceFromChecksResponse": {
+		Doc: "enforceFromChecksResponse is what POST /api/enforce/from-checks answers.",
+		Fields: map[string]string{
+			"Created": "Created are the new settings; Linked the checks that already had one, which was kept rather than copied.",
+			"Linked":  "Created are the new settings; Linked the checks that already had one, which was kept rather than copied.",
+			"Policy":  "Policy is the policy written, or null when every check was already held and nothing was written.",
+		},
+	},
 	"github.com/mustra-dev/mustra/internal/server.enforceKindsResponse": {
 		Doc: "enforceKindsResponse is what GET /api/enforce/kinds answers.",
 	},
@@ -863,6 +928,9 @@ var typeDocs = map[string]typeDoc{
 		Fields: map[string]string{
 			"AgentIDs": "empty means every online endpoint",
 		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.existingBenchmarkSetting": {
+		Doc: "existingBenchmarkSetting is an Enforce setting already made from a check.",
 	},
 	"github.com/mustra-dev/mustra/internal/server.expiringItem": {
 		Fields: map[string]string{
@@ -2158,6 +2226,9 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/server.trustRootView": {
 		Doc: "trustRootView is an entry of what GET /api/certificates/trust answers.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.unsupportedRule": {
+		Doc: "unsupportedRule is a check rule the endpoint engine will not evaluate.",
 	},
 	"github.com/mustra-dev/mustra/internal/server.upcomingExpiry": {
 		Doc: "upcomingExpiry is an entry of what GET /api/certificates/alerts answers.",

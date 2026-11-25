@@ -85,6 +85,38 @@
     .ctl-body { padding-left: 6px; }
   }
   @media (prefers-reduced-motion: reduce) { .ctl-chev { transition: none; } }
+  /* Enforce settings from checks: the selection bar and the dialog. */
+  .bench-bar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 10px; font-size: 12.5px; }
+  .bench-modal { width: min(820px, 100%); }
+  .bench-note { margin: 0 0 14px; padding: 9px 12px; border-radius: var(--radius-md); background: var(--surface-2); font-size: 12.5px; line-height: 1.55; }
+  .bench-note.warn { background: var(--warn-bg); }
+  .bench-dest { border: 0; margin: 0 0 14px; padding: 0; display: grid; gap: 8px; }
+  .bench-dest legend { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; padding: 0; }
+  .bench-radio { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .bench-sub[hidden] { display: none; }
+  .bench-sub { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; padding-left: 24px; }
+  .bench-field { display: grid; gap: 4px; font-size: 12px; color: var(--text-muted); }
+  .bench-field input, .bench-field select, .bench-field textarea { width: 100%; box-sizing: border-box; padding: 7px 9px;
+    border-radius: var(--radius-md); border: 1px solid var(--border-input); background: var(--input-bg); color: var(--text); font: inherit; font-size: 13px; }
+  .bench-field textarea { font-family: var(--mono); font-size: 12px; min-height: 110px; resize: vertical; }
+  .bench-field textarea:disabled { opacity: .75; }
+  .bench-label { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+  .bench-item { border: 1px solid var(--border); border-radius: var(--radius-md); margin-bottom: 8px; }
+  .bench-item > summary { display: flex; gap: 6px 8px; align-items: baseline; flex-wrap: wrap; padding: 9px 12px; cursor: pointer; list-style: none; font-size: 13px; }
+  .bench-item > summary::-webkit-details-marker { display: none; }
+  .bench-item > summary:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .bench-item-body { padding: 2px 12px 12px; display: grid; gap: 12px; }
+  .bench-item-body .bench-note { margin: 0; }
+  .bench-tag { font-size: var(--fs-meta); padding: 1px 7px; border-radius: 999px; background: var(--surface-2); color: var(--text-muted); white-space: nowrap; }
+  .bench-tag.warn { background: var(--warn-bg); color: var(--warn); }
+  .bench-rules { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+  .bench-rules li { font-family: var(--mono); font-size: 12px; padding: 5px 8px; border-radius: var(--radius-sm); background: var(--surface-2); overflow-wrap: anywhere; }
+  .bench-rules li.no { background: var(--warn-bg); }
+  .bench-rules .why { display: block; font-family: var(--font, inherit); font-size: 12px; color: var(--warn); margin-top: 3px; overflow-wrap: normal; }
+  .bench-quote { margin: 0; padding: 8px 10px; border-left: 3px solid var(--border); background: var(--surface-2); font-size: 12.5px; line-height: 1.5; white-space: pre-wrap; }
+  .bench-foot { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+  .bench-done { display: grid; gap: 8px; font-size: 13px; line-height: 1.5; }
+  .bench-done ul { margin: 0; padding-left: 18px; }
 </style>
 </head>
 <body>
@@ -130,11 +162,20 @@
         <p class="hint">
           A check that couldn't be evaluated is <strong>unknown</strong>, never a pass — a silent pass is a false
           assurance, which is the one failure mode compliance tooling can't have.
+          <span id="bench-hint" hidden>To hold a check in place rather than report it, <strong>create an Enforce setting</strong>
+          from it: its own rules become the setting's test, in report mode, and you write the fix. Select several (filter
+          the Check column by a benchmark's name to see one) to add them to one policy.</span>
         </p>
+        <div class="bench-bar" id="bench-bar" hidden>
+          <button class="tiny" id="bench-pick-failing" type="button">Select the failing checks shown</button>
+          <button class="tiny" id="bench-pick-none" type="button">Clear selection</button>
+          <button class="primary u-w-auto" id="bench-enforce" type="button" disabled>Add to Enforce…</button>
+          <span class="muted" id="bench-picked" role="status"></span>
+        </div>
         <div class="table-scroll">
           <table>
-            <thead><tr><th>Check</th><th>Severity</th><th>Failing</th><th>Passing</th><th>Unknown</th><th>Excepted</th><th></th></tr></thead>
-            <tbody id="checks-body"><tr><td class="empty" colspan="7">loading…</td></tr></tbody>
+            <thead><tr><th id="chk-pick-th"><span class="sr-only">Select</span></th><th>Check</th><th>Severity</th><th>Failing</th><th>Passing</th><th>Unknown</th><th>Excepted</th><th></th></tr></thead>
+            <tbody id="checks-body"><tr><td class="empty" colspan="8">loading…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -148,8 +189,8 @@
         </div>
         <div class="table-scroll">
           <table>
-            <thead><tr><th>Endpoint</th><th>Check</th><th>Severity</th><th>State</th><th>Detail</th></tr></thead>
-            <tbody id="results-body"><tr><td class="empty" colspan="5">loading…</td></tr></tbody>
+            <thead><tr><th>Endpoint</th><th>Check</th><th>Severity</th><th>State</th><th>Detail</th><th></th></tr></thead>
+            <tbody id="results-body"><tr><td class="empty" colspan="6">loading…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -249,11 +290,16 @@
 
 <script src="/static/app.js"></script>
 <script>
-let results = [], meta = {}, canRun = false, canSettings = false;
+let results = [], meta = {}, canRun = false, canSettings = false, canEnforce = false;
 
 document.addEventListener("mustra:user", (e) => {
   canRun = !!(e.detail && (e.detail.is_admin || (e.detail.permissions || []).includes("patches.manage")));
   canSettings = !!(e.detail && (e.detail.is_admin || (e.detail.permissions || []).includes("settings.manage")));
+  // Making Enforce settings is authoring Enforce, which is deploy.manage.
+  canEnforce = !!(e.detail && (e.detail.is_admin || (e.detail.permissions || []).includes("deploy.manage")));
+  if (!canEnforce) document.getElementById("chk-pick-th").remove();
+  document.getElementById("bench-bar").hidden = !canEnforce;
+  document.getElementById("bench-hint").hidden = !canEnforce;
   renderPageHead("comply-page-head", "/compliance", { title: "Comply" });
   renderPageHead("scores-page-head", "/compliance", { title: "Comply" });
   renderPageHead("controls-page-head", "/compliance", { title: "Comply" });
@@ -407,22 +453,33 @@ function renderTiles() {
 
 function renderChecks() {
   const checks = (meta.checks || []).sort((a, b) => (b.fail || 0) - (a.fail || 0));
+  const cols = canEnforce ? 8 : 7;
   document.getElementById("checks-status").textContent = checks.length ? `${checks.length} check(s)` : "";
   document.getElementById("checks-body").innerHTML = checks.length === 0
-    ? '<tr><td class="empty" colspan="7">nothing has been evaluated yet — run a policy from the Policies tab</td></tr>'
+    ? `<tr><td class="empty" colspan="${cols}">nothing has been evaluated yet — run a policy from the Policies tab</td></tr>`
     : checks.map(c => `
       <tr>
-        <td>${escapeHtml(c.title || c.check_id)}<div class="mono u-c-text-muted">${escapeHtml(c.check_id)}</div></td>
+        ${canEnforce ? `<td><input type="checkbox" class="bench-check" data-bench="${escapeHtml(c.policy_id || "")}" data-check="${escapeHtml(c.check_id)}"
+          data-fail="${escapeHtml(c.fail || 0)}" aria-label="Select ${escapeHtml(c.title || c.check_id)}"${picked.has(pickKey(c.policy_id, c.check_id)) ? " checked" : ""}${c.policy_id ? "" : " disabled"}></td>` : ""}
+        <td>${escapeHtml(c.title || c.check_id)}<div class="mono u-c-text-muted">${escapeHtml(benchNames[c.policy_id] || c.policy_id || "")} · ${escapeHtml(c.check_id)}</div></td>
         <td>${c.severity ? `<span class="sev ${escapeHtml(c.severity)}">${escapeHtml(c.severity)}</span>` : "—"}</td>
         <td class="num" data-sort="${escapeHtml(c.fail || 0)}"${sx(`color:${(c.fail||0) ? "var(--off)" : "inherit"}`)}>${escapeHtml(c.fail || 0)}</td>
         <td class="num" data-sort="${escapeHtml(c.pass || 0)}">${escapeHtml(c.pass || 0)}</td>
         <td class="num" data-sort="${escapeHtml(c.unknown || 0)}">${escapeHtml(c.unknown || 0)}</td>
         <td class="num" data-sort="${escapeHtml(c.excepted || 0)}">${escapeHtml(c.excepted || 0)}</td>
-        <td>${canRun && (c.fail || 0) ? `<button class="tiny" data-except="${escapeHtml(c.title || c.check_id)}">add exception</button>` : ""}</td>
+        <td class="row-actions">${canRun && (c.fail || 0) ? `<button class="tiny" data-except="${escapeHtml(c.title || c.check_id)}">add exception</button>` : ""}
+          ${canEnforce && c.policy_id ? `<button class="tiny" data-enforce-bench="${escapeHtml(c.policy_id)}" data-enforce-check="${escapeHtml(c.check_id)}">create Enforce setting</button>` : ""}</td>
       </tr>`).join("");
   document.querySelectorAll("[data-except]").forEach(b => b.addEventListener("click", () => startException(b.dataset.except)));
-  const dt = initDataTable(document.getElementById("checks-body").closest("table"), { storageKey: "comply-checks" });
+  document.querySelectorAll("#checks-body .bench-check").forEach(b => b.addEventListener("change", () => {
+    const k = pickKey(b.dataset.bench, b.dataset.check);
+    if (b.checked) picked.set(k, { benchmark_id: b.dataset.bench, check_id: b.dataset.check }); else picked.delete(k);
+    renderPicked();
+  }));
+  // A column more for whoever can select rows, so their saved layout is kept apart.
+  const dt = initDataTable(document.getElementById("checks-body").closest("table"), { storageKey: canEnforce ? "comply-checks-pick" : "comply-checks" });
   if (dt) dt.refresh();
+  renderPicked();
 }
 
 function renderResults() {
@@ -430,7 +487,7 @@ function renderResults() {
   const shown = onlyFail ? results.filter(r => r.state === "fail") : results;
   document.getElementById("results-status").textContent = `${shown.length} shown of ${results.length}`;
   document.getElementById("results-body").innerHTML = shown.length === 0
-    ? `<tr><td class="empty" colspan="5">${results.length === 0 ? "no results yet" : "nothing failing"}</td></tr>`
+    ? `<tr><td class="empty" colspan="6">${results.length === 0 ? "no results yet" : "nothing failing"}</td></tr>`
     : shown.slice(0, 500).map(r => `
       <tr>
         <td><a href="/endpoint/${escapeHtml(r.agent_id)}">${escapeHtml(r.hostname || r.agent_id)}</a></td>
@@ -438,6 +495,8 @@ function renderResults() {
         <td>${r.severity ? `<span class="sev ${escapeHtml(r.severity)}">${escapeHtml(r.severity)}</span>` : "—"}</td>
         <td><span class="st ${escapeHtml(r.state)}">${escapeHtml(r.state)}</span></td>
         <td class="mono u-ws-normal u-maxw-340 u-c-text-muted">${escapeHtml(r.detail || "")}</td>
+        <td>${canEnforce && r.state === "fail" ? `<button class="tiny" data-enforce-bench="${escapeHtml(r.policy_id)}" data-enforce-check="${escapeHtml(r.check_id)}"
+          data-enforce-host="${escapeHtml(r.hostname || r.agent_id)}">create Enforce setting</button>` : ""}</td>
       </tr>`).join("");
   const dt = initDataTable(document.getElementById("results-body").closest("table"), { storageKey: "comply-results" });
   if (dt) dt.refresh();
@@ -447,6 +506,8 @@ async function loadPolicies() {
   const resp = await fetch("/api/compliance/policies");
   if (!resp.ok) return;
   const policies = (await resp.json()).policies || [];
+  benchNames = Object.fromEntries(policies.map(p => [p.id, p.name]));
+  if (meta.checks) renderChecks();
   document.getElementById("pol-status").textContent = policies.length ? `${policies.length} policy(ies)` : "";
   document.getElementById("pol-body").innerHTML = policies.map(p => `
     <tr>
@@ -600,6 +661,162 @@ function controlCheckHTML(k) {
     <span class="ctl-check-meta">${escapeHtml(k.policy_name)} · check ${escapeHtml(k.check_id)}${k.severity ? ` · ${escapeHtml(k.severity)}` : ""}</span>
     ${failing.length ? `<span class="ctl-hosts">Fails on ${/* safe-html: built from escaped values above */ hosts}${failing.length > 12 ? ` and ${escapeHtml(failing.length - 12)} more` : ""}</span>` : ""}
   </div>`;
+}
+
+// --- Enforce settings from checks ----------------------------------------
+// The server translates (POST /api/enforce/from-checks/preview) and saves;
+// this only shows the drafts and collects the operator's names and fixes.
+const picked = new Map();
+let benchNames = {};
+const pickKey = (b, c) => `${b || ""}\u0000${c}`;
+
+function renderPicked() {
+  const n = picked.size;
+  document.getElementById("bench-picked").textContent = n ? `${n} check${n === 1 ? "" : "s"} selected` : "";
+  const go = document.getElementById("bench-enforce");
+  go.disabled = n === 0;
+  go.textContent = n > 1 ? `Add ${n} to Enforce…` : "Add to Enforce…";
+}
+document.getElementById("bench-pick-failing").addEventListener("click", () => {
+  // The rows the table's filters leave showing: filter the Check column by
+  // a benchmark's name and this picks that benchmark's failures.
+  document.querySelectorAll("#checks-body .bench-check").forEach(b => {
+    if (b.disabled || b.closest("tr").style.display === "none" || !Number(b.dataset.fail)) return;
+    b.checked = true;
+    picked.set(pickKey(b.dataset.bench, b.dataset.check), { benchmark_id: b.dataset.bench, check_id: b.dataset.check });
+  });
+  renderPicked();
+});
+document.getElementById("bench-pick-none").addEventListener("click", () => {
+  picked.clear();
+  document.querySelectorAll("#checks-body .bench-check").forEach(b => { b.checked = false; });
+  renderPicked();
+});
+document.getElementById("bench-enforce").addEventListener("click", () => openEnforceDialog([...picked.values()]));
+document.querySelector("main").addEventListener("click", e => {
+  const b = e.target.closest("[data-enforce-check]");
+  if (!b) return;
+  openEnforceDialog([{ benchmark_id: b.dataset.enforceBench, check_id: b.dataset.enforceCheck }],
+    b.dataset.enforceHost ? `Failing on ${b.dataset.enforceHost}.` : "");
+});
+
+const CONDITION_TEXT = { all: "every rule must hold", any: "at least one rule must hold", none: "no rule may hold" };
+
+function benchDraftHTML(d, i, open) {
+  const s = d.setting, fixField = "remediate_" + d.platform;
+  const existing = d.existing || [], unsupported = d.unsupported || [];
+  const why = Object.fromEntries(unsupported.map(u => [u.rule, u.reason]));
+  return `<details class="bench-item"${open ? " open" : ""}>
+    <summary><b>${escapeHtml(s.name)}</b>
+      <span class="bench-tag">${escapeHtml(d.benchmark_name)} · ${escapeHtml(d.check_id)}</span>
+      ${unsupported.length ? `<span class="bench-tag warn">${escapeHtml(unsupported.length)} rule${unsupported.length === 1 ? "" : "s"} the engine can't read</span>` : ""}
+      ${existing.length ? '<span class="bench-tag">already in Enforce</span>' : ""}</summary>
+    <div class="bench-item-body">
+      <label class="bench-field">Setting name <input data-bench-i="${escapeHtml(i)}" data-bench-f="name" value="${escapeHtml(s.name)}"></label>
+      <div><div class="bench-label">Test: the check's own rules, unchanged — ${escapeHtml(CONDITION_TEXT[s.condition] || CONDITION_TEXT.all)}</div>
+        <ul class="bench-rules">${(s.rules || []).map(r => why[r]
+          ? `<li class="no">${escapeHtml(r)}<span class="why">Can't be read here: ${escapeHtml(why[r])}</span></li>`
+          : `<li>${escapeHtml(r)}</li>`).join("")}</ul></div>
+      ${d.effect ? `<p class="bench-note warn">${escapeHtml(d.effect)} Every rule is kept, none is dropped: leaving one out would check less than the benchmark and pass where it fails.</p>` : ""}
+      ${existing.length ? `<p class="bench-note">Already a setting in ${existing.map(x => `<a href="/enforce#${encodeURIComponent(x.policy_id)}">${escapeHtml(x.policy_name)}</a>`).join(", ")}.
+        A new policy links to it rather than copying it; choosing a different existing policy holds the check there too.</p>` : ""}
+      ${d.remediation ? `<div><div class="bench-label">The benchmark's remediation — text for a person, not a command</div><blockquote class="bench-quote">${escapeHtml(d.remediation)}</blockquote></div>` : ""}
+      <label class="bench-field">Fix on ${escapeHtml(osLabel(d.platform))}${d.platform === "windows" ? " (PowerShell)" : ""}
+        <textarea data-bench-i="${escapeHtml(i)}" data-bench-f="${escapeHtml(fixField)}" spellcheck="false"${d.fix_allowed ? "" : " disabled"}>${escapeHtml(d.fix_allowed ? (s[fixField] || "") : "")}</textarea></label>
+      <p class="modal-note">${d.fix_allowed
+        ? "Your command, run with the agent's rights on every targeted endpoint once the policy enforces. Lines starting with # run nothing: left as comments only, the setting reports drift and is never “fixed”."
+        : "No fix for this one: the re-check after a fix is what proves it worked, and it cannot read every rule of this check. The setting reports what it finds."}</p>
+    </div>
+  </details>`;
+}
+
+async function openEnforceDialog(refs, note) {
+  refs = refs.filter(r => r.benchmark_id && r.check_id);
+  if (!refs.length) return;
+  const resp = await fetch("/api/enforce/from-checks/preview", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ checks: refs }) });
+  if (!resp.ok) { showToast("Could not read those checks: " + (await resp.text()).trim(), "error"); return; }
+  const d = await resp.json();
+  const drafts = d.drafts || [], policies = d.policies || [], single = drafts.length === 1;
+  const platform = d.platform;
+  const benches = [...new Set(drafts.map(x => x.benchmark_name))];
+  const defaultName = benches.length === 1 ? `${benches[0]} — held from Comply` : "Hardening checks";
+  // Asked again for a check that already has a setting, start where it is,
+  // so creating twice links rather than copies; otherwise in the policy an
+  // earlier check from this benchmark went to, by its default name.
+  const heldIn = (single && (drafts[0].existing || []).map(x => x.policy_id).find(id => policies.some(p => p.id === id))) ||
+    (policies.find(p => p.name === defaultName) || {}).id;
+  const groupOpts = Object.entries(groupNames).sort((a, b) => a[1].localeCompare(b[1]))
+    .map(([id, name]) => `<option value="${escapeHtml(id)}">${escapeHtml(name)}</option>`).join("");
+  const unreadable = drafts.filter(x => (x.unsupported || []).length).length;
+  const html = `
+    ${note ? `<p class="modal-note u-mt-0">${escapeHtml(note)}</p>` : ""}
+    <p class="bench-note">The setting's test is the check's own rules. It starts in <b>report mode</b>: it checks and records,
+      and changes nothing until someone switches its policy to enforce in Enforce. The fix is yours to write; the benchmark's
+      remediation is offered only as comments, never turned into a command.</p>
+    ${unreadable && !single ? `<p class="bench-note warn">${escapeHtml(unreadable)} of these ${escapeHtml(drafts.length)} checks ha${unreadable === 1 ? "s" : "ve"} rules the engine cannot read${platform ? " on " + escapeHtml(osLabel(platform)) : ""}.
+      Where those rules decide, their settings report <b>unknown</b>, never compliant, and they take no fix. Each is marked below.</p>` : ""}
+    <fieldset class="bench-dest">
+      <legend>Where</legend>
+      <label class="bench-radio"><input type="radio" name="bench-dest" value="new"${heldIn ? "" : " checked"}${platform ? "" : " disabled"}> A new policy, in report mode</label>
+      <div class="bench-sub" id="bench-new">
+        <label class="bench-field">Name <input id="bench-name" value="${escapeHtml(defaultName)}"></label>
+        <label class="bench-field">Targets <select id="bench-group"><option value="">Every ${escapeHtml(osLabel(platform))} endpoint</option>${groupOpts}</select></label>
+      </div>
+      ${platform ? "" : '<p class="modal-note">These checks come from benchmarks for different platforms, and a new policy holds one. Select checks from one benchmark, or add them to a policy for any platform.</p>'}
+      <label class="bench-radio"><input type="radio" name="bench-dest" value="existing"${heldIn ? " checked" : ""}${policies.length ? "" : " disabled"}> An existing policy in report mode</label>
+      <div class="bench-sub" id="bench-existing">
+        <label class="bench-field">Policy <select id="bench-policy">${policies.map(p => `<option value="${escapeHtml(p.id)}"${p.id === heldIn ? " selected" : ""}>${escapeHtml(p.name)} · ${escapeHtml(p.group_name || "every endpoint")} · ${escapeHtml(p.settings)} setting${p.settings === 1 ? "" : "s"}</option>`).join("")}</select></label>
+      </div>
+      ${policies.length ? "" : `<p class="modal-note">No custom policy in report mode fits${platform ? " " + escapeHtml(osLabel(platform)) : ""}. Enforcing and typed policies can't take settings from here.</p>`}
+    </fieldset>
+    <div id="bench-list">${drafts.map((x, i) => benchDraftHTML(x, i, single)).join("")}</div>
+    <div class="bench-foot">
+      <button class="primary u-w-auto" id="bench-save" type="button">${single ? "Create setting" : `Add ${escapeHtml(drafts.length)} settings`}</button>
+      <button class="tiny" id="bench-cancel" type="button">Cancel</button>
+      <span id="bench-status" role="status" class="u-fs-12"></span>
+    </div>`;
+  openModal(single ? "Create Enforce setting" : `Add ${drafts.length} checks to Enforce`, html, wrap => {
+    wrap.querySelector(".modal").classList.add("bench-modal");
+    const syncDest = () => {
+      const dest = wrap.querySelector('input[name="bench-dest"]:checked');
+      wrap.querySelector("#bench-new").hidden = !dest || dest.value !== "new";
+      wrap.querySelector("#bench-existing").hidden = !dest || dest.value !== "existing";
+    };
+    wrap.querySelectorAll('input[name="bench-dest"]').forEach(r => r.addEventListener("change", syncDest));
+    syncDest();
+    wrap.querySelector("#bench-cancel").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#bench-save").addEventListener("click", () => saveEnforceDrafts(wrap, drafts));
+  });
+}
+
+async function saveEnforceDrafts(wrap, drafts) {
+  const st = wrap.querySelector("#bench-status"), btn = wrap.querySelector("#bench-save");
+  const dest = wrap.querySelector('input[name="bench-dest"]:checked');
+  if (!dest) { st.innerHTML = '<span class="u-c-off">Choose where the settings go.</span>'; return; }
+  const checks = drafts.map((d, i) => {
+    const c = { benchmark_id: d.benchmark_id, check_id: d.check_id };
+    wrap.querySelectorAll(`[data-bench-i="${i}"]`).forEach(el => { if (!el.disabled) c[el.dataset.benchF] = el.value; });
+    return c;
+  });
+  const body = dest.value === "new"
+    ? { name: wrap.querySelector("#bench-name").value.trim(), group_id: wrap.querySelector("#bench-group").value, checks }
+    : { policy_id: wrap.querySelector("#bench-policy").value, checks };
+  btn.disabled = true; st.textContent = "saving…";
+  const resp = await fetch("/api/enforce/from-checks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  btn.disabled = false;
+  if (!resp.ok) { st.innerHTML = `<span class="u-c-off">${escapeHtml((await resp.text()).trim())}</span>`; return; }
+  const r = await resp.json();
+  const link = (id, name) => `<a href="/enforce#${encodeURIComponent(id)}">${escapeHtml(name)}</a>`;
+  const created = r.created || [], linked = r.linked || [];
+  wrap.querySelector(".modal-body").innerHTML = `<div class="bench-done">
+    ${created.length ? `<p class="u-m-0"><b>${escapeHtml(created.length)}</b> setting${created.length === 1 ? "" : "s"} added to ${link(r.policy.id, r.policy.name)}, in report mode:
+      ${created.length === 1 ? "it checks and records" : "they check and record"}, and nothing changes until the policy is switched to enforce.</p>` : ""}
+    ${linked.length ? `<p class="u-m-0">${escapeHtml(linked.length)} already had a setting, kept rather than copied:</p>
+      <ul>${linked.slice(0, 20).map(l => `<li>${escapeHtml(l.name)} — ${link(l.policy_id, l.policy_name)}</li>`).join("")}${linked.length > 20 ? `<li>and ${escapeHtml(linked.length - 20)} more</li>` : ""}</ul>` : ""}
+    <div class="bench-foot">${r.policy ? `<a href="/enforce#${encodeURIComponent(r.policy.id)}">Open the policy in Enforce</a>` : ""}</div>
+  </div>`;
+  if (drafts.length > 1) { picked.clear(); renderChecks(); }
 }
 </script>
 </body>

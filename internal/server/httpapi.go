@@ -664,6 +664,10 @@ func (s *Server) routes() http.Handler {
 	protected.HandleFunc("GET /api/enforce/results", s.handleListEnforceResults)
 	protected.HandleFunc("GET /api/enforce/kinds", s.handleEnforceKinds)
 	protected.Handle("POST /api/enforce/compile", perm(auth.PermDeployManage, hf(s.handleEnforceCompile)))
+	// Settings made from hardening checks are Enforce settings with
+	// operator-written fixes, so they cost what writing one by hand does.
+	protected.Handle("POST /api/enforce/from-checks/preview", perm(auth.PermDeployManage, hf(s.handleEnforceFromChecksPreview)))
+	protected.Handle("POST /api/enforce/from-checks", perm(auth.PermDeployManage, hf(s.handleEnforceFromChecks)))
 	protected.HandleFunc("GET /api/enforce/coverage", s.handleEnforceCoverage)
 	// Listing which keys are escrowed is deploy.manage; reading a password
 	// is enforce.recovery_keys, and every read is audited.

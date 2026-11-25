@@ -98,11 +98,15 @@ func (s *Server) handleComplianceResults(w http.ResponseWriter, r *http.Request)
 	for _, r := range results {
 		states[r.State]++
 		hosts[r.AgentID] = true
-		c, ok := byCheck[r.CheckID]
+		// Per benchmark and check: a check is acted on in its benchmark
+		// (an Enforce setting is made from it there), and two benchmarks
+		// may number checks alike.
+		key := r.PolicyID + "\x00" + r.CheckID
+		c, ok := byCheck[key]
 		if !ok {
-			c = map[string]any{"check_id": r.CheckID, "title": r.Title,
+			c = map[string]any{"policy_id": r.PolicyID, "check_id": r.CheckID, "title": r.Title,
 				"severity": r.Severity, "fail": 0, "pass": 0, "unknown": 0, stateExcepted: 0}
-			byCheck[r.CheckID] = c
+			byCheck[key] = c
 		}
 		c[r.State] = c[r.State].(int) + 1
 	}

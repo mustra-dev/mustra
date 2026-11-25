@@ -2524,9 +2524,9 @@ var respExamples = map[string]string{
 	"POST /api/software-library/{id}": `{"package_id": "sw-4c1a8e2f6b9d43e7a5c0f2b8d6e4a1c3", "revision_id": "rev-8f2b6d0a4c1e49e7b3a5c9d1f7e0b2a4"}`,
 	"GET /api/compliance/results": `{
 		"checks": [
-			{"check_id": "35010", "title": "Ensure separate partition exists for /var/log", "severity": "", "pass": 0, "fail": 0, "unknown": 0, "excepted": 1},
-			{"check_id": "ssh-password-auth", "title": "SSH password authentication is disabled", "severity": "medium", "pass": 0, "fail": 1, "unknown": 0, "excepted": 0},
-			{"check_id": "ssh-root-login", "title": "SSH does not permit direct root login", "severity": "high", "pass": 1, "fail": 0, "unknown": 0, "excepted": 0}
+			{"policy_id": "imported-cis-ubuntu-24-04-lts-benchmark-v1-0-0", "check_id": "35010", "title": "Ensure separate partition exists for /var/log", "severity": "", "pass": 0, "fail": 0, "unknown": 0, "excepted": 1},
+			{"policy_id": "builtin-linux-baseline", "check_id": "ssh-password-auth", "title": "SSH password authentication is disabled", "severity": "medium", "pass": 0, "fail": 1, "unknown": 0, "excepted": 0},
+			{"policy_id": "builtin-linux-baseline", "check_id": "ssh-root-login", "title": "SSH does not permit direct root login", "severity": "high", "pass": 1, "fail": 0, "unknown": 0, "excepted": 0}
 		],
 		"endpoints_reporting": 1,
 		"results": [
@@ -3320,6 +3320,84 @@ var respExamples = map[string]string{
 				"defaults": {"backend": "auto", "default_inbound": "drop", "allow_ssh": true, "ssh_port": 22, "services": []}
 			}
 		]
+	}`,
+	// One check made into a setting in a new report-mode policy.
+	"POST /api/enforce/from-checks": `{
+		"policy": {
+			"id": "enf-3c7e1a9d5b2f40e8a6d4c2b8f0e6a1d3",
+			"name": "CIS Debian 12 on web servers",
+			"description": "Failing CIS checks, held from Comply",
+			"os": "linux",
+			"group_id": "cgrp-1c8e4a2f6b9d43e7a5c0f2b8d6e4a1c3",
+			"group_name": "Web servers",
+			"group_deleted": false,
+			"mode": "report",
+			"enabled": true,
+			"kind": "",
+			"config": {},
+			"settings": [
+				{"id": "set-9e2b4d6f8a1c43e5b7d9f1a3c5e7b9d2", "name": "Ensure sshd PermitRootLogin is disabled.", "severity": "high", "condition": "all",
+				 "rules": ["c:sshd -T -C user=root -C host=localhost -C addr=localhost -> r:^\\s*permitrootlogin\\s+no"],
+				 "remediate_linux": "sed -i 's/^\\s*#\\?\\s*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config && systemctl reload ssh",
+				 "benchmark": {"policy_id": "imported-cis-debian-12", "policy_name": "CIS Debian 12", "check_id": "35600"}}
+			],
+			"setting_count": 1,
+			"created_at": "2026-11-20T09:12:44Z",
+			"created_by": "jdoe",
+			"updated_at": "2026-11-20T09:12:44Z",
+			"updated_by": "jdoe"
+		},
+		"created": [
+			{"benchmark_id": "imported-cis-debian-12", "check_id": "35600", "policy_id": "enf-3c7e1a9d5b2f40e8a6d4c2b8f0e6a1d3",
+			 "policy_name": "CIS Debian 12 on web servers", "setting_id": "set-9e2b4d6f8a1c43e5b7d9f1a3c5e7b9d2",
+			 "name": "Ensure sshd PermitRootLogin is disabled.", "unsupported": 0}
+		],
+		"linked": []
+	}`,
+	// Two CIS checks: the second already has a setting, made into a
+	// policy earlier; the engine can read every rule of both.
+	"POST /api/enforce/from-checks/preview": `{
+		"drafts": [
+			{
+				"benchmark_id": "imported-cis-debian-12",
+				"benchmark_name": "CIS Debian 12",
+				"check_id": "35600",
+				"platform": "linux",
+				"setting": {"id": "", "name": "Ensure sshd PermitRootLogin is disabled.", "severity": "high", "condition": "all",
+					"rules": ["c:sshd -T -C user=root -C host=localhost -C addr=localhost -> r:^\\s*permitrootlogin\\s+no"],
+					"remediate_linux": "# The benchmark's remediation, as written. Comments run nothing:\n# write the command that applies it below them.\n#\n# Edit the /etc/ssh/sshd_config file to set the parameter: PermitRootLogin no\n",
+					"benchmark": {"policy_id": "imported-cis-debian-12", "policy_name": "CIS Debian 12", "check_id": "35600"}},
+				"remediation": "Edit the /etc/ssh/sshd_config file to set the parameter: PermitRootLogin no",
+				"rationale": "Disallowing root logins over SSH requires administrators to authenticate with their own account.",
+				"unsupported": [],
+				"fix_allowed": true,
+				"existing": []
+			},
+			{
+				"benchmark_id": "imported-cis-debian-12",
+				"benchmark_name": "CIS Debian 12",
+				"check_id": "35500",
+				"platform": "linux",
+				"setting": {"id": "", "name": "Ensure /tmp is a separate partition.", "severity": "medium", "condition": "all",
+					"rules": ["c:findmnt -kn /tmp -> r:\\s*/tmp\\s"],
+					"remediate_linux": "# The benchmark's remediation, as written. Comments run nothing:\n# write the command that applies it below them.\n#\n# Create or update an entry for /tmp in /etc/fstab, or enable tmp.mount.\n",
+					"benchmark": {"policy_id": "imported-cis-debian-12", "policy_name": "CIS Debian 12", "check_id": "35500"}},
+				"remediation": "Create or update an entry for /tmp in /etc/fstab, or enable tmp.mount.",
+				"unsupported": [],
+				"fix_allowed": true,
+				"existing": [
+					{"policy_id": "enf-3c7e1a9d5b2f40e8a6d4c2b8f0e6a1d3", "policy_name": "CIS Debian 12 on web servers", "mode": "report",
+					 "setting_id": "set-4a6c8e0b2d4f46a8c0e2b4d6f8a0c2e4", "setting_name": "Ensure /tmp is a separate partition."}
+				]
+			}
+		],
+		"policies": [
+			{"id": "enf-3c7e1a9d5b2f40e8a6d4c2b8f0e6a1d3", "name": "CIS Debian 12 on web servers", "os": "linux",
+			 "group_id": "cgrp-1c8e4a2f6b9d43e7a5c0f2b8d6e4a1c3", "group_name": "Web servers", "settings": 14},
+			{"id": "enf-5a9d3f7b1c2e48e6a0b4d8f2c6e1a3b9", "name": "Time sync on web servers", "os": "linux",
+			 "group_id": "cgrp-1c8e4a2f6b9d43e7a5c0f2b8d6e4a1c3", "group_name": "Web servers", "settings": 1}
+		],
+		"platform": "linux"
 	}`,
 	// Sorted by name. The counts are of result rows, one per setting and
 	// endpoint: the time-sync dry run reached 11 of its 12 web servers.

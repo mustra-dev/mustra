@@ -23,6 +23,7 @@ Hold a setting in place: check it on a timer, and put it back when it drifts. Fo
 3. Choose **Add a setting**. Either pick a ready-made kind (**Windows Firewall**, **BitLocker**, **Microsoft Defender** or **AppLocker**, all Windows) and its options, or write your own:
    - **Rules** that decide whether the setting holds, in the same format Comply uses. For example `c:systemctl is-active ufw -> r:^active` runs a command and matches its output.
    - A **Fix** command per platform. Leave it empty to only report drift.
+   - Or start from a benchmark check in Comply (**Findings → create Enforce setting**). Its rules become the setting's test and you write the fix. See [Compliance](compliance.md#fix-failures-automatically).
 4. Leave the mode on **Report — check and record only** and choose **Save policy**.
 5. Choose **Run now** and read **Standing, per endpoint**: which endpoints are *compliant* and which have *drifted*.
 6. When the results look right, edit the policy, set the mode to **Enforce — fix what has drifted**, and save. It runs every 30 minutes by default.

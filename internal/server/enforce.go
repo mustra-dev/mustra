@@ -228,6 +228,14 @@ func (s *Server) runEnforceOn(ctx context.Context, p store.EnforcePolicy,
 			suppressed := map[string]bool{}
 			for _, setting := range settings {
 				out := setting
+				// The agent has no use for where a setting came from, and a
+				// fix of nothing but comments (a benchmark's remediation text,
+				// kept as the start of one) is no fix: sent, it would "run",
+				// re-check, and burn an attempt as a failure.
+				out.Benchmark = nil
+				out.RemediateLinux = runnableFix(out.RemediateLinux)
+				out.RemediateWindows = runnableFix(out.RemediateWindows)
+				out.RemediateDarwin = runnableFix(out.RemediateDarwin)
 				count := failures[target.AgentID][setting.ID]
 				// Nothing is remediated on a dry run, but a setting mustra
 				// has given up on is still given up on — so suppression is

@@ -29,7 +29,7 @@ var dispatchingRoutes = []string{
 	"DELETE /api/agents/{id}", "POST /api/agents/{id}/sensor-interval", "POST /api/playbooks/{id}/run",
 	"POST /api/shell/sessions", "POST /api/remote/sessions", "POST /api/certificates/managed", "PUT /api/certificates/managed/{id}", "POST /api/certificates/managed/{id}/renew", "POST /api/certificates/managed/{id}/upload", "POST /api/patches/list-assignments", "POST /api/certificates/apps/credentials", "PUT /api/certificates/apps/credentials/{id}", "POST /api/certificates/apps/credentials/{id}/renew", "POST /api/jump/requests", "POST /api/shell/sessions/{id}/exec", "POST /api/compliance/policies/{id}/run",
 	"POST /api/catalog/requests/{id}/decide", "POST /api/integrity/watch-status/apply", "PUT /api/deploy/settings",
-	"POST /api/patches/schedules", "POST /api/enforce/policies", "PUT /api/enforce/policies/{id}",
+	"POST /api/patches/schedules", "POST /api/enforce/policies", "PUT /api/enforce/policies/{id}", "POST /api/enforce/from-checks",
 	"POST /api/sensors/custom", "PUT /api/sensors/custom/{id}",
 	"POST /api/certificates/trust/{id}", "POST /api/agents/{id}/intune/{action}",
 	"POST /api/compliance/scan",

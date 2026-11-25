@@ -348,14 +348,27 @@ func validateEnforceSettings(settings []proto.EnforceSetting, mode, os string) (
 func remediationForPlatform(s proto.EnforceSetting, os string) string {
 	switch os {
 	case "linux":
-		return s.RemediateLinux
+		return runnableFix(s.RemediateLinux)
 	case "windows":
-		return s.RemediateWindows
+		return runnableFix(s.RemediateWindows)
 	case "darwin":
-		return s.RemediateDarwin
+		return runnableFix(s.RemediateDarwin)
 	default:
-		return s.RemediateLinux + s.RemediateWindows + s.RemediateDarwin
+		return runnableFix(s.RemediateLinux) + runnableFix(s.RemediateWindows) + runnableFix(s.RemediateDarwin)
 	}
+}
+
+// runnableFix is the fix as it is sent, or "" when it holds only blank and
+// "#" comment lines (a comment in both sh and PowerShell). A setting made
+// from a benchmark check starts with the benchmark's remediation text as
+// comments: something to write the command under, never a command itself.
+func runnableFix(fix string) string {
+	for _, line := range strings.Split(fix, "\n") {
+		if l := strings.TrimSpace(line); l != "" && !strings.HasPrefix(l, "#") {
+			return fix
+		}
+	}
+	return ""
 }
 
 // deleteEnforcePolicyResponse is what DELETE /api/enforce/policies/{id}
