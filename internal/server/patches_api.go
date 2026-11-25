@@ -278,6 +278,10 @@ type deployPatchesRequest struct {
 	// lists allow. Needs target_agents, and an endpoint not listed is not
 	// patched. Omitted, every pending update is installed.
 	OnlyPackages map[string][]string `json:"only_packages,omitempty"`
+	// PlanID rolls the run out ring by ring through this deployment plan
+	// instead of patching every target at once; the answer then names the
+	// rollout and its first ring's run. Not with only_packages.
+	PlanID string `json:"plan_id,omitempty"`
 	patchRestart
 }
 
@@ -287,6 +291,9 @@ type deployPatchesResponse struct {
 	Matched    int               `json:"matched"`
 	Started    []string          `json:"started"`
 	Failed     map[string]string `json:"failed"`
+	// RolloutID is set when the run goes out through a rollout plan: RunID
+	// is then its first ring's run, and Started and Failed that ring's.
+	RolloutID string `json:"rollout_id,omitempty"`
 }
 
 // handleDeployPatchesBulk is "Deploy now": fires apply_patches at every
@@ -330,6 +337,21 @@ func (s *Server) handleDeployPatchesBulk(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+	var plan *store.DeploymentPlan
+	if req.PlanID != "" {
+		if len(req.OnlyPackages) > 0 {
+			http.Error(w, "plan_id cannot be combined with only_packages", http.StatusBadRequest)
+			return
+		}
+		if plan, err = s.store.GetDeploymentPlan(r.Context(), req.PlanID); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if plan == nil || len(plan.Rings) == 0 {
+			http.Error(w, "no such rollout plan", http.StatusBadRequest)
+			return
+		}
 	}
 	targetDesc := describePatchTarget(req.TargetOS, req.TargetSite, req.TargetAgent, req.TargetVulnID)
 	if len(req.TargetAgents) > 0 {
@@ -402,10 +424,13 @@ func (s *Server) handleDeployPatchesBulk(w http.ResponseWriter, r *http.Request)
 	s.logger.Info("bulk patch deploy requested", "target", targetDesc, "matched", len(agents), "requested_by", u.Username)
 
 	runID := idgen.New("run-")
-	if err := s.store.RecordPatchJobRun(r.Context(), store.PatchJobRun{
-		ID: runID, TargetDesc: targetDesc, AgentCount: len(agents), TriggeredBy: u.Username,
-	}); err != nil {
-		s.logger.Warn("record patch job run failed", "error", err)
+	if plan == nil {
+		// A rollout records a run per ring instead.
+		if err := s.store.RecordPatchJobRun(r.Context(), store.PatchJobRun{
+			ID: runID, TargetDesc: targetDesc, AgentCount: len(agents), TriggeredBy: u.Username,
+		}); err != nil {
+			s.logger.Warn("record patch job run failed", "error", err)
+		}
 	}
 	// Written before anything is sent: what was asked for is worth
 	// recording even if no endpoint answers. Unlike software deployment,
@@ -417,7 +442,7 @@ func (s *Server) handleDeployPatchesBulk(w http.ResponseWriter, r *http.Request)
 	ev := auditEvent{
 		Action: "patches.deploy", Actor: u.Username, Target: targetDesc, Severity: "notice",
 		Detail: map[string]any{"run_id": runID, "endpoints": len(agents),
-			"override_windows": req.OverrideWindows, "restart_mode": restart.Mode},
+			"override_windows": req.OverrideWindows, "restart_mode": restart.Mode, "plan_id": req.PlanID},
 	}
 	if len(agents) == 1 {
 		ev.AgentID = agents[0].AgentID
@@ -435,6 +460,10 @@ func (s *Server) handleDeployPatchesBulk(w http.ResponseWriter, r *http.Request)
 	// client that times out loses the summary, not the deployment, and the
 	// run is on the Deployments page either way.
 	bg := context.WithoutCancel(r.Context())
+	if plan != nil {
+		s.deployPatchesAsRollout(w, bg, req, *plan, restart, targetDesc, len(agents), u.Username)
+		return
+	}
 	started, failed := s.deployPatchesToAgents(bg, agents, u.Username, runID, req.OverrideWindows, restart, req.OnlyPackages)
 	writeJSONResponse(w, deployPatchesResponse{
 		RunID: runID, TargetDesc: targetDesc, Matched: len(agents), Started: started, Failed: failed,
@@ -466,11 +495,15 @@ type createPatchScheduleRequest struct {
 	// TargetAgents freezes the schedule to a named set of endpoints, the
 	// same shape "Deploy now" takes. Resolved at fire time like every other
 	// target, so a machine that is offline that night is simply skipped.
-	TargetAgents []string   `json:"target_agents,omitempty"`
-	Kind         string     `json:"kind" api:"required"` // "once" | "daily" | "weekly"
-	RunAt        *time.Time `json:"run_at,omitempty"`
-	TimeOfDay    string     `json:"time_of_day,omitempty"`
-	Weekday      *int       `json:"weekday,omitempty"`
+	TargetAgents []string `json:"target_agents,omitempty"`
+	// PlanID rolls every firing out ring by ring through this deployment
+	// plan. A firing whose plan has been deleted, or whose last rollout is
+	// still running or halted, is skipped rather than sent all at once.
+	PlanID    string     `json:"plan_id,omitempty"`
+	Kind      string     `json:"kind" api:"required"` // "once" | "daily" | "weekly"
+	RunAt     *time.Time `json:"run_at,omitempty"`
+	TimeOfDay string     `json:"time_of_day,omitempty"`
+	Weekday   *int       `json:"weekday,omitempty"`
 }
 
 func (s *Server) handleCreatePatchSchedule(w http.ResponseWriter, r *http.Request) {
@@ -505,12 +538,24 @@ func (s *Server) handleCreatePatchSchedule(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	if req.PlanID != "" {
+		plan, err := s.store.GetDeploymentPlan(r.Context(), req.PlanID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if plan == nil || len(plan.Rings) == 0 {
+			http.Error(w, "no such rollout plan", http.StatusBadRequest)
+			return
+		}
+	}
+
 	u := auth.CurrentUser(r.Context())
 	sched, err := s.store.CreatePatchSchedule(r.Context(), store.PatchSchedule{
 		ID: idgen.New("psched-"), Name: req.Name, TargetOS: req.TargetOS, TargetSite: req.TargetSite,
 		TargetAgent: req.TargetAgent, TargetAgents: req.TargetAgents, TargetVulnID: req.TargetVulnID,
 		Kind: req.Kind, RunAt: req.RunAt, TimeOfDay: req.TimeOfDay,
-		Weekday: req.Weekday, Enabled: true, NextRunAt: nextRunAt, CreatedBy: u.Username,
+		Weekday: req.Weekday, Enabled: true, NextRunAt: nextRunAt, CreatedBy: u.Username, PlanID: req.PlanID,
 	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -627,4 +672,38 @@ func shortAgo(t time.Time) string {
 		return "less than a minute"
 	}
 	return strings.TrimSuffix(d.String(), "0s")
+}
+
+// deployPatchesAsRollout starts a Deploy now that goes out through a
+// rollout plan. The request has already been authorized, approved and
+// audited as one deployment; each ring is then a run of its own, and the
+// rings after the first narrow to the caller's reach again when they start.
+func (s *Server) deployPatchesAsRollout(w http.ResponseWriter, ctx context.Context, req deployPatchesRequest, plan store.DeploymentPlan, restart patchRestart, targetDesc string, matched int, who string) {
+	ro, err := s.startRollout(ctx, "patch", "", targetDesc, plan, patchRolloutParams{
+		TargetOS: req.TargetOS, TargetSite: req.TargetSite, TargetAgent: req.TargetAgent,
+		TargetVulnID: req.TargetVulnID, TargetAgents: req.TargetAgents, RequestedBy: who,
+		OverrideWindows: req.OverrideWindows, RestartMode: restart.Mode, RestartWarn: restart.WarnMinutes,
+	}, who)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	resp := deployPatchesResponse{RolloutID: ro.ID, TargetDesc: targetDesc, Matched: matched,
+		Started: []string{}, Failed: map[string]string{}}
+	if ro.CurrentRing < len(ro.Rings) {
+		ring := ro.Rings[ro.CurrentRing]
+		resp.RunID = ring.RunID
+		if ring.RunID != "" {
+			if acts, err := s.store.ActionsForRun(ctx, ring.RunID); err == nil {
+				for _, a := range acts {
+					if a.FinishedAt != nil && a.Status == "failed" {
+						resp.Failed[a.AgentID] = a.Detail
+					} else {
+						resp.Started = append(resp.Started, a.AgentID)
+					}
+				}
+			}
+		}
+	}
+	writeJSONResponse(w, resp)
 }

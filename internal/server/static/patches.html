@@ -8,6 +8,7 @@
 <link rel="icon" href="/static/brand/app-icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/static/brand/app-icon-256.png">
 <link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/rollouts.css">
 <script src="/static/theme.js"></script>
 <style>
   .sev-pill { font-size: var(--fs-meta); text-transform: uppercase; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; }
@@ -149,6 +150,7 @@
             </div>
             <div class="host-picker" id="deploy-hosts-list"></div>
           </div>
+          <div class="field"><label for="deploy-plan">Rollout plan</label><select id="deploy-plan"><option value="">None — all at once</option></select></div>
           <div class="field" id="deploy-override-field" hidden><label><input type="checkbox" id="deploy-override"> Override maintenance windows</label></div>
           <div class="field"><button class="primary" id="deploy-now-btn">Deploy now</button></div>
         </div>
@@ -178,6 +180,7 @@
             <div class="host-picker" id="sched-hosts-list"></div>
             <p class="u-fs-meta u-c-text-muted u-m-6-0-0">A named set is frozen: the schedule fires at these endpoints whenever they are online, and at nothing else.</p>
           </div>
+          <div class="field"><label for="sched-plan">Rollout plan</label><select id="sched-plan"><option value="">None — all at once</option></select></div>
           <div class="field"><label for="sched-kind">Cadence</label>
             <select id="sched-kind">
               <option value="once">Once</option>
@@ -210,6 +213,21 @@
             <tbody id="schedule-deployments-body"><tr><td class="empty" colspan="6">loading…</td></tr></tbody>
           </table>
         </div>
+      </div>
+    </div>
+
+    <div class="module-section" id="section-rollouts" hidden>
+      <div class="panel">
+        <div class="panel-header"><h2>Rollouts</h2><span class="scan-status">Patch runs going out ring by ring; a halted one waits for you</span></div>
+        <div id="patch-rollouts"><div class="rollout-empty">loading…</div></div>
+      </div>
+      <div class="panel">
+        <h2>Rollout plans</h2>
+        <p class="u-fs-12 u-c-text-muted u-mt-n8 u-lh-1_55">
+          A plan is ordered rings with a threshold and a soak time each. Pick one under Deploy &amp; Schedule, or promote an Enforce
+          policy through one; the same plans serve software deployments.
+        </p>
+        <div id="patch-plans"></div>
       </div>
     </div>
 
@@ -329,6 +347,7 @@
 
 <script src="/static/app.js"></script>
 <script src="/static/deployments.js"></script>
+<script src="/static/rollouts.js"></script>
 <script>
 let canApply = false;
 document.addEventListener("mustra:user", (e) => {
@@ -344,6 +363,7 @@ document.addEventListener("mustra:user", (e) => {
     items.push(
       { hash: "deploy", label: "Deploy & Schedule" },
       { hash: "deployments", label: "Deployments" },
+      { hash: "rollouts", label: "Rollouts" },
       { hash: "history", label: "Recent Activity" },
       { hash: "policies", label: "Patch Lists" },
       { hash: "scanmgmt", label: "Scan Management" },
@@ -357,6 +377,7 @@ document.addEventListener("mustra:user", (e) => {
     loadPolicies();
     applyAgentHandoff();
     previewDeploy();
+    mountPatchRollouts(e.detail);
   }
   initModuleSections(items);
 });
@@ -903,18 +924,29 @@ document.getElementById("deploy-now-btn").addEventListener("click", async () => 
   const target = parseTargetValue(raw, "deploy");
   if (raw === "specific" && target.target_agents.length === 0) { alert("pick at least one endpoint"); return; }
   if (document.getElementById("deploy-override").checked) target.override_windows = true;
+  const planID = document.getElementById("deploy-plan").value;
+  if (planID) target.plan_id = planID;
   const scope = raw === "specific"
     ? `the ${target.target_agents.length} selected endpoint(s)`
     : "every online device matching this target";
-  if (!confirm(`Deploy patches now to ${scope}? This can take several minutes per device.`)) return;
+  const how = planID ? " ring by ring, through the plan you chose (the first ring starts now)" : "";
+  if (!confirm(`Deploy patches now to ${scope}${how}? This can take several minutes per device.`)) return;
   const btn = document.getElementById("deploy-now-btn");
   const summaryEl = document.getElementById("deploy-summary");
   btn.disabled = true;
   summaryEl.textContent = "deploying…";
   try {
     const resp = await fetch("/api/patches/deploy", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(target) });
-    const data = await resp.json();
-    if (!resp.ok) throw new Error(data.error || JSON.stringify(data));
+    const text = await resp.text();
+    let data = {};
+    try { data = JSON.parse(text); } catch (_) { data = { error: text.trim() }; }
+    if (!resp.ok) throw new Error(data.error || text);
+    if (data.rollout_id) {
+      summaryEl.innerHTML = `<span class="ok">Rollout started</span>: first ring ${escapeHtml((data.started || []).length)} endpoint(s) — target: ${escapeHtml(data.target_desc)}. <a href="#rollouts">Follow it under Rollouts</a>.`;
+      if (window.patchRollouts) window.patchRollouts.reload();
+      loadHistory();
+      return;
+    }
     const failedCount = Object.keys(data.failed || {}).length;
     summaryEl.innerHTML = `<span class="ok">${escapeHtml(data.started.length)} started</span>` +
       (failedCount ? `, <span class="bad">${escapeHtml(failedCount)} failed</span>: ${escapeHtml(Object.entries(data.failed).map(([id, err]) => id + " (" + err + ")").join(", "))}` : "") +
@@ -990,7 +1022,7 @@ function renderSchedules(schedules) {
     <tr>
       <td>${escapeHtml(s.name)}</td>
       <td>${escapeHtml(describeScheduleTarget(s))}</td>
-      <td>${escapeHtml(describeSchedule(s))}</td>
+      <td>${escapeHtml(describeSchedule(s))}${s.plan_id ? `<div class="u-fs-meta u-c-text-muted">in rings: ${escapeHtml(planName(s.plan_id))}</div>` : ""}</td>
       <td>${s.next_run_at ? fmtAgo(s.next_run_at) : "—"}</td>
       <td>${s.last_run_at ? fmtAgo(s.last_run_at) : "never"}</td>
       <td><input type="checkbox" class="enabled-toggle" data-id="${escapeHtml(s.id)}" aria-label="Schedule enabled" ${s.enabled ? "checked" : ""}></td>
@@ -1018,6 +1050,8 @@ document.getElementById("sched-add").addEventListener("click", async () => {
   if (schedRaw === "specific" && target.target_agents.length === 0) { alert("pick at least one endpoint"); return; }
   const kind = document.getElementById("sched-kind").value;
   const body = { name, kind, ...target };
+  const planID = document.getElementById("sched-plan").value;
+  if (planID) body.plan_id = planID;
 
   if (kind === "once") {
     const raw = document.getElementById("sched-runat").value;
@@ -1036,6 +1070,33 @@ document.getElementById("sched-add").addEventListener("click", async () => {
   document.getElementById("sched-name").value = "";
   loadSchedules();
 });
+
+// --- Rollouts ---
+
+let rolloutPlans = [];
+function planName(id) { return (rolloutPlans.find(p => p.id === id) || {}).name || "a deleted plan"; }
+
+// The plan selects keep their choice across a reload of the list.
+function fillPlanSelects(list) {
+  rolloutPlans = list;
+  for (const id of ["deploy-plan", "sched-plan"]) {
+    const sel = document.getElementById(id), prev = sel.value;
+    sel.innerHTML = /* safe-html: planOptions escapes every value */ Rollouts.planOptions(list);
+    sel.value = list.some(p => p.id === prev) ? prev : "";
+  }
+  renderSchedules(schedulesCache || []);
+}
+
+function mountPatchRollouts(u) {
+  Rollouts.plans().then(fillPlanSelects).catch(() => {});
+  window.patchRollouts = Rollouts.mountRollouts(document.getElementById("patch-rollouts"), {
+    kind: "patch", canAct: true,
+    empty: "No patch rollouts yet. Choose a rollout plan when you deploy or schedule patches to send them out ring by ring.",
+  });
+  Rollouts.mountPlans(document.getElementById("patch-plans"), {
+    canEdit: hasPermission(u, "deploy.manage"), onChange: fillPlanSelects,
+  });
+}
 
 // --- History ---
 

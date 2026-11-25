@@ -38,13 +38,16 @@ type PatchSchedule struct {
 	NextRunAt    *time.Time `json:"next_run_at"`
 	CreatedAt    time.Time  `json:"created_at"`
 	CreatedBy    string     `json:"created_by"`
+	// PlanID, when set, rolls each firing out ring by ring through that
+	// deployment plan instead of patching every target at once.
+	PlanID string `json:"plan_id"`
 }
 
-const patchScheduleColumns = `id, name, target_os, target_site, target_agent, target_agents, target_vuln_id, kind, run_at, time_of_day, weekday, enabled, last_run_at, next_run_at, created_at, created_by`
+const patchScheduleColumns = `id, name, target_os, target_site, target_agent, target_agents, target_vuln_id, kind, run_at, time_of_day, weekday, enabled, last_run_at, next_run_at, created_at, created_by, plan_id`
 
 func scanPatchSchedule(row pgx.Row) (*PatchSchedule, error) {
 	var s PatchSchedule
-	if err := row.Scan(&s.ID, &s.Name, &s.TargetOS, &s.TargetSite, &s.TargetAgent, &s.TargetAgents, &s.TargetVulnID, &s.Kind, &s.RunAt, &s.TimeOfDay, &s.Weekday, &s.Enabled, &s.LastRunAt, &s.NextRunAt, &s.CreatedAt, &s.CreatedBy); err != nil {
+	if err := row.Scan(&s.ID, &s.Name, &s.TargetOS, &s.TargetSite, &s.TargetAgent, &s.TargetAgents, &s.TargetVulnID, &s.Kind, &s.RunAt, &s.TimeOfDay, &s.Weekday, &s.Enabled, &s.LastRunAt, &s.NextRunAt, &s.CreatedAt, &s.CreatedBy, &s.PlanID); err != nil {
 		return nil, err
 	}
 	if s.TargetAgents == nil {
@@ -62,12 +65,12 @@ func (s *Store) CreatePatchSchedule(ctx context.Context, sched PatchSchedule) (*
 		sched.TargetAgents = []string{}
 	}
 	const q = `
-INSERT INTO patch_schedules (id, name, target_os, target_site, target_agent, target_agents, target_vuln_id, kind, run_at, time_of_day, weekday, enabled, next_run_at, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+INSERT INTO patch_schedules (id, name, target_os, target_site, target_agent, target_agents, target_vuln_id, kind, run_at, time_of_day, weekday, enabled, next_run_at, created_by, plan_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 RETURNING ` + patchScheduleColumns
 	row := s.pool.QueryRow(ctx, q, sched.ID, sched.Name, sched.TargetOS, sched.TargetSite, sched.TargetAgent,
 		sched.TargetAgents, sched.TargetVulnID,
-		sched.Kind, sched.RunAt, sched.TimeOfDay, sched.Weekday, sched.Enabled, sched.NextRunAt, sched.CreatedBy)
+		sched.Kind, sched.RunAt, sched.TimeOfDay, sched.Weekday, sched.Enabled, sched.NextRunAt, sched.CreatedBy, sched.PlanID)
 	out, err := scanPatchSchedule(row)
 	if err != nil {
 		return nil, fmt.Errorf("create patch schedule: %w", err)

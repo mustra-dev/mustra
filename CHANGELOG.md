@@ -8,7 +8,7 @@ rather than a page that can drift from it.
 
 Server and agent: the Self Service category column and Enforce's `u:` rules (Linux Firewall
 policies) need this agent release; everything else is server only and works with current
-agents.
+agents. No manual migration is needed: the server adds its new tables and columns on start.
 
 ### Added
 - **The fleet over MCP, with changes that wait for approval.** The MCP endpoint at
@@ -86,6 +86,22 @@ agents.
   any Enforce setting. New routes: `POST /api/enforce/from-checks/preview` and
   `POST /api/enforce/from-checks`. Server only.
 - A link to `/enforce#<policy id>`, as Enforce notifications already give, opens that policy.
+- **Deployment rings for patching and Enforce.** A patch Deploy now or patch schedule can go out
+  through a rollout plan: ordered rings, each a computer group or a percentage of the target,
+  with a success threshold and a soak time. Each ring is its own deployment. The next ring starts
+  only after the last one has reported, met its threshold, soaked, and still meets it. Endpoints
+  that never answered count as not succeeded, and a ring in which nobody answered never passes.
+  A ring that misses its threshold, or a patch that fails its health check, halts the rollout
+  until an operator resumes or aborts it under **Patch → Rollouts**. A report-mode Enforce policy
+  can be **promoted in rings** the same way: each pass enforces only on the rings promoted so
+  far, and the policy switches to enforce when the last ring passes. Rings only ever narrow the
+  deployment's own target. Percentage rings pick the same endpoints each time a plan runs, and
+  a ring whose computer group was deleted halts the rollout instead of widening it. Rollouts
+  keep their state in the database, so soak times of days survive a server restart. Plans are
+  now editable in the console, and the API validates their rings.
+- A schedule with a rollout plan skips a firing, with a notification, while its last rollout is
+  running or halted or when its plan is gone; it never falls back to patching everything at once.
+  A plan used by a patch schedule cannot be deleted.
 
 ### Changed
 - An approval request records the person behind it and, when a token asked, the token. The

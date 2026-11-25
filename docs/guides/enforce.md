@@ -28,6 +28,15 @@ Hold a setting in place: check it on a timer, and put it back when it drifts. Fo
 5. Choose **Run now** and read **Standing, per endpoint**: which endpoints are *compliant* and which have *drifted*.
 6. When the results look right, edit the policy, set the mode to **Enforce — fix what has drifted**, and save. It runs every 30 minutes by default.
 
+## Promote ring by ring
+
+Instead of switching the whole policy to enforce at once, choose **Promote in rings** on a report-mode policy under **Standing** and pick a rollout plan (create plans under **Enforce → Rollouts**).
+
+- The policy stays in report mode. Each pass enforces only on the endpoints of the rings promoted so far.
+- A ring passes when enough of its endpoints came back *compliant* or *remediated* since it was promoted. *Unknown*, *drifted*, *failed* and endpoints that did not answer all count against it. After its soak it is checked again and the next ring is promoted.
+- When the last ring passes, the policy switches to enforce for everything it targets.
+- A ring that misses its threshold **halts** the promotion: its endpoints keep enforcing, no new ring is added. **Resume** accepts the ring and moves on; **Abort** puts every endpoint back to report.
+
 ## Read the results
 
 **Standing, per endpoint** shows each endpoint's state for each setting:

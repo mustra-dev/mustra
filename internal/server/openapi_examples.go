@@ -619,6 +619,9 @@ var bodyExamples = map[string]string{
 		]
 	}`,
 	"POST /api/enforce/policies/{id}/run": `{"dry_run": true}`,
+	// Through the group rings of the deployment plan example: the pilot
+	// group enforces first.
+	"POST /api/enforce/policies/{id}/rollout": `{"plan_id": "plan-aa84f3bbe99040d7d2c10d3c11ab9c32"}`,
 
 	// enrollment-tokens
 	"POST /api/enrollment-tokens": `{"label": "Web servers, rack B", "site": "dc-east", "max_uses": 10, "expires_hours": 24}`,

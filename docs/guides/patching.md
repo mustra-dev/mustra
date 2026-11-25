@@ -40,6 +40,17 @@ An LXC set up with the [Proxmox VE community scripts](https://community-scripts.
 
 A common setup is a pilot group on Tuesday night and everyone else on Thursday night, so a bad update shows up on a few machines first.
 
+## Roll out in rings
+
+A **rollout plan** does the pilot-then-everyone pattern inside one deployment and stops it for you when the pilot goes badly.
+
+1. **Patch → Rollouts**, under **Rollout plans**, create a plan (needs `deploy.manage`). Each ring is a computer group or a percentage of the target, with a **Must succeed (%)** threshold and a **Soak** time. End with a 100% ring, or endpoints in no ring are left alone.
+2. Under **Deploy & Schedule**, choose the plan in **Rollout plan** when you deploy now or create a schedule.
+3. Follow it under **Patch → Rollouts**. Each ring is its own deployment. A ring passes once its results are in and enough succeeded (an endpoint that did not answer counts as not succeeded); it then soaks, is checked again, and the next ring starts.
+4. A ring that misses its threshold, or a patch that fails its health check, **halts** the rollout. **Resume** accepts that ring and starts the next; **Abort** ends the rollout and cancels the current ring's endpoints still waiting for their window.
+
+A schedule whose last rollout is still running or halted skips its next firing, and so does one whose plan was deleted; neither ever falls back to patching everything at once.
+
 ## Allow, hold back and pin updates
 
 **Patch Lists** control what a patch run may install:

@@ -209,6 +209,10 @@ func (s *Server) runEnforceOn(ctx context.Context, p store.EnforcePolicy,
 		failures = map[string]map[string]int{}
 	}
 
+	// Endpoints a ring rollout has promoted enforce while the policy is
+	// still in report mode everywhere else (ring_rollouts_drivers.go).
+	promoted := s.enforcePromoted(ctx, p)
+
 	var (
 		mu        sync.Mutex
 		firstFail = map[string][]string{} // setting name -> hostnames
@@ -241,8 +245,9 @@ func (s *Server) runEnforceOn(ctx context.Context, p store.EnforcePolicy,
 				// has given up on is still given up on — so suppression is
 				// decided by whether the policy *would* enforce, not by
 				// whether this particular pass is going to.
-				wouldEnforce := p.Mode == "enforce" || p.Mode == dryRunMode
-				out.Enforce = p.Mode == "enforce" && count < store.MaxRemediationAttempts
+				enforcing := p.Mode == "enforce" || promoted[target.AgentID]
+				wouldEnforce := enforcing || p.Mode == dryRunMode
+				out.Enforce = enforcing && count < store.MaxRemediationAttempts
 				if wouldEnforce && count >= store.MaxRemediationAttempts {
 					suppressed[setting.ID] = true
 				}

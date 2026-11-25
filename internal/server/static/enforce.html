@@ -8,6 +8,7 @@
 <link rel="icon" href="/static/brand/app-icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/static/brand/app-icon-256.png">
 <link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/rollouts.css">
 <script src="/static/theme.js"></script>
 <style>
   .hint { font-size: var(--fs-meta); color: var(--text-muted); margin: -4px 0 12px; }
@@ -166,6 +167,24 @@
       </div>
     </div>
 
+    <div class="module-section" id="section-rollouts" hidden>
+      <div class="panel">
+        <div class="panel-header"><h2>Rollouts</h2><span class="scan-status">Report-mode policies promoted to enforce ring by ring</span></div>
+        <p class="hint">
+          While a promotion runs the policy stays in report mode, and each pass enforces only on the endpoints of the rings promoted so
+          far. A ring passes when enough of its endpoints came back compliant or fixed (unknown and unanswered do not count), and after
+          its soak the next ring is promoted. When the last ring passes, the policy switches to enforce. A ring that misses its
+          threshold halts the promotion: its endpoints keep enforcing, no further ring is added until you resume, and aborting puts
+          every endpoint back to report.
+        </p>
+        <div id="enf-rollouts"><div class="rollout-empty">loading…</div></div>
+      </div>
+      <div class="panel">
+        <h2>Rollout plans</h2>
+        <div id="enf-plans"></div>
+      </div>
+    </div>
+
     <div class="module-section" id="section-coverage" hidden>
       <div class="stat-tiles" id="cov-tiles"></div>
       <div class="panel">
@@ -183,6 +202,7 @@
     </main>
   </div>
 <script src="/static/app.js"></script>
+<script src="/static/rollouts.js"></script>
 <script>
 let policies = [];
 let results = [];
@@ -191,6 +211,7 @@ let editing = null;      // the policy being edited, or null for a new one
 let draftSettings = [];  // the editor's working copy
 let canManage = false;
 let maxAttempts = 3;
+let openRollouts = {};   // policy id -> its running or halted rollout
 
 // Examples rather than seeded policies. Seeding would put something on the
 // schedule that nobody wrote and nobody expects; an example the author
@@ -235,8 +256,10 @@ document.addEventListener("mustra:user", (e) => {
   initModuleSections([
     { hash: "standing", label: "Standing" },
     { hash: "policies", label: "Policies" },
+    { hash: "rollouts", label: "Rollouts" },
     { hash: "coverage", label: "Coverage" },
   ]);
+  mountEnforceRollouts(e.detail);
   loadCoverage();
   renderPageHead("enf-page-head", "/enforce", { title: "Enforce",
     sub: "Settings that must hold, and what mustra did when they moved." });
@@ -325,7 +348,7 @@ function renderPolicies() {
     <tr${p.enabled ? "" : ' class="u-op-055"'}>
       <td><b>${escapeHtml(p.name)}</b>${p.enabled ? "" : " <span class=\"state-pill state-unknown\">disabled</span>"}
         ${p.description ? `<div class="u-fs-meta u-c-text-muted">${escapeHtml(p.description)}</div>` : ""}</td>
-      <td>${modePill(p.mode)}</td>
+      <td>${modePill(p.mode)}${rolloutNote(p)}</td>
       <td>${targetLabel(p)}</td>
       <td>${escapeHtml(p.setting_count)}</td>
       <td>${escapeHtml(p.compliant)}</td>
@@ -336,8 +359,10 @@ function renderPolicies() {
       <td class="u-ws-nowrap">${canManage ? `
         <button class="tiny" data-dry="${escapeHtml(p.id)}" title="Check every target and record what would happen, without changing anything">Dry run</button>
         <button class="tiny" data-run="${escapeHtml(p.id)}">Run now</button>
-        <button class="tiny" data-edit="${escapeHtml(p.id)}">Edit</button>` : ""}</td>
+        <button class="tiny" data-edit="${escapeHtml(p.id)}">Edit</button>
+        ${canPromote(p) ? `<button class="tiny" data-promote="${escapeHtml(p.id)}" title="Switch this policy to enforce one ring of endpoints at a time">Promote in rings</button>` : ""}` : ""}</td>
     </tr>`).join("");
+  body.querySelectorAll("[data-promote]").forEach(b => b.addEventListener("click", () => promotePolicy(b.dataset.promote)));
   body.querySelectorAll("[data-dry]").forEach(b => b.addEventListener("click", () => runPolicy(b.dataset.dry, true, b)));
   body.querySelectorAll("[data-run]").forEach(b => b.addEventListener("click", () => runPolicy(b.dataset.run, false, b)));
   body.querySelectorAll("[data-edit]").forEach(b => b.addEventListener("click", () => editPolicy(b.dataset.edit)));
@@ -579,6 +604,66 @@ async function savePolicy() {
   } catch (e) {
     status.textContent = "failed: " + e.message;
   }
+}
+
+// --- Ring rollouts ---
+
+function canPromote(p) {
+  return p.mode === "report" && p.enabled && !p.group_deleted && !openRollouts[p.id];
+}
+
+function rolloutNote(p) {
+  const r = openRollouts[p.id];
+  if (!r) return "";
+  const ring = Math.min(r.current_ring + 1, r.rings.length);
+  const what = r.status === "halted" ? "promotion halted" : "promoting";
+  return `<div class="u-fs-meta ${r.status === "halted" ? "u-c-off u-fwt-600" : "u-c-text-muted"}"><a href="#rollouts"${r.status === "halted" ? ' class="u-c-off"' : ""}>${escapeHtml(what)}, ring ${escapeHtml(ring)} of ${escapeHtml(r.rings.length)}</a></div>`;
+}
+
+function mountEnforceRollouts(u) {
+  window.enfRollouts = Rollouts.mountRollouts(document.getElementById("enf-rollouts"), {
+    kind: "enforce", canAct: canManage,
+    empty: "No promotions yet. Use Promote in rings on a report-mode policy under Standing.",
+    onChange: list => {
+      openRollouts = {};
+      for (const r of list) if (r.status === "running" || r.status === "halted") openRollouts[r.source_id] = r;
+      renderPolicies();
+    },
+  });
+  Rollouts.mountPlans(document.getElementById("enf-plans"), { canEdit: canManage });
+}
+
+async function promotePolicy(id) {
+  const p = policies.find(x => x.id === id);
+  if (!p) return;
+  let plans = [];
+  try { plans = await Rollouts.plans(true); } catch (e) { showToast(e.message, "error"); return; }
+  if (plans.length === 0) {
+    showToast("Create a rollout plan first, under Rollouts.", "error");
+    location.hash = "rollouts";
+    return;
+  }
+  openModal(`Promote "${p.name}" to enforce`, `
+    <p class="hint">The policy stays in report mode while the rings go out. The first ring starts enforcing within a minute;
+      each later ring follows once the one before has met its threshold and soaked. When the last ring passes the policy
+      switches to enforce for every endpoint it targets, including any no ring took.</p>
+    <div class="form-grid"><div class="field"><label for="promote-plan">Rollout plan</label>
+      <select id="promote-plan">${plans.map(x => `<option value="${escapeHtml(x.id)}">${escapeHtml(x.name)} (${escapeHtml(x.rings.length)} ring${x.rings.length === 1 ? "" : "s"})</option>`).join("")}</select></div></div>
+    <div class="panel-actions"><button class="primary" type="button" id="promote-go">Start promotion</button></div>`, wrap => {
+    wrap.querySelector("#promote-go").addEventListener("click", async ev => {
+      ev.target.disabled = true;
+      try {
+        await Rollouts.send(`/api/enforce/policies/${encodeURIComponent(id)}/rollout`, "POST", { plan_id: wrap.querySelector("#promote-plan").value });
+        wrap.remove();
+        showToast("Promotion started", "ok");
+        location.hash = "rollouts";
+        if (window.enfRollouts) window.enfRollouts.reload();
+      } catch (e) {
+        showToast(e.message, "error");
+        ev.target.disabled = false;
+      }
+    });
+  });
 }
 
 async function runPolicy(id, dryRun, btn) {

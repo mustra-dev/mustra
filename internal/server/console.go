@@ -20,7 +20,7 @@ var staticFS embed.FS
 
 var loginTemplate = template.Must(template.ParseFS(staticFS, "static/login.html"))
 
-var versionedAssets = []string{"static/app.js", "static/app.css", "static/vendor/script-editor.js", "static/deploy.js", "static/deploy.css", "static/charts.js", "static/deployments.js", "static/theme.js", "static/querybuilder.js"}
+var versionedAssets = []string{"static/app.js", "static/app.css", "static/vendor/script-editor.js", "static/deploy.js", "static/deploy.css", "static/charts.js", "static/deployments.js", "static/theme.js", "static/querybuilder.js", "static/rollouts.js", "static/rollouts.css"}
 
 // assetVersion is a content hash of the versioned static assets, computed
 // once at process start. References to these assets in HTML pages
