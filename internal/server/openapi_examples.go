@@ -976,6 +976,10 @@ var bodyExamples = map[string]string{
 	"POST /api/me/mfa/recovery-codes": `{"code": "<6-digit code>"}`,
 	"POST /api/me/mfa/disable":        `{"code": "<6-digit code>"}`,
 
+	// saas: an app no real site belongs to.
+	"POST /api/saas/apps":     `{"id": "example-crm", "name": "Example CRM", "domains": ["crm.example.com"]}`,
+	"PUT /api/saas/apps/{id}": `{"name": "Example CRM", "domains": ["crm.example.com", "files.crm.example.com"]}`,
+
 	// watchlists
 	"POST /api/watchlists":     watchlistExample,
 	"PUT /api/watchlists/{id}": watchlistExample,

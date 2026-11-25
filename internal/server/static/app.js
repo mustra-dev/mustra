@@ -613,6 +613,13 @@ const NAV_TREE = [
       { label: "Anomalies", href: "/anomalies", hash: "anomalies", icon: "radar", desc: "Endpoints well outside their own normal, the same change across many ranked first." },
     ] },
 
+  { label: "SaaS Experience", href: "/saas", icon: "performance", group: "modules",
+    desc: "How the web apps people use every day perform in their browsers: scored per app, per endpoint, over time.", sub: [
+      { label: "Overview", hash: "overview", icon: "chart", desc: "Apps ranked by experience score, with each app's trend and endpoints." },
+      { label: "App Library", hash: "apps", icon: "list", desc: "Which apps are measured, by domain; nothing else is." },
+      { label: "Setup", hash: "setup", icon: "settings", desc: "Turn monitoring on, upload the browser extension, and the policies that install it." },
+    ] },
+
   // Administration collects everything that configures mustra itself rather
   // than acting on endpoints, which is the reason
   // Computer Groups and the audit log live here rather than as modules of
@@ -3927,7 +3934,7 @@ const MODULE_HUES = {
   "/compliance": "#73c991", "/connect": "#4ec9b0", "/dashboards": "#b180d7", "/deploy": "#e5813b", "/shell": "#89d185",
   "/discover": "#4ec9b0", "/enforce": "#f14c4c", "/engage": "#c586c0", "/guide": "#cca700", "/impact": "#f48771",
   "/integrity": "#73c991", "/interact": "#75beff", "/eun": "#cca700", "/patches": "#4daafc", "/performance": "#f472b6",
-  "/playbooks": "#4ec9b0", "/reports": "#9cdcfe", "/reveal": "#c586c0", "/sensors": "#4ec9b0", "/hunt": "#f14c4c",
+  "/playbooks": "#4ec9b0", "/reports": "#9cdcfe", "/reveal": "#c586c0", "/sensors": "#4ec9b0", "/hunt": "#f14c4c", "/saas": "#4fc1ff",
 };
 function moduleHue(m) { return MODULE_HUES[m.href] || iconHue(m.icon); }
 

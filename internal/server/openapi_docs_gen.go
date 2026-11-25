@@ -348,6 +348,13 @@ var typeDocs = map[string]typeDoc{
 			"Type":   "os | data",
 		},
 	},
+	"github.com/mustra-dev/mustra/internal/saasmon.Result": {
+		Doc: "Result is a scored Totals.",
+		Fields: map[string]string{
+			"Band":  "Band is good, fair, poor, or no_data.",
+			"Score": "Score is 0-100; nil when there were fewer than MinNavigations loads.",
+		},
+	},
 	"github.com/mustra-dev/mustra/internal/server.BackupManifest": {
 		Doc: "BackupManifest describes an archive well enough to refuse a bad one before any of it is applied.",
 		Fields: map[string]string{
@@ -3117,6 +3124,15 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/store.RootTrust": {
 		Doc: "RootTrust is one endpoint's state for one pushed root certificate.",
+	},
+	"github.com/mustra-dev/mustra/internal/store.SaaSApp": {
+		Doc: "SaaSApp is one app of the library.",
+		Fields: map[string]string{
+			"Builtin": "Builtin marks an app the server seeded; it can be edited and deleted like any other.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/store.SaaSExtension": {
+		Doc: "SaaSExtension describes the uploaded extension package.",
 	},
 	"github.com/mustra-dev/mustra/internal/store.ScheduledAction": {
 		Doc: "A scheduled action runs a package on a cadence.\n\nDeliberately a schedule over a package rather than over a raw command: the package already carries per-OS commands, applicability, a timeout, an expiry and its parameters. A schedule that took a command string instead would be a second, worse way to define the same thing — and the one nobody audits.",

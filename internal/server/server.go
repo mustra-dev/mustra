@@ -554,6 +554,7 @@ func Run(ctx context.Context, cfg Config) error {
 	go s.integrationLoop(ctx)
 	go s.completionSweepLoop(ctx)
 	go s.recorderEventPruneLoop(ctx)
+	go s.saasPruneLoop(ctx)
 	go s.exploitIntelRefreshLoop(ctx)
 	go s.clientProfileLoop(ctx)
 	go s.swinventoryLoop(ctx)

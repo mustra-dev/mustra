@@ -32,6 +32,7 @@ var noBodyExample = map[string]string{
 	"PUT /api/backups/settings":        "the backup schedule, and how many archives are kept",
 	"PUT /api/threat-settings":         "whether threat briefings patch vulnerable endpoints automatically",
 	"PUT /api/telemetry":               "where every endpoint's metrics go, and how often they are collected",
+	"PUT /api/saas/settings":           "whether every endpoint's browser measures SaaS apps",
 	"POST /api/admin/branding":         "the console's logo",
 	"POST /api/admin/cert-authorities": "the certificate authorities' accounts",
 	"POST /api/certificates/alerts":    "when certificate expiry is announced",

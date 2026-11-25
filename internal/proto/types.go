@@ -1589,6 +1589,11 @@ type SelfServiceReply struct {
 	// look); Branding only when it differs from what the agent said it had.
 	BrandingVersion string               `json:"branding_version,omitempty"`
 	Branding        *SelfServiceBranding `json:"branding,omitempty"`
+
+	// SaaS answers action "saas_config": whether SaaS experience
+	// monitoring is on and which apps the browser extension measures
+	// (saas.go). An older server never sets it, which the agent reads as off.
+	SaaS *SaaSConfig `json:"saas,omitempty"`
 }
 
 // PatchListQuery is sent by an agent to the server (request/reply, agent as

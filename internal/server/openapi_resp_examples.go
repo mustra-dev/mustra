@@ -1955,6 +1955,17 @@ var respExamples = map[string]string{
 		"private_ca_ready": true
 	}`,
 
+	// saas: a fleet where Salesforce is slow and Slack is fine.
+	"GET /api/saas/settings":            saasSettingsExample,
+	"PUT /api/saas/settings":            saasSettingsExample,
+	"POST /api/saas/extension":          saasExtensionExample,
+	"GET /api/saas/apps":                `{"apps": [` + saasAppExample + `]}`,
+	"POST /api/saas/apps":               saasAppExample,
+	"PUT /api/saas/apps/{id}":           saasAppExample,
+	"GET /api/saas/overview":            saasOverviewExample,
+	"GET /api/saas/apps/{id}/endpoints": saasEndpointsExample,
+	"GET /api/saas/apps/{id}/trend":     saasTrendExample,
+
 	// containers
 	"GET /api/containers": `{
 		"containers": [
@@ -6505,4 +6516,72 @@ const selfServiceCategoriesExample = `{
 		{"id": "sscat-1d7b6e0c9f2a4b38a5c1e8d3f6a9b2c4", "name": "Monitoring", "icon": "chart", "position": 7, "package_count": 1, "created_at": "2026-11-20T10:33:47Z", "updated_at": "2026-11-20T10:33:47Z", "created_by": "jdoe", "updated_by": "jdoe"}
 	],
 	"icons": ["globe", "book", "chat", "terminal", "sliders", "shield", "mail", "chart", "database", "download", "folder", "key", "lock", "star", "box", "rocket", "users", "cpu", "layers", "tag", "bag", "clock", "search", "sync", "plug"]
+}`
+
+const saasExtensionExample = `{"extension_id": "kbfnbcaeplbcioakkpcpgfkobkghlhen", "version": "1.0.0", "name": "mustra SaaS experience monitor",
+	"sha256": "9f2c4be0d1a3e56f7b8c9d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c", "size": 14822, "uploaded_at": "2026-11-20T09:12:44Z", "uploaded_by": "admin"}`
+
+const saasSettingsExample = `{
+	"settings": {"enabled": true, "retention_days": 30, "extension_id": ""},
+	"extension": ` + saasExtensionExample + `,
+	"effective_extension_id": "kbfnbcaeplbcioakkpcpgfkobkghlhen",
+	"update_url": "https://console.example.com/saas-extension/update.xml",
+	"policies": {
+		"windows_reg": "Windows Registry Editor Version 5.00\r\n\r\n[HKEY_LOCAL_MACHINE\\SOFTWARE\\Policies\\Google\\Chrome\\ExtensionInstallForcelist]\r\n\"100\"=\"kbfnbcaeplbcioakkpcpgfkobkghlhen;https://console.example.com/saas-extension/update.xml\"\r\n",
+		"linux_json": "{\n  \"ExtensionInstallForcelist\": [\n    \"kbfnbcaeplbcioakkpcpgfkobkghlhen;https://console.example.com/saas-extension/update.xml\"\n  ]\n}\n",
+		"macos_mobileconfig": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<plist version=\"1.0\">...</plist>\n"
+	},
+	"endpoints": 214,
+	"can_manage": true
+}`
+
+const saasAppExample = `{"id": "salesforce", "name": "Salesforce", "domains": ["force.com", "salesforce.com"], "builtin": true,
+	"created_at": "2026-11-01T08:00:00Z", "updated_at": "2026-11-01T08:00:00Z"}`
+
+const saasOverviewExample = `{
+	"enabled": true, "since": "2026-11-24T14:03:00Z", "until": "2026-11-25T14:03:00Z", "hours": 24,
+	"fleet": {"score": 81, "band": "fair", "ttfb_p75_ms": 612, "dcl_p75_ms": 1490, "load_p75_ms": 3380, "error_rate": 0.012,
+		"js_errors_per_navigation": 0.4, "navigations": 48210, "requests": 1922040, "nav_4xx": 210, "nav_5xx": 96, "nav_failed": 41,
+		"req_4xx": 18220, "req_5xx": 22150, "req_failed": 940, "js_errors": 19284},
+	"endpoints": 214,
+	"apps": [
+		{"app_id": "salesforce", "name": "Salesforce", "domains": ["force.com", "salesforce.com"], "endpoints": 96,
+			"score": 58, "band": "poor", "ttfb_p75_ms": 1410, "dcl_p75_ms": 3020, "load_p75_ms": 6890, "error_rate": 0.031,
+			"js_errors_per_navigation": 1.6, "navigations": 9120, "requests": 410200, "nav_4xx": 12, "nav_5xx": 30, "nav_failed": 8,
+			"req_4xx": 3120, "req_5xx": 12400, "req_failed": 210, "js_errors": 14592},
+		{"app_id": "slack", "name": "Slack", "domains": ["slack.com"], "endpoints": 201,
+			"score": 97, "band": "good", "ttfb_p75_ms": 240, "dcl_p75_ms": 820, "load_p75_ms": 2110, "error_rate": 0.002,
+			"js_errors_per_navigation": 0.1, "navigations": 20410, "requests": 980300, "nav_4xx": 3, "nav_5xx": 2, "nav_failed": 11,
+			"req_4xx": 9800, "req_5xx": 1500, "req_failed": 400, "js_errors": 2041},
+		{"app_id": "workday", "name": "Workday", "domains": ["myworkday.com"], "endpoints": 2,
+			"score": null, "band": "no_data", "ttfb_p75_ms": 700, "dcl_p75_ms": 1800, "load_p75_ms": 2900, "error_rate": 0,
+			"js_errors_per_navigation": 0, "navigations": 3, "requests": 40, "nav_4xx": 0, "nav_5xx": 0, "nav_failed": 0,
+			"req_4xx": 0, "req_5xx": 0, "req_failed": 0, "js_errors": 0}
+	]
+}`
+
+const saasEndpointsExample = `{
+	"app": ` + saasAppExample + `,
+	"since": "2026-11-24T14:03:00Z", "until": "2026-11-25T14:03:00Z", "hours": 24,
+	"fleet": {"score": 58, "band": "poor", "ttfb_p75_ms": 1410, "dcl_p75_ms": 3020, "load_p75_ms": 6890, "error_rate": 0.031,
+		"js_errors_per_navigation": 1.6, "navigations": 9120, "requests": 410200, "nav_4xx": 12, "nav_5xx": 30, "nav_failed": 8,
+		"req_4xx": 3120, "req_5xx": 12400, "req_failed": 210, "js_errors": 14592},
+	"endpoints": [
+		{"agent_id": "agt-0123456789abcdef0123456789abcdef", "hostname": "lt-sales-07", "os": "windows", "extension_version": "1.0.0",
+			"last_report_at": "2026-11-25T14:00:12Z", "score": 31, "band": "poor", "ttfb_p75_ms": 1790, "dcl_p75_ms": 4100,
+			"load_p75_ms": 9020, "error_rate": 0.06, "js_errors_per_navigation": 2.1, "navigations": 412, "requests": 18200,
+			"nav_4xx": 0, "nav_5xx": 4, "nav_failed": 3, "req_4xx": 140, "req_5xx": 1100, "req_failed": 20, "js_errors": 865}
+	]
+}`
+
+const saasTrendExample = `{
+	"app_id": "salesforce", "since": "2026-11-24T14:03:00Z", "until": "2026-11-25T14:03:00Z", "hours": 24, "bucket_seconds": 3600,
+	"points": [
+		{"at": "2026-11-25T12:00:00Z", "endpoints": 61, "score": 64, "band": "fair", "ttfb_p75_ms": 1190, "dcl_p75_ms": 2600,
+			"load_p75_ms": 5900, "error_rate": 0.02, "js_errors_per_navigation": 1.4, "navigations": 620, "requests": 27100,
+			"nav_4xx": 1, "nav_5xx": 2, "nav_failed": 0, "req_4xx": 210, "req_5xx": 520, "req_failed": 12, "js_errors": 868},
+		{"at": "2026-11-25T13:00:00Z", "endpoints": 70, "score": 52, "band": "poor", "ttfb_p75_ms": 1520, "dcl_p75_ms": 3300,
+			"load_p75_ms": 7400, "error_rate": 0.04, "js_errors_per_navigation": 1.8, "navigations": 701, "requests": 30200,
+			"nav_4xx": 0, "nav_5xx": 6, "nav_failed": 2, "req_4xx": 240, "req_5xx": 1180, "req_failed": 30, "js_errors": 1262}
+	]
 }`

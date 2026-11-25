@@ -1,0 +1,37 @@
+{
+  "notes": "Standalone example: whether the native messaging host the built-in sensor relies on is registered for Chrome, Chromium and Edge. It measures nothing: the measurements come from the browser extension, which only the built-in path can receive.",
+  "commands": {
+    "linux": "# Standalone example: is the SaaS monitoring native messaging host registered, per browser.\nfor d in /etc/opt/chrome/native-messaging-hosts /etc/chromium/native-messaging-hosts /etc/opt/edge/native-messaging-hosts; do\n  if [ -f \"$d/dev.mustra.saas_monitor.json\" ]; then echo \"registered: $d\"; else echo \"not registered: $d\"; fi\ndone\n",
+    "darwin": "# Standalone example: is the SaaS monitoring native messaging host registered, per browser.\nfor d in \"/Library/Google/Chrome/NativeMessagingHosts\" \"/Library/Microsoft/Edge/NativeMessagingHosts\" \"/Library/Application Support/Chromium/NativeMessagingHosts\"; do\n  if [ -f \"$d/dev.mustra.saas_monitor.json\" ]; then echo \"registered: $d\"; else echo \"not registered: $d\"; fi\ndone\n",
+    "windows": "# Standalone example: is the SaaS monitoring native messaging host registered, per browser.\nforeach ($k in 'HKLM:\\SOFTWARE\\Google\\Chrome\\NativeMessagingHosts\\dev.mustra.saas_monitor', 'HKLM:\\SOFTWARE\\Microsoft\\Edge\\NativeMessagingHosts\\dev.mustra.saas_monitor') {\n  if (Test-Path $k) { \"registered: $k\" } else { \"not registered: $k\" }\n}\n"
+  },
+  "interval_seconds": 900,
+  "timeout_seconds": 15,
+  "enabled": false,
+  "fields": [
+    {
+      "name": "value",
+      "type": "string"
+    }
+  ],
+  "platforms": {
+    "linux": {
+      "language": "shell",
+      "output": {
+        "format": "text"
+      }
+    },
+    "darwin": {
+      "language": "shell",
+      "output": {
+        "format": "text"
+      }
+    },
+    "windows": {
+      "language": "powershell",
+      "output": {
+        "format": "text"
+      }
+    }
+  }
+}

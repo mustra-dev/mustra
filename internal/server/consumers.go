@@ -174,6 +174,10 @@ func (s *Server) consumeSensors(ctx context.Context) (jetstream.ConsumeContext, 
 		var persistErr error
 		if strings.HasPrefix(string(snap.Sensor), "custom_") {
 			persistErr = s.store.RecordCustomSensor(ctx, snap)
+		} else if snap.Sensor == proto.SensorSaaS {
+			// Measurements, not a snapshot: added into SaaS monitoring's own
+			// tables, once per batch (saas_api.go).
+			persistErr = s.recordSaaSReport(ctx, snap)
 		} else if snap.Sensor == proto.SensorReveal {
 			// A scan report, not a periodic snapshot: it lands in Reveal's
 			// own tables rather than the per-sensor cache.

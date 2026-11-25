@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "mustra SaaS experience monitor",
+  "short_name": "mustra SaaS",
+  "version": "1.0.0",
+  "description": "Measures page load times and errors of your organisation's approved web apps for its mustra console. Nothing else is recorded.",
+  "minimum_chrome_version": "116",
+  "incognito": "not_allowed",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "nativeMessaging",
+    "storage",
+    "alarms",
+    "scripting",
+    "webRequest"
+  ],
+  "host_permissions": [
+    "https://*/*"
+  ]
+}

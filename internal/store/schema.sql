@@ -3235,3 +3235,89 @@ CREATE TABLE IF NOT EXISTS anomaly_suppressions (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     expires_at TIMESTAMPTZ
 );
+
+-- SaaS experience monitoring (internal/server/saas_api.go). The app library
+-- is what the browser extension measures; nothing outside it is recorded.
+CREATE TABLE IF NOT EXISTS saas_apps (
+    id         TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,
+    domains    TEXT[] NOT NULL DEFAULT '{}',
+    builtin    BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- A few common apps, once. Guarded by a marker rather than ON CONFLICT
+-- alone, so an app the administrator deleted is not seeded back on the
+-- next start.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM settings WHERE key = 'migration.saas_apps_seed') THEN
+    INSERT INTO saas_apps (id, name, domains, builtin) VALUES
+      ('microsoft-365', 'Microsoft 365', ARRAY['office.com','office365.com','microsoft365.com','sharepoint.com'], true),
+      ('microsoft-teams', 'Microsoft Teams', ARRAY['teams.microsoft.com','teams.live.com','teams.cloud.microsoft'], true),
+      ('google-workspace', 'Google Workspace', ARRAY['mail.google.com','docs.google.com','drive.google.com','calendar.google.com','meet.google.com'], true),
+      ('salesforce', 'Salesforce', ARRAY['salesforce.com','force.com'], true),
+      ('slack', 'Slack', ARRAY['slack.com'], true),
+      ('zoom', 'Zoom', ARRAY['zoom.us'], true),
+      ('atlassian', 'Jira and Confluence', ARRAY['atlassian.net'], true),
+      ('github', 'GitHub', ARRAY['github.com'], true),
+      ('servicenow', 'ServiceNow', ARRAY['service-now.com'], true),
+      ('workday', 'Workday', ARRAY['myworkday.com'], true)
+    ON CONFLICT (id) DO NOTHING;
+    INSERT INTO settings (key, value, updated_by) VALUES ('migration.saas_apps_seed', 'done', 'schema')
+    ON CONFLICT (key) DO NOTHING;
+  END IF;
+END $$;
+
+-- One row per endpoint, app, browser and five-minute window. Histograms are
+-- bucket counts over proto.SaaSBucketsMs; a redelivered batch is added once
+-- (saas_batches).
+CREATE TABLE IF NOT EXISTS saas_samples (
+    agent_id     TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    app_id       TEXT NOT NULL,
+    browser      TEXT NOT NULL DEFAULT '',
+    window_start TIMESTAMPTZ NOT NULL,
+    navigations  INTEGER NOT NULL DEFAULT 0,
+    ttfb_hist    INTEGER[] NOT NULL,
+    dcl_hist     INTEGER[] NOT NULL,
+    load_hist    INTEGER[] NOT NULL,
+    nav_4xx      INTEGER NOT NULL DEFAULT 0,
+    nav_5xx      INTEGER NOT NULL DEFAULT 0,
+    nav_failed   INTEGER NOT NULL DEFAULT 0,
+    requests     INTEGER NOT NULL DEFAULT 0,
+    req_4xx      INTEGER NOT NULL DEFAULT 0,
+    req_5xx      INTEGER NOT NULL DEFAULT 0,
+    req_failed   INTEGER NOT NULL DEFAULT 0,
+    js_errors    INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (agent_id, app_id, browser, window_start)
+);
+CREATE INDEX IF NOT EXISTS idx_saas_samples_window ON saas_samples (window_start);
+CREATE INDEX IF NOT EXISTS idx_saas_samples_app_window ON saas_samples (app_id, window_start);
+
+CREATE TABLE IF NOT EXISTS saas_batches (
+    agent_id    TEXT NOT NULL,
+    batch_id    TEXT NOT NULL,
+    received_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (agent_id, batch_id)
+);
+CREATE INDEX IF NOT EXISTS idx_saas_batches_received ON saas_batches (received_at);
+
+-- Each endpoint's extension, as its last report described it.
+CREATE TABLE IF NOT EXISTS saas_endpoints (
+    agent_id          TEXT PRIMARY KEY REFERENCES agents(agent_id) ON DELETE CASCADE,
+    extension_version TEXT NOT NULL DEFAULT '',
+    last_report_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- The packaged extension the server hands browsers (one at a time).
+CREATE TABLE IF NOT EXISTS saas_extension (
+    id           INTEGER PRIMARY KEY CHECK (id = 1),
+    extension_id TEXT NOT NULL,
+    version      TEXT NOT NULL,
+    name         TEXT NOT NULL DEFAULT '',
+    sha256       TEXT NOT NULL,
+    crx          BYTEA NOT NULL,
+    uploaded_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    uploaded_by  TEXT NOT NULL DEFAULT ''
+);
