@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -334,5 +335,46 @@ func TestSkippedCommandRuleCannotMakeACheckPass(t *testing.T) {
 	}
 	if !strings.Contains(got.Detail, "inventory-and-patching") {
 		t.Errorf("detail: %q", got.Detail)
+	}
+}
+
+// u: is a command that may answer "I can't tell". That answer must be
+// unknown -- never a fail that would send a remediation -- and its reason
+// must reach the detail; a definite answer behaves like c:, with the
+// command's first line as the detail instead of the script's text.
+func TestUnsureCommandRule(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the commands below are POSIX shell")
+	}
+	ctx := context.Background()
+	for _, tc := range []struct {
+		rule, state, detail string
+	}{
+		{"u:echo 'unknown: no supported firewall is installed' -> r:^ok$", "unknown", "no supported firewall is installed"},
+		{"u:echo ok -> r:^ok$", "pass", ""},
+		{"u:echo 'drift: ufw is not active' -> r:^ok$", "fail", "failed: drift: ufw is not active"},
+		{"not u:echo 'unknown: cannot read' -> r:^ok$", "unknown", "cannot read"},
+		// Only the first line speaks: a later "unknown:" is ordinary output.
+		{"u:printf 'drift: x\\nunknown: y\\n' -> r:^ok$", "fail", "failed: drift: x"},
+		{"u:true -> r:([unclosed", "unknown", ""},
+	} {
+		got := evaluateCheck(ctx, proto.ComplianceCheck{ID: "u", Rules: []string{tc.rule}})
+		if got.State != tc.state {
+			t.Errorf("%s: state %q, want %q (%s)", tc.rule, got.State, tc.state, got.Detail)
+		}
+		if tc.detail != "" && got.Detail != tc.detail {
+			t.Errorf("%s: detail %q, want %q", tc.rule, got.Detail, tc.detail)
+		}
+	}
+	if got := evaluateCheck(withoutCheckCommands(ctx), proto.ComplianceCheck{ID: "u", Rules: []string{"u:echo ok -> r:^ok$"}}); got.State != "unknown" {
+		t.Errorf("a u: rule ran with check commands disabled: %+v", got)
+	}
+
+	// Enforce never remediates an unknown u: answer.
+	res := enforceSetting(ctx, proto.EnforceSetting{ID: "s", Name: "s", Enforce: true,
+		Rules:          []string{"u:echo 'unknown: none of firewalld, ufw or nftables' -> r:^ok$"},
+		RemediateLinux: "echo should-not-run", RemediateDarwin: "echo should-not-run"})
+	if res.State != "unknown" || res.Output != "" {
+		t.Errorf("unknown u: rule led to %+v", res)
 	}
 }

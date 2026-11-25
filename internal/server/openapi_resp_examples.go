@@ -3273,8 +3273,7 @@ var respExamples = map[string]string{
 		],
 		"windows": {"reporting": 1, "firewall": 1, "encrypted": 1, "antivirus": 1, "app_control": 0, "escrowed": 1}
 	}`,
-	// Every typed policy, all of them Windows, with the form a new one
-	// starts from.
+	// Every typed policy with the form a new one starts from.
 	"GET /api/enforce/kinds": `{
 		"kinds": [
 			{
@@ -3312,6 +3311,13 @@ var respExamples = map[string]string{
 				"os": "windows",
 				"description": "Application control: audit or enforce, default allow rules for Windows and Program Files, and your own path, publisher or hash rules.",
 				"defaults": {"mode": "audit", "collections": ["exe", "msi", "script"], "default_rules": true, "rules": []}
+			},
+			{
+				"kind": "linux_firewall",
+				"label": "Linux Firewall",
+				"os": "linux",
+				"description": "Host firewall active and enabled at boot, a default inbound policy and the inbound services to allow, on firewalld, ufw or plain nftables — detected on each endpoint.",
+				"defaults": {"backend": "auto", "default_inbound": "drop", "allow_ssh": true, "ssh_port": 22, "services": []}
 			}
 		]
 	}`,

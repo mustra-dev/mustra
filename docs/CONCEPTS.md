@@ -1081,16 +1081,46 @@ testing, which is how it was found.)
 
 #### Typed policies, posture, and recovery keys
 
-Four policy types come with their own editor — **Windows Firewall**,
-**BitLocker**, **Microsoft Defender** and **AppLocker** — because the
-settings that matter on a Windows fleet are the same everywhere and nobody
-should have to type `Get-NetFirewallProfile` into a rule box. Each form
+Five policy types come with their own editor — **Windows Firewall**,
+**BitLocker**, **Microsoft Defender**, **AppLocker** and **Linux
+Firewall** — because the settings that matter are the same on every machine
+of a kind and nobody should have to type `Get-NetFirewallProfile` into a
+rule box. Each form
 compiles into ordinary settings (the editor shows them, read-only), so the
 engine above is the only engine: report mode, dry run, the give-up counter
 and the audit trail apply unchanged. A BitLocker policy treats *encrypting*
 as protected and keeps a separate report-only setting drifted until the
 volume is fully encrypted, so a machine that is busy is neither a failure
 that burns attempts nor a success claimed early.
+
+A **Linux Firewall** policy holds the host firewall active and enabled at
+boot, a default inbound policy — *drop* (discard silently) or *deny*
+(refuse with a TCP reset or ICMP error; ufw calls these "deny" and
+"reject") — and the inbound services to allow, each a protocol, a port or
+range and optionally a source address or CIDR. One policy covers a mixed
+fleet: every check and fix carries code for firewalld, ufw and plain
+nftables, and the endpoint uses whichever firewall is running (or, if none
+is, whichever is installed: firewalld, then ufw, then nftables) unless the
+policy names one. A host with none of them, or one whose configuration
+can't be read, reports `unknown` — those checks are `u:` rules, a command
+that can say it doesn't know — so it is never remediated. Agents older than
+`u:` see the whole policy as unknown, the same safe answer.
+
+It is careful about the way back in. SSH stays allowed unless the policy
+turns that off (the editor warns when it is). Replies to connections the
+endpoint opened are always allowed, so the agent's outbound connection to
+the server — and an SSH session already open — survive, and outbound
+traffic is never touched. Before a fix can bring a firewall up or tighten
+its default it adds SSH, and activation puts every allowed service in place
+first. On firewalld (its default zone) and ufw the policy adds what it lists
+and removes nothing; changing firewalld's zone target takes a `--reload`,
+which keeps established connections. On nftables it owns one table,
+`inet mustra`, written to `/etc/nftables.d/mustra.nft`, checked with
+`nft -c` before it replaces the old one, loaded atomically and included from
+the nftables service's main file; the service is enabled for boot but not
+restarted, because restarting it would flush every other table on the host.
+Choose nftables only where nothing else manages the firewall: its table
+drops whatever it doesn't allow, whatever another table says.
 
 The **security posture** sensor reports firewall, disk encryption,
 antimalware and application control on every platform — LUKS and FileVault

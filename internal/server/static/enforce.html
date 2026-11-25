@@ -39,6 +39,8 @@
   .setting-card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
   .setting-card-head b { font-size: 13px; }
   .setting-card-head .spacer { margin-left: auto; }
+  /* Compiled scripts carry long unbroken tokens (paths, regexes). */
+  .setting-card pre { overflow-wrap: anywhere; }
   .detail-cell { white-space: normal; max-width: 420px; color: var(--text-muted); font-size: 12px; }
   .tile-sub { font-size: var(--fs-meta); color: var(--text-muted); margin-top: 4px; }
   .out-pre { font-family: var(--mono); font-size: var(--fs-meta); white-space: pre-wrap; word-break: break-word;
@@ -692,13 +694,32 @@ function renderKindForm() {
         ${kindField("User or group SID", `<input data-r="${i}" data-f="user_or_group" value="${escapeHtml(r.user_or_group || "")}" placeholder="S-1-1-0 (Everyone)">`)}
         ${kindField("", `<button class="tiny danger" data-rmrule="${i}">remove</button>`)}
       </div>`).join("") + `</div><div class="panel-actions"><button class="tiny" id="al-add">Add a rule</button></div>`;
+  } else if (draftKind === "linux_firewall") {
+    if (!Array.isArray(c.services)) c.services = [];
+    if (c.allow_ssh === undefined) c.allow_ssh = true;
+    html += `<div class="form-grid">${kindField("Firewall", sel("backend", c.backend || "auto", [["auto", "auto — detect on each endpoint"], ["firewalld", "firewalld"], ["ufw", "ufw"], ["nftables", "nftables (plain)"]]))}${kindField("Inbound default", sel("default_inbound", c.default_inbound || "drop", [["drop", "drop — discard silently"], ["deny", "deny — refuse with a reset or ICMP error"]]))}${kindField("SSH", chk("allow_ssh", c.allow_ssh !== false, "always allow SSH (avoids locking yourself out)"))}${kindField("SSH port", `<input type="number" min="1" max="65535" data-k="ssh_port" value="${Number(c.ssh_port) || 22}"${c.allow_ssh === false ? " disabled" : ""}>`)}</div>
+      ${c.allow_ssh === false ? `<div class="scope-note warn">SSH is not allowed by this policy. Unless one of the services below opens it, enforcing this policy refuses new SSH connections to every targeted endpoint — sessions already open stay up, and the agent keeps reporting, but nobody can log in over the network to undo it.</div>` : ""}
+      <p class="hint">Also always allowed: replies to connections the endpoint opened (the agent's own connection to mustra among them), loopback and ICMP. Outbound traffic is never touched. On firewalld (default zone) and ufw the policy adds what it lists and removes nothing; on nftables it owns one table, <code>inet mustra</code>. A host with none of these firewalls, or one whose configuration can't be read, reports unknown and is never changed.</p>
+      <h4 class="u-fs-12 u-c-text-muted u-m-12-0-6">Allowed inbound services</h4><div id="lfw-services">` +
+      c.services.map((r, i) => `<div class="form-grid u-ai-end u-bt-1-solid-border u-pt-8">
+        ${kindField("Name", `<input data-s="${i}" data-f="name" value="${escapeHtml(r.name || "")}" placeholder="HTTPS">`)}
+        ${kindField("Protocol", `<select data-s="${i}" data-f="protocol"><option value="tcp"${r.protocol !== "udp" ? " selected" : ""}>TCP</option><option value="udp"${r.protocol === "udp" ? " selected" : ""}>UDP</option></select>`)}
+        ${kindField("Port", `<input data-s="${i}" data-f="port" value="${escapeHtml(r.port || "")}" placeholder="443 or 8000-8100">`)}
+        ${kindField("Source (optional)", `<input data-s="${i}" data-f="source" value="${escapeHtml(r.source || "")}" placeholder="10.0.0.0/8 — blank for anywhere">`)}
+        ${kindField("", `<button class="tiny danger" data-rmsvc="${i}">remove</button>`)}
+      </div>`).join("") + `</div><div class="panel-actions"><button class="tiny" id="lfw-add">Add a service</button></div>`;
   }
   host.innerHTML = html;
   const setPath = (path, value) => { const parts = path.split("."); let o = draftConfig; for (let i = 0; i < parts.length - 1; i++) o = o[parts[i]]; o[parts[parts.length - 1]] = value; };
   host.querySelectorAll("[data-k]").forEach(el => el.addEventListener("change", () => {
     setPath(el.dataset.k, el.type === "checkbox" ? el.checked : (el.type === "number" ? Number(el.value) : el.value));
+    // Turning SSH off changes the form itself: the warning and the port.
+    if (el.dataset.k === "allow_ssh") { renderKindForm(); return; }
     compilePreview();
   }));
+  host.querySelectorAll("[data-s]").forEach(el => el.addEventListener("change", () => { draftConfig.services[Number(el.dataset.s)][el.dataset.f] = el.value; compilePreview(); }));
+  host.querySelectorAll("[data-rmsvc]").forEach(b => b.addEventListener("click", () => { draftConfig.services.splice(Number(b.dataset.rmsvc), 1); renderKindForm(); }));
+  const lfwAdd = document.getElementById("lfw-add"); if (lfwAdd) lfwAdd.addEventListener("click", () => { draftConfig.services.push({ name: "", protocol: "tcp", port: "", source: "" }); renderKindForm(); });
   host.querySelectorAll("[data-r]").forEach(el => el.addEventListener("change", () => { draftConfig.rules[Number(el.dataset.r)][el.dataset.f] = el.value; compilePreview(); }));
   host.querySelectorAll("[data-col]").forEach(el => el.addEventListener("change", () => {
     draftConfig.collections = [...host.querySelectorAll("[data-col]:checked")].map(x => x.dataset.col); compilePreview();
@@ -717,7 +738,9 @@ async function compilePreview() {
   draftSettings = JSON.parse(text).settings || [];
   host.innerHTML = draftSettings.map(s => `<div class="setting-card"><div class="setting-card-head"><b>${escapeHtml(s.name)}</b><span class="spacer"></span><span class="sev-pill none">${escapeHtml(s.severity || "medium")}</span></div>
     <div class="u-fs-12 u-c-text-muted">Checks</div><pre class="u-ws-pre u-fs-meta u-m-4-0-8">${escapeHtml((s.rules || []).join("\n"))}</pre>
-    ${s.remediate_windows ? `<div class="u-fs-12 u-c-text-muted">Fix (PowerShell)</div><pre class="u-ws-pre u-fs-meta u-m-4-0-0">${escapeHtml(s.remediate_windows)}</pre>` : `<div class="u-fs-12 u-c-text-muted">Report only — no remediation</div>`}</div>`).join("");
+    ${s.remediate_windows ? `<div class="u-fs-12 u-c-text-muted">Fix (PowerShell)</div><pre class="u-ws-pre u-fs-meta u-m-4-0-0">${escapeHtml(s.remediate_windows)}</pre>` : ""}
+    ${s.remediate_linux ? `<div class="u-fs-12 u-c-text-muted">Fix (shell)</div><pre class="u-ws-pre u-fs-meta u-m-4-0-0">${escapeHtml(s.remediate_linux)}</pre>` : ""}
+    ${!s.remediate_windows && !s.remediate_linux ? `<div class="u-fs-12 u-c-text-muted">Report only — no remediation</div>` : ""}</div>`).join("");
 }
 
 // --- Coverage ---------------------------------------------------------
