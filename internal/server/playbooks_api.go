@@ -2,7 +2,9 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -336,13 +338,43 @@ type runPlaybookResponse struct {
 	RunID     string `json:"run_id"`
 }
 
+// idSet is ids as a set, or nil when there are none: nil means "no
+// restriction" to the callers that take one.
+func idSet(ids []string) map[string]bool {
+	if len(ids) == 0 {
+		return nil
+	}
+	m := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		m[id] = true
+	}
+	return m
+}
+
+// runPlaybookRequest is the optional body of POST /api/playbooks/{id}/run.
+type runPlaybookRequest struct {
+	// AgentIDs restricts this run to these endpoints, among those the
+	// playbook's own targeting reaches. It only narrows: an endpoint the
+	// playbook does not target is not added. Omitted, the run reaches
+	// every endpoint the playbook targets.
+	AgentIDs []string `json:"agent_ids,omitempty"`
+}
+
 func (s *Server) handleRunPlaybook(w http.ResponseWriter, r *http.Request) {
+	var req runPlaybookRequest
+	if r.ContentLength != 0 && r.Body != nil {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+			http.Error(w, "invalid request body: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
 	pb, err := s.store.GetPlaybook(r.Context(), r.PathValue("id"))
 	if err != nil || pb == nil {
 		http.Error(w, "no such playbook", http.StatusNotFound)
 		return
 	}
 	who := auth.CurrentUser(r.Context()).Username
+	only := idSet(req.AgentIDs)
 	// Resolve the targeting first so access control and any approval see
 	// the endpoints this run would actually reach.
 	planned, err := s.playbookTargets(r.Context(), *pb)
@@ -352,16 +384,23 @@ func (s *Server) handleRunPlaybook(w http.ResponseWriter, r *http.Request) {
 	}
 	plannedIDs := make([]string, 0, len(planned))
 	for _, a := range planned {
+		if only != nil && !only[a.AgentID] {
+			continue
+		}
 		plannedIDs = append(plannedIDs, a.AgentID)
+	}
+	if only != nil && len(plannedIDs) == 0 {
+		http.Error(w, "none of those endpoints is an online endpoint this playbook targets", http.StatusBadRequest)
+		return
 	}
 	if !s.checkTargets(w, r, "playbooks", plannedIDs) {
 		return
 	}
 	if s.requireApproval(w, r, "playbooks", "playbooks.run",
-		fmt.Sprintf("run playbook %s on %d endpoint(s)", pb.Name, len(plannedIDs)), plannedIDs, map[string]any{}) {
+		fmt.Sprintf("run playbook %s on %d endpoint(s)", pb.Name, len(plannedIDs)), plannedIDs, req) {
 		return
 	}
-	runID, targets, err := s.launchPlaybook(r.Context(), *pb, who)
+	runID, targets, err := s.launchPlaybookOn(r.Context(), *pb, who, only)
 	if err != nil {
 		// A conflict, not a bad request: nothing about the call was wrong,
 		// and trying again once the current run finishes is the right move.

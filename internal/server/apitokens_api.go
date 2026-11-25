@@ -38,6 +38,10 @@ type createAPITokenRequest struct {
 	// ApprovalExempt lets the token run operations an approval policy
 	// covers. Administrators only.
 	ApprovalExempt bool `json:"approval_exempt"`
+	// MCPOnly limits the token to the MCP endpoint, for an AI client: its
+	// permissions decide which tools it sees, and it cannot call the rest
+	// of the API.
+	MCPOnly bool `json:"mcp_only"`
 }
 
 // createAPITokenResponse is what POST /api/admin/tokens answers.
@@ -101,7 +105,7 @@ func (s *Server) handleCreateAPIToken(w http.ResponseWriter, r *http.Request) {
 	record := store.APIToken{
 		ID: idgen.New("tok-"), Name: req.Name, Prefix: prefix,
 		Permissions: perms, CreatedBy: u.Username, ExpiresAt: expiresAt,
-		CreatedByID: u.ID, ApprovalExempt: req.ApprovalExempt,
+		CreatedByID: u.ID, ApprovalExempt: req.ApprovalExempt, MCPOnly: req.MCPOnly,
 	}
 	if parent != nil {
 		// The person behind the parent is the creator: the new token is
@@ -109,7 +113,7 @@ func (s *Server) handleCreateAPIToken(w http.ResponseWriter, r *http.Request) {
 		record.CreatedByID, record.ParentTokenID = parent.CreatorID, parent.ID
 	}
 	if !s.auditIdentity(w, r, "tokens.create", req.Name, map[string]any{"token_id": record.ID,
-		"permissions": perms, "expires_days": req.ExpiresDays, "approval_exempt": req.ApprovalExempt}) {
+		"permissions": perms, "expires_days": req.ExpiresDays, "approval_exempt": req.ApprovalExempt, "mcp_only": req.MCPOnly}) {
 		return
 	}
 	if err := s.store.CreateAPIToken(r.Context(), record, hash); err != nil {
@@ -183,6 +187,8 @@ type updateAPITokenRequest struct {
 	// ApprovalExempt lets the token run operations an approval policy
 	// covers. Administrators only.
 	ApprovalExempt bool `json:"approval_exempt"`
+	// MCPOnly limits the token to the MCP endpoint.
+	MCPOnly bool `json:"mcp_only"`
 }
 
 // handleUpdateAPIToken changes a token's name, permissions and approval
@@ -233,10 +239,11 @@ func (s *Server) handleUpdateAPIToken(w http.ResponseWriter, r *http.Request) {
 	}
 	if !s.auditIdentity(w, r, "tokens.update", req.Name, map[string]any{"token_id": id,
 		"permissions": perms, "permissions_before": cur.Permissions, "name_before": cur.Name,
-		"approval_exempt": req.ApprovalExempt, "approval_exempt_before": cur.ApprovalExempt}) {
+		"approval_exempt": req.ApprovalExempt, "approval_exempt_before": cur.ApprovalExempt,
+		"mcp_only": req.MCPOnly, "mcp_only_before": cur.MCPOnly}) {
 		return
 	}
-	updated, err := s.store.UpdateAPIToken(r.Context(), id, req.Name, perms, req.ApprovalExempt)
+	updated, err := s.store.UpdateAPIToken(r.Context(), id, req.Name, perms, req.ApprovalExempt, req.MCPOnly)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -247,7 +254,7 @@ func (s *Server) handleUpdateAPIToken(w http.ResponseWriter, r *http.Request) {
 	}
 	s.logger.Info("api token updated", "id", id, "name", req.Name, "permissions", perms,
 		"updated_by", auth.CurrentUser(r.Context()).Username)
-	cur.Name, cur.Permissions, cur.ApprovalExempt = req.Name, perms, req.ApprovalExempt
+	cur.Name, cur.Permissions, cur.ApprovalExempt, cur.MCPOnly = req.Name, perms, req.ApprovalExempt, req.MCPOnly
 	writeJSONResponse(w, cur)
 }
 

@@ -60,7 +60,7 @@ func TestTokenChainBoundByParent(t *testing.T) {
 		t.Errorf("child depth %d, want 1", d)
 	}
 	// Narrowing the parent narrows the child.
-	if _, err := st.UpdateAPIToken(ctx, parentID, parentID, []string{PermSettingsManage}, false); err != nil {
+	if _, err := st.UpdateAPIToken(ctx, parentID, parentID, []string{PermSettingsManage}, false, false); err != nil {
 		t.Fatal(err)
 	}
 	if _, g = a.authenticateToken(ctx, child); !slices.Equal(g.perms, []string{PermSettingsManage}) {
@@ -89,5 +89,53 @@ func TestTokenChainBoundByParent(t *testing.T) {
 	}
 	if u, _ = a.authenticateToken(ctx, last); u != nil {
 		t.Error("a chain longer than MaxTokenChain was accepted")
+	}
+}
+
+// The parent's bound survives the creator's: for a creator who is not an
+// administrator, the token's permissions are what the parents left and
+// the creator holds, not what the token was created with and the creator
+// holds.
+func TestTokenChainBoundByParentForNonAdminCreator(t *testing.T) {
+	dsn := os.Getenv("MUSTRA_TEST_DEPLOY_DSN")
+	if dsn == "" {
+		t.Skip("set MUSTRA_TEST_DEPLOY_DSN to a disposable Postgres database")
+	}
+	ctx := context.Background()
+	st, err := store.Open(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	a := New(ctx, st, nil, false, slog.Default())
+	u, err := st.CreateLocalUser(ctx, idgen.New("usr-"), idgen.New("chain-"), "", "chain test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = st.DeleteUser(context.Background(), u.ID) }()
+	role, err := st.CreateRole(ctx, idgen.New("role-"), idgen.New("chain-role-"), "", []string{PermSettingsManage, PermTokensManage, PermIdentityManage}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = st.DeleteRole(context.Background(), role.ID) }()
+	if err := st.AssignUserRole(ctx, u.ID, role.ID); err != nil {
+		t.Fatal(err)
+	}
+	mint := func(parent string, perms []string) string {
+		secret, prefix, _ := GenerateToken()
+		hash, _ := HashToken(secret)
+		id := idgen.New("tok-")
+		if err := st.CreateAPIToken(ctx, store.APIToken{ID: id, Name: id, Prefix: prefix, Permissions: perms,
+			CreatedBy: u.Username, CreatedByID: u.ID, ParentTokenID: parent}, hash); err != nil {
+			t.Fatal(err)
+		}
+		return secret
+	}
+	parentSecret := mint("", []string{PermSettingsManage, PermTokensManage})
+	_, pg := a.authenticateToken(ctx, parentSecret)
+	parentID := pg.info.ID
+	child := mint(parentID, []string{PermSettingsManage, PermIdentityManage})
+	if _, g := a.authenticateToken(ctx, child); !slices.Equal(g.perms, []string{PermSettingsManage}) {
+		t.Errorf("child of a non-admin's token got %v; identity.manage is not its parent's", g.perms)
 	}
 }

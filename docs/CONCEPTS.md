@@ -660,7 +660,9 @@ an administrator. A token holding `tokens.manage` may create and change
 tokens, never wider than itself and only those it made; each such token
 records its parent and works only while every token up that chain is live
 and only with permissions the whole chain still holds, so revoking a
-leaked token takes everything it made with it.
+leaked token takes everything it made with it. A token marked **MCP only**
+works on `/api/mcp` and nowhere else, for an AI client (see
+[AI clients over MCP](#ai-clients-over-mcp)).
 
 ## Signing in — sessions and two-step sign-in
 
@@ -1555,12 +1557,9 @@ mustra does not pull images or recreate containers here. Unattended image
 updates are how a working service breaks overnight, so this answers what is
 outstanding and leaves the decision with whoever reads it. To act on the list,
 read `GET /api/containers?update=update_available`, or point an AI agent at the
-read-only MCP endpoint, `/api/mcp`. It serves `list_containers`,
-`list_container_changes` and `list_pending_updates` (OS and package updates
-per endpoint, with whether the last check worked), and authenticates like
-the rest of the API. A token with only **See the fleet** can
-read and nothing more, and the endpoint has no tool that changes anything, so
-the agent acts with its own access. What the tools return is reported by
+MCP endpoint, `/api/mcp` (see [AI clients over MCP](#ai-clients-over-mcp)).
+Its `list_containers`, `list_container_changes` and `list_pending_updates`
+tools read; none of them changes anything. What the tools return is reported by
 endpoints or written by third parties: an agent should treat it as data, not
 instructions.
 
@@ -1777,6 +1776,57 @@ fields. Types and fields are described by their Go doc comments, and a
 route that takes a JSON body has an example body, which the builder
 starts from; one that replaces a server-wide setting has none, since an
 example sent as written would overwrite it.
+
+## AI clients over MCP
+
+`/api/mcp` is an MCP server over Streamable HTTP, answering JSON with no event
+stream and no session, and authenticated like the rest of the API. GitHub
+Copilot, Claude, ChatGPT and other MCP clients connect to it with an API
+token; Administration → API Tokens shows the endpoint and a configuration for
+each.
+
+**The tools come from one registry**, each with its argument schema, the
+permission it needs and its annotations. A client is offered only the tools
+its token's permissions allow. The read tools need `fleet.read`, and each
+answers through the console's own route for the same thing, called in-process
+as the caller, so the route's permission check and content-set filters apply
+unchanged: a token whose roles do not grant a sensor cannot read it this way
+either. They cover endpoints and their facts, cached sensor answers, computer
+groups, vulnerabilities, hardening scores and failing compliance checks, Enforce
+drift, pending updates, recent deployments with each device's own result
+(failed, timed out and no response stay distinct), notifications, the Guide
+queue, playbooks, catalog packages and containers. Lists stop at a limit (200
+by default, at most 1,000) and say when they did.
+
+**Action tools never act.** `request_playbook_run`, `request_package_deployment`
+and `request_patch_deployment` need the permission the action itself needs
+(`deploy.manage` or `patches.manage`) and are marked destructive. Each checks
+the request as its route would — management rights, the module's action group,
+the package's content set, the playbook's targeting — and then files an
+[approval](#access--management-rights-action-groups-content-sets-approvals)
+request with the operation stored verbatim, whatever the approval policies say
+and even for an approval-exempt token. It answers with the request's ID and a
+link to `/approve`. A package or patch request must name its endpoints (agent
+IDs, hostnames or a computer group resolved to its members when asked), so
+none reaches the whole fleet; a playbook request runs on the playbook's own
+targets or narrows them, and one whose group was deleted is refused. Asking
+again for the same thing while it is pending returns the first request.
+
+The request records the token and the person behind it. Nobody approves their
+own request, through the console or through any token they made. Approving
+replays it as the token that asked, with that token's permissions at that
+moment and only while it is live; a revoked or expired token, or one whose
+creator lost the permission, runs nothing.
+
+**MCP-only tokens** are refused everywhere except `/api/mcp`. Their
+permissions still decide which tools appear, so a read-only client gets
+`fleet.read` alone, and one that may ask for changes gets `deploy.manage` or
+`patches.manage` too without being able to call the deploy routes itself.
+
+Values that endpoints report (hostnames, labels, sensor output, alert text)
+and release notes from third parties reach the model as data; the server's
+instructions tell it so, and tell it that a request is waiting for approval,
+not done.
 
 ## Microsoft Entra ID and Intune
 

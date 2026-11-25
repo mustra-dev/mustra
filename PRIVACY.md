@@ -30,6 +30,7 @@ your own server.
 | MDM, cloud and backup integrations | The service you connect, such as Microsoft, Google, Fleet, Proxmox or Rubrik |
 | Notifications and log forwarding | The webhook, chat service, email server, SIEM or syslog server you enter |
 | Library packages | Package managers on your endpoints (winget, Homebrew, apt) |
+| AI clients over MCP | Nothing, from mustra. An AI client you connect with an API token reads what the token may see, and sends it to whichever model provider that client uses. |
 
 Each of these services' own privacy terms apply to what it receives.
 

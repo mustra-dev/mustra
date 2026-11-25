@@ -16,6 +16,13 @@ Open work, kept here so it can be picked up. Add to it when deferring something,
 - [ ] Read Docker on Windows through its named pipe, and rootless engines' per-user sockets.
 - [ ] Show an endpoint's containers on its endpoint page.
 
+## AI clients (MCP)
+
+- [ ] OAuth 2.1 sign-in for the MCP endpoint, so ChatGPT's connectors and Claude's custom connectors (which do not send a bearer token) can connect without a bridge.
+- [ ] A tool that asks endpoints a live question (Interact) within a time and row budget; today only cached sensor answers are offered.
+- [ ] A request to retry the failed devices of a deployment, filed for approval like the other request tools.
+- [ ] Per-token rate limits on tool calls.
+
 ## Custom sensors
 
 - [ ] Managed, version-pinned third-party Python dependencies.

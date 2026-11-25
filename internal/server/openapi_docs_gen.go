@@ -519,6 +519,7 @@ var typeDocs = map[string]typeDoc{
 		Fields: map[string]string{
 			"ApprovalExempt": "ApprovalExempt lets the token run operations an approval policy covers. Administrators only.",
 			"ExpiresDays":    "0 = never expires",
+			"MCPOnly":        "MCPOnly limits the token to the MCP endpoint, for an AI client: its permissions decide which tools it sees, and it cannot call the rest of the API.",
 		},
 	},
 	"github.com/mustra-dev/mustra/internal/server.createAPITokenResponse": {
@@ -1615,6 +1616,12 @@ var typeDocs = map[string]typeDoc{
 	"github.com/mustra-dev/mustra/internal/server.runHuntResponse": {
 		Doc: "runHuntResponse is what POST /api/hunt/run answers.",
 	},
+	"github.com/mustra-dev/mustra/internal/server.runPlaybookRequest": {
+		Doc: "runPlaybookRequest is the optional body of POST /api/playbooks/{id}/run.",
+		Fields: map[string]string{
+			"AgentIDs": "AgentIDs restricts this run to these endpoints, among those the playbook's own targeting reaches. It only narrows: an endpoint the playbook does not target is not added. Omitted, the run reaches every endpoint the playbook targets.",
+		},
+	},
 	"github.com/mustra-dev/mustra/internal/server.runPlaybookResponse": {
 		Doc: "runPlaybookResponse is what POST /api/playbooks/{id}/run answers.",
 	},
@@ -2049,6 +2056,7 @@ var typeDocs = map[string]typeDoc{
 		Doc: "updateAPITokenRequest is the body of PUT /api/admin/tokens/{id}.",
 		Fields: map[string]string{
 			"ApprovalExempt": "ApprovalExempt lets the token run operations an approval policy covers. Administrators only.",
+			"MCPOnly":        "MCPOnly limits the token to the MCP endpoint.",
 		},
 	},
 	"github.com/mustra-dev/mustra/internal/server.updateAgentsResponse": {
@@ -2168,6 +2176,7 @@ var typeDocs = map[string]typeDoc{
 		Fields: map[string]string{
 			"ApprovalExempt": "ApprovalExempt lets a token run operations an approval policy covers without waiting (there is nobody to wait for). Only an administrator may set it; otherwise a covered operation is refused.",
 			"CreatedByID":    "CreatedByID is the creating user's id. A token acts within its creator's current reach: permissions, management rights and content sets are all intersected with the creator's at every use.",
+			"MCPOnly":        "MCPOnly confines the token to the MCP endpoint (/api/mcp). Its permissions still decide which tools it sees, but it cannot call the rest of the API, so one holding deploy.manage can file action requests for somebody to approve and cannot deploy anything itself.",
 			"ParentTokenID":  "ParentTokenID is the token that created this one, if a token did. This one works only while that one (and its own parent, and so on) is live, and never with more permissions than it.",
 		},
 	},
@@ -2224,6 +2233,10 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/store.ApprovalRequest": {
 		Doc: "ApprovalRequest is one operation parked for a decision. It carries the request verbatim so approving replays what was actually asked for.",
+		Fields: map[string]string{
+			"RequesterID": "RequesterID is the person behind the request: the user, or the creator of the API token that asked. Empty on requests made before it was recorded.",
+			"TokenID":     "TokenID is the API token that asked, when one did; approving replays the request as that token.",
+		},
 	},
 	"github.com/mustra-dev/mustra/internal/store.AssetAttribute": {
 		Doc: "AssetAttribute is a field an operator maintains about an endpoint that no sensor can report: who owns it, which cost centre pays for it, whether it may be rebooted during the day.",
