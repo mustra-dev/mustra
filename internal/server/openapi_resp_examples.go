@@ -3473,6 +3473,13 @@ var respExamples = map[string]string{
 				"os": "linux",
 				"description": "Host firewall active and enabled at boot, a default inbound policy and the inbound services to allow, on firewalld, ufw or plain nftables — detected on each endpoint.",
 				"defaults": {"backend": "auto", "default_inbound": "drop", "allow_ssh": true, "ssh_port": 22, "services": []}
+			},
+			{
+				"kind": "ansible",
+				"label": "Ansible playbook",
+				"os": "linux",
+				"description": "A playbook the endpoint runs against itself: checked with ansible-playbook --check, and applied only in enforce mode. Needs ansible-core installed on the endpoint.",
+				"defaults": {"playbook": "- name: Message of the day\n  hosts: localhost\n  gather_facts: false\n  tasks:\n    - name: /etc/motd says this machine is managed\n      ansible.builtin.copy:\n        dest: /etc/motd\n        content: \"This machine is managed by mustra.\\n\"\n        owner: root\n        group: root\n        mode: \"0644\"\n", "vars": "", "diff": false, "severity": "medium"}
 			}
 		]
 	}`,

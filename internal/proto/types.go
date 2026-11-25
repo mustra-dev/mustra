@@ -1160,6 +1160,14 @@ type EnforceSetting struct {
 	RemediateWindows string `json:"remediate_windows,omitempty"`
 	RemediateDarwin  string `json:"remediate_darwin,omitempty"`
 
+	// Ansible, when set, makes this setting an Ansible playbook: the
+	// agent checks it with ansible-playbook --check and fixes it by running
+	// the playbook, instead of evaluating Rules and running a remediation
+	// command. Only the Ansible policy type (internal/enforcekinds) produces
+	// it. Rules still carries an "ansible:" rule, which an agent that
+	// predates this field does not understand and so reports as unknown.
+	Ansible *AnsiblePlaybook `json:"ansible,omitempty"`
+
 	// Enforce is decided per (endpoint, setting) by the server and sent
 	// with the command, rather than being a property of the policy the
 	// agent reads for itself. The server is the only party that knows this
@@ -1185,6 +1193,19 @@ type EnforceBenchmarkRef struct {
 	PolicyName string `json:"policy_name,omitempty"`
 	// CheckID is the check's ID within the benchmark.
 	CheckID string `json:"check_id"`
+}
+
+// AnsiblePlaybook is an Ansible playbook held as an Enforce setting on a
+// Linux endpoint. The agent writes it to a private temporary file and runs
+// it against the endpoint itself (connection local, inventory localhost).
+type AnsiblePlaybook struct {
+	// Playbook is the playbook's YAML.
+	Playbook string `json:"playbook"`
+	// Vars is a JSON object of extra variables, passed with -e @file.
+	Vars string `json:"vars,omitempty"`
+	// Diff records what each changed task would change (--diff). Diffs can
+	// show file contents, and results are readable by every console user.
+	Diff bool `json:"diff,omitempty"`
 }
 
 // EnforceResult is one setting's outcome on one endpoint.

@@ -1242,6 +1242,26 @@ restarted, because restarting it would flush every other table on the host.
 Choose nftables only where nothing else manages the firewall: its table
 drops whatever it doesn't allow, whatever another table says.
 
+An **Ansible playbook** policy holds a Linux endpoint to a playbook you
+paste in, with optional extra variables. It is the one typed policy that
+does not compile into rules and commands, because a playbook already is the
+check and the fix: the endpoint writes it to a private temporary directory
+and runs `ansible-playbook -c local -i localhost, --check` against itself
+each pass. Nothing would change is `compliant`; tasks that would change are
+`drifted`, and the result lists them (with their diffs, if the policy asks
+for diffs — those can show file contents to everyone who reads results).
+Only in enforce mode is the playbook run for real, followed by another
+check, so the give-up counter and the audit trail work as for any other
+fix. A task that fails in check mode, a playbook that does not parse, a play
+that matches nothing, a non-Linux endpoint or one without `ansible-playbook`
+installed is `unknown`, and is never run. Results are read from a JSON
+callback the agent ships, not scraped from text. The server refuses a
+playbook that is not YAML, has plays for hosts other than `localhost` or
+`all`, or imports other playbooks; only the playbook itself is sent, so
+roles and collections it uses must already be on the endpoint. Saving one
+needs `deploy.manage`, as for every policy. Agents older than the release
+that added it report such a policy `unknown`.
+
 The **security posture** sensor reports firewall, disk encryption,
 antimalware and application control on every platform — LUKS and FileVault
 included — whether or not a policy holds them. It feeds **Enforce →

@@ -10,10 +10,11 @@ ARG BASE=ubuntu:22.04
 FROM ${BASE}
 ENV container=docker DEBIAN_FRONTEND=noninteractive
 # sudo: the one-liner pipes to `sudo bash`. dpkg-dev: the patching fixture
-# builds and indexes a local apt repository on the endpoint.
+# builds and indexes a local apt repository on the endpoint. ansible-core:
+# the Ansible playbook Enforce policy runs it on the endpoint.
 RUN apt-get update -qq \
  && apt-get install -y -qq --no-install-recommends \
-      systemd systemd-sysv dbus curl ca-certificates iproute2 procps sudo dpkg-dev python3 \
+      systemd systemd-sysv dbus curl ca-certificates iproute2 procps sudo dpkg-dev python3 ansible-core \
  && rm -rf /var/lib/apt/lists/* \
  && find /lib/systemd/system/sysinit.target.wants/ -mindepth 1 ! -name 'systemd-tmpfiles-setup*' -delete \
  && rm -f /lib/systemd/system/multi-user.target.wants/* /etc/systemd/system/*.wants/* \

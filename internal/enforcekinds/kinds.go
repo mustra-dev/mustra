@@ -29,6 +29,7 @@ const (
 	KindBitLocker Kind = "bitlocker"
 	KindDefender  Kind = "defender"
 	KindAppLocker Kind = "applocker"
+	KindAnsible   Kind = "ansible"
 )
 
 // Info describes a kind for the editor.
@@ -48,6 +49,7 @@ func Kinds() []Info {
 		{Kind: KindDefender, Label: "Microsoft Defender", OS: "windows", Description: "Real-time protection, cloud-delivered protection, PUA blocking, signature freshness and scheduled scans.", Defaults: DefaultDefender()},
 		{Kind: KindAppLocker, Label: "AppLocker", OS: "windows", Description: "Application control: audit or enforce, default allow rules for Windows and Program Files, and your own path, publisher or hash rules.", Defaults: DefaultAppLocker()},
 		{Kind: KindLinuxFirewall, Label: "Linux Firewall", OS: "linux", Description: "Host firewall active and enabled at boot, a default inbound policy and the inbound services to allow, on firewalld, ufw or plain nftables — detected on each endpoint.", Defaults: DefaultLinuxFirewall()},
+		{Kind: KindAnsible, Label: "Ansible playbook", OS: "linux", Description: "A playbook the endpoint runs against itself: checked with ansible-playbook --check, and applied only in enforce mode. Needs ansible-core installed on the endpoint.", Defaults: DefaultAnsible()},
 	}
 }
 
@@ -96,6 +98,12 @@ func Compile(kind Kind, config json.RawMessage) ([]proto.EnforceSetting, error) 
 			return nil, err
 		}
 		return compileLinuxFirewall(c)
+	case KindAnsible:
+		var c AnsibleConfig
+		if err := decode(config, &c); err != nil {
+			return nil, err
+		}
+		return compileAnsible(c)
 	}
 	return nil, fmt.Errorf("unknown policy kind %q", kind)
 }
