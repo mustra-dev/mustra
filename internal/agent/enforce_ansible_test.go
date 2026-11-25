@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -259,6 +260,10 @@ func TestEnforceAnsibleFixesThenRechecks(t *testing.T) {
 // The playbook and vars reach ansible-playbook as files in a private
 // directory, by path, and the directory is gone afterwards.
 func TestAnsibleStagingIsPrivateAndRemoved(t *testing.T) {
+	// Windows has no Unix permission bits, and the policy only runs on Linux.
+	if runtime.GOOS == "windows" {
+		t.Skip("file modes are not meaningful on Windows")
+	}
 	var dir string
 	f := &fakeAnsible{runs: []ansibleRun{{Stdout: []byte(reportCompliant)}}}
 	f.seen = func(args []string) {
