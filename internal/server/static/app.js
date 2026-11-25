@@ -607,9 +607,10 @@ const NAV_TREE = [
     ] },
 
   { label: "Performance", href: "/health", icon: "performance", group: "modules",
-    desc: "Endpoint health scores, and the risk each endpoint carries weighted by how much it matters.", sub: [
+    desc: "Endpoint health scores, anomalies against each endpoint's own normal, and the risk each endpoint carries weighted by how much it matters.", sub: [
       { label: "Endpoint Health", hash: "health", icon: "performance", desc: "How each machine is actually doing, scored and banded." },
       { label: "Risk Score", hash: "risk", icon: "scale", desc: "What it would cost if an endpoint were compromised." },
+      { label: "Anomalies", href: "/anomalies", hash: "anomalies", icon: "radar", desc: "Endpoints well outside their own normal, the same change across many ranked first." },
     ] },
 
   // Administration collects everything that configures mustra itself rather

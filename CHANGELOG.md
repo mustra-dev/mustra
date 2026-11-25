@@ -144,6 +144,21 @@ only and works with current agents. No manual migration is needed: the server ad
 - A playbook run with `agent_ids` names, in its answer's `skipped`, each endpoint it left out
   and why: offline, retired, another operating system, or not among the playbook's targets.
   An endpoint not in inventory is refused.
+- **Anomalies: each endpoint judged against its own normal** (Performance → Anomalies,
+  `/anomalies`). The server learns a two-week baseline per endpoint for CPU, memory and
+  system-disk use, running processes, failed services and restarts in 24 hours, from data
+  agents already send, and opens an anomaly when a value stays well outside it for two
+  hours; it closes an hour after the value settles back. A new endpoint is learning for its
+  first 48 hours and is never anomalous meanwhile. The same metric moving the same way on
+  several endpoints is one row, ranked by severity times the endpoints showing it, and
+  names a deployment, patch run or agent update most of them went through in the day
+  before. Each anomaly has its own address (`/anomalies?id=…`), a chart of the value
+  against its band, links to the endpoint page and Investigate, and hand-offs to Deploy and
+  Patch with the endpoints already chosen. Acknowledging and suppressing (per metric on a
+  computer group) take **Triage alerts** and are audited; reading takes `fleet.read` and is
+  bounded by management rights and content sets. Server only: no new agent is needed and
+  nothing leaves the server. Storage is bounded: five-minute values for a day, hourly
+  medians for fifteen days, closed anomalies for 90 days.
 
 ### Changed
 - An approval request records the person behind it and, when a token asked, the token. The

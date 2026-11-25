@@ -345,6 +345,15 @@ var bodyExamples = map[string]string{
 	"POST /api/agents/{id}/managed":         `{"managed": false, "reason": "Decommissioned; replaced by web-02"}`,
 	"POST /api/agents/{id}/sensor-interval": `{"sensor": "processes", "interval_seconds": 300}`,
 
+	// anomalies
+	"POST /api/anomalies/ack": `{"ids": ["anom-1d8b3f5a7c9e42b6a4d0e2f8c6b1a3e5"], "note": "Known: the new agent's first full scan; check again tomorrow"}`,
+	"POST /api/anomalies/suppressions": `{
+		"metric": "processes",
+		"group_id": "cgrp-1c8e4a2f6b9d43e7a5c0f2b8d6e4a1c3",
+		"reason": "Nightly batch jobs fork hundreds of workers during the migration",
+		"days": 7
+	}`,
+
 	// approval-policies
 	"POST /api/approval-policies": `{
 		"name": "Approve deployments to 25 or more web servers",

@@ -5,6 +5,15 @@ package server
 // typeDocs are the doc comments of the types the routes declare, by
 // docKey, copied from the source by TestOpenAPIDocCommentsAreGenerated.
 var typeDocs = map[string]typeDoc{
+	"github.com/mustra-dev/mustra/internal/anomaly.Band": {
+		Doc: "Band is the range a value is judged against.",
+		Fields: map[string]string{
+			"Scale": "Scale is one robust standard deviation, floored, in the metric's unit: deviations are measured in it.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/anomaly.Baseline": {
+		Doc: "Baseline is one endpoint's normal for one metric: the median of its hourly medians over BaselineWindow, their MAD, and how many hours that covers.",
+	},
 	"github.com/mustra-dev/mustra/internal/enforcekinds.Info": {
 		Doc: "Info describes a kind for the editor.",
 	},
@@ -348,6 +357,18 @@ var typeDocs = map[string]typeDoc{
 	"github.com/mustra-dev/mustra/internal/server.ScanResult": {
 		Doc: "ScanResult is one host found reachable during a subnet scan. AgentInstalled/AgentVersion are filled in by the caller (see deploy_api.go's annotateWithKnownAgents), not scanSubnet itself — this package only does the TCP-22 sweep and has no store access.",
 	},
+	"github.com/mustra-dev/mustra/internal/server.ackAnomaliesRequest": {
+		Doc: "ackAnomaliesRequest is the body of POST /api/anomalies/ack.",
+		Fields: map[string]string{
+			"Note": "what was found, for whoever looks next",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.ackAnomaliesResponse": {
+		Doc: "ackAnomaliesResponse is what POST /api/anomalies/ack answers.",
+		Fields: map[string]string{
+			"Acknowledged": "Acknowledged are the ids this call acknowledged; one already acknowledged, or one the caller may not see, is left out.",
+		},
+	},
 	"github.com/mustra-dev/mustra/internal/server.ackIOCFindingRequest": {
 		Doc: "ackIOCFindingRequest is the body of POST /api/hunt/findings/{id}/ack.",
 		Fields: map[string]string{
@@ -632,6 +653,14 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/server.createAPITokenResponse": {
 		Doc: "createAPITokenResponse is what POST /api/admin/tokens answers.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.createAnomalySuppressionRequest": {
+		Doc: "createAnomalySuppressionRequest is the body of POST /api/anomalies/suppressions.",
+		Fields: map[string]string{
+			"Days":    "Days until it lapses; 0 keeps it until removed.",
+			"GroupID": "GroupID is the computer group to suppress on; empty means every endpoint, which only someone whose management rights cover the whole fleet may do.",
+			"Metric":  "a metric key from GET /api/anomalies",
+		},
 	},
 	"github.com/mustra-dev/mustra/internal/server.createBackupRequest": {
 		Doc: "createBackupRequest is the body of POST /api/backups.",
@@ -1209,6 +1238,17 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/server.listAgentIdentitiesResponse": {
 		Doc: "listAgentIdentitiesResponse is what GET /api/agent-identities answers.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.listAnomaliesResponse": {
+		Doc: "listAnomaliesResponse is what GET /api/anomalies answers.",
+		Fields: map[string]string{
+			"Learning":   "Tracked is how many endpoints have a baseline for at least one metric; Learning how many of those have none ready yet.",
+			"Suppressed": "Suppressed is how many anomalies a suppression hides (listed only with suppressed=1).",
+			"Tracked":    "Tracked is how many endpoints have a baseline for at least one metric; Learning how many of those have none ready yet.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.listAnomalySuppressionsResponse": {
+		Doc: "listAnomalySuppressionsResponse is what GET /api/anomalies/suppressions answers.",
 	},
 	"github.com/mustra-dev/mustra/internal/server.listAppCredsResponse": {
 		Doc: "listAppCredsResponse is what GET /api/certificates/apps answers.",
@@ -2579,6 +2619,20 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/store.AgentVersionChange": {
 		Doc: "AgentVersionChange is one recorded transition — see schema.sql's agent_version_history table.",
+	},
+	"github.com/mustra-dev/mustra/internal/store.Anomaly": {
+		Fields: map[string]string{
+			"Change":    "Change is the deployment, patch run or agent update that finished on the endpoint in the day before the anomaly began.",
+			"Direction": "high | low",
+			"NoData":    "closed because the metric stopped arriving",
+			"Severity":  "low | medium | high | critical",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/store.AnomalyHour": {
+		Doc: "AnomalyHour is one hourly rollup.",
+	},
+	"github.com/mustra-dev/mustra/internal/store.AnomalySuppression": {
+		Doc: "AnomalySuppression hides one metric's anomalies on one computer group, or on every endpoint when GroupID is empty.",
 	},
 	"github.com/mustra-dev/mustra/internal/store.AppCredConnection": {
 		Doc: "AppCredConnection is an API login to one identity provider.",
