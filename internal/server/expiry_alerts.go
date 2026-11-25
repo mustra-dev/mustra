@@ -40,7 +40,7 @@ const (
 // expiringItem is one thing that expires.
 type expiringItem struct {
 	Key       string    `json:"key"`
-	Type      string    `json:"item_type"` // managed_certificate, certificate, app_credential, app_credential_rotation
+	Type      string    `json:"item_type"` // managed_certificate, certificate, app_credential, app_credential_rotation, apple_mdm_push_certificate
 	Name      string    `json:"name"`
 	Where     string    `json:"where"`
 	ExpiresAt time.Time `json:"expires_at"`
@@ -156,6 +156,14 @@ func (s *Server) expiringItems(ctx context.Context, sources map[string]bool) []e
 					Extra: map[string]any{"provider": appCredKinds[c.Kind], "credential_type": c.CredType, "mode": c.Mode}})
 			}
 		}
+	}
+	// Apple MDM's push certificate, whatever sources are chosen: when it
+	// lapses no enrolled Mac can be reached, and renewing it late means
+	// re-enrolling every one.
+	if cfg, err := s.store.GetMDMConfig(ctx); err == nil && cfg.PushTopic != "" && cfg.PushExpiresAt != nil {
+		items = append(items, expiringItem{Key: "mdm-push:" + cfg.PushTopic, Type: "apple_mdm_push_certificate",
+			Name: "Apple MDM push certificate", Where: cfg.PushTopic, ExpiresAt: *cfg.PushExpiresAt, Link: "/mdm#setup",
+			Extra: map[string]any{"topic": cfg.PushTopic, "renew_at": "https://identity.apple.com"}})
 	}
 	return items
 }

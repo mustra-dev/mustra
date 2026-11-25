@@ -526,6 +526,14 @@ const NAV_TREE = [
   { label: "Containers", href: "/containers", icon: "box", group: "modules",
     desc: "Docker and Podman containers across the fleet, and which images have an update." },
 
+  { label: "Apple MDM", href: "/mdm", icon: "shield", group: "modules",
+    desc: "Macs enrolled in mustra's own MDM: what each reports, commands and their outcomes, and the profiles it installs.", sub: [
+      { label: "Macs", hash: "devices", icon: "clients", desc: "Every enrolled Mac, what it last reported, and its commands." },
+      { label: "Profile Library", hash: "profiles", perm: "deploy.manage", icon: "book", desc: "Configuration profiles to install on Macs." },
+      { label: "Enrollment", hash: "enroll", perm: "deploy.manage", icon: "key", desc: "Links a Mac opens to enroll, each limited in uses and time." },
+      { label: "Setup", hash: "setup", perm: "settings.manage", icon: "settings", desc: "The APNs push certificate, the MDM CA and the on switch." },
+    ] },
+
   { label: "Backup Status", href: "/backup-status", icon: "database", group: "modules",
     desc: "Every virtual machine's last backup from Proxmox, which are overdue, and which no job covers." },
 
@@ -639,6 +647,7 @@ const NAV_TREE = [
       { label: "Agent Identity", href: "/settings", hash: "agent-identity", perm: "settings.manage", icon: "key", desc: "The public URL agents download from, update signing, and the legacy shared credential." },
       { label: "Uninstall Password", href: "/settings", hash: "uninstall-password", perm: "settings.manage", icon: "lock", desc: "A password needed to remove the agent from an endpoint." },
       { label: "macOS MDM", href: "/settings", hash: "macos-mdm", perm: "settings.manage", icon: "shield", desc: "MDM enrollment offered to Macs, and macOS updates through Fleet." },
+      { label: "Apple MDM", href: "/mdm", hash: "setup", perm: "settings.manage", icon: "shield", desc: "mustra as the Macs' own MDM server: push certificate, MDM CA and enrollment." },
       { label: "Email", href: "/settings", hash: "email", perm: "settings.manage", icon: "mail", desc: "The SMTP account reports and email integrations send through." },
       { label: "Network Allowlists", href: "/settings", hash: "network-allowlists", perm: "settings.manage", icon: "globe", desc: "The internal hosts the server may reach and import from." },
       { label: "Message Buffer", href: "/settings", hash: "message-buffer", perm: "settings.manage", icon: "database", desc: "How long NATS keeps agents' messages while the server is down." },

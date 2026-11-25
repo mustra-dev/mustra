@@ -643,6 +643,12 @@ var bodyExamples = map[string]string{
 	// group enforces first.
 	"POST /api/enforce/policies/{id}/rollout": `{"plan_id": "plan-aa84f3bbe99040d7d2c10d3c11ab9c32"}`,
 
+	// mdm: an enrollment link for ten Macs, a device-information query of
+	// one Mac, and a library profile.
+	"POST /api/mdm/enroll-tokens":         `{"label": "Finance laptops", "max_uses": 10, "ttl_hours": 72}`,
+	"POST /api/mdm/devices/{id}/commands": `{"request_type": "DeviceInformation"}`,
+	"POST /api/mdm/profiles":              `{"name": "Screen saver after 5 minutes", "content": "<.mobileconfig file, base64>"}`,
+
 	// enrollment-tokens
 	"POST /api/enrollment-tokens": `{"label": "Web servers, rack B", "site": "dc-east", "max_uses": 10, "expires_hours": 24}`,
 

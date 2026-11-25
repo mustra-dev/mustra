@@ -47,6 +47,10 @@ var noBodyExample = map[string]string{
 	"PUT /api/deploy/settings":         "the deployment log and cache limits of every agent",
 	"PUT /api/preferences":             "the caller's own preferences, replaced whole",
 	"PUT /api/selfservice/branding":    "the Self Service window's look",
+	"PUT /api/mdm/settings":            "whether Apple MDM is on",
+	"POST /api/mdm/push-csr":           "Apple MDM's pending push certificate request",
+	"POST /api/mdm/push-certificate":   "Apple MDM's push certificate",
+	"PUT /api/mdm/signing-identity":    "the identity Apple MDM enrollment profiles are signed with",
 
 	"PUT /api/selfservice/categories/order": "the order of every Self Service category, replaced whole",
 }

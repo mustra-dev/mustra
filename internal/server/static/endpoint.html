@@ -680,6 +680,23 @@ async function renderOverview(el) {
           <button class="secondary u-w-auto" data-intune="sync">Intune sync</button>
           <button class="secondary u-w-auto" data-intune="restart">Restart via Intune</button></div>` : ""}
       </div>`).join("");
+  // Apple MDM: the same Mac enrolled in mustra's own MDM (linked by serial
+  // number), with what it last reported and a way to its commands.
+  let macs = [];
+  try {
+    const resp = await fetch(`/api/mdm/devices?agent_id=${encodeURIComponent(agentId)}`);
+    if (resp.ok) macs = (await resp.json()).devices || [];
+  } catch (e) { /* supplementary */ }
+  const mdmGroup = macs.map(m => `
+      <div class="detail-group">
+        <h3>Apple MDM (<a href="/mdm?udid=${encodeURIComponent(m.udid)}#devices">commands</a>)</h3>
+        ${detailRows([
+          ["Enrolled", m.enrolled ? "yes, since " + fmtTime(m.enrolled_at) : "no longer"],
+          ["Last check-in", fmtAgo(m.last_seen_at)],
+          ["macOS (per MDM)", [m.os_version, m.build_version].filter(Boolean).join(" ") || "—"],
+          ["Commands waiting", m.pending_commands || 0],
+        ])}
+      </div>`).join("");
   const backupGroup = backups.map(b => `
       <div class="detail-group">
         <h3>Backup (<a href="/backup-status">Proxmox</a>)</h3>
@@ -739,6 +756,7 @@ async function renderOverview(el) {
       </div>
       ${/* safe-html: built from detailRows, which escapes every value */ backupGroup}
       ${/* safe-html: built from detailRows and fixed markup */ entraGroup}
+      ${/* safe-html: built from detailRows and encoded links */ mdmGroup}
       ${/* safe-html: built from detailRows and encoded links */ hardeningGroup}
     </div>
     <section class="ep-section" aria-labelledby="ep-history-title">

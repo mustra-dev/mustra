@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Apple MDM — mustra</title>
+<link rel="icon" href="/static/brand/favicon.ico" sizes="any">
+<link rel="icon" href="/static/brand/app-icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/brand/app-icon-256.png">
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/theme.js"></script>
+<style>
+  .hint { font-size: var(--fs-meta); color: var(--text-muted); margin: -4px 0 12px; line-height: 1.55; }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .form-grid label { display: block; font-size: var(--fs-meta); color: var(--text-muted); margin-bottom: 4px; }
+  .form-grid input, .form-grid select, .form-grid textarea {
+    width: 100%; padding: 8px 10px; border-radius: var(--radius-md); border: 1px solid var(--border-input);
+    background: var(--input-bg); color: var(--text); font: inherit; font-size: 13px; }
+  .form-grid textarea { min-height: 120px; resize: vertical; font-family: var(--mono); font-size: var(--fs-meta); }
+  .form-grid .wide { grid-column: 1 / -1; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .actions button { width: auto; }
+  .muted { color: var(--text-muted); font-size: var(--fs-meta); }
+  .mono { font-family: var(--mono); font-size: var(--fs-meta); word-break: break-all; }
+  .pill { font-size: var(--fs-meta); padding: 2px 8px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
+  .pill.ok, .pill.acknowledged { background: var(--ok-bg); color: var(--ok); }
+  .pill.bad, .pill.error, .pill.format_error, .pill.expired { background: var(--off-bg); color: var(--off); }
+  .pill.wait, .pill.queued, .pill.sent, .pill.not_now { background: color-mix(in srgb, var(--viz-warning) 22%, transparent); color: var(--warn); }
+  .pill.cancelled, .pill.idle { background: var(--surface-2); color: var(--text-muted); }
+  .dev-row { cursor: pointer; }
+  .dev-row:hover, .dev-row:focus-visible { background: var(--surface-2); }
+  .dev-row[aria-selected="true"] { background: var(--surface-2); }
+  .facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 24px; margin: 0 0 14px; }
+  .fact { display: flex; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 13px; }
+  .fact .k { color: var(--text-muted); }
+  .fact .v { text-align: right; overflow-wrap: anywhere; }
+  .warnbox { background: var(--off-bg); color: var(--off); border-radius: var(--radius-md); padding: 10px 12px; margin: 0 0 12px; font-size: 13px; }
+  .notebox { background: var(--surface-2); border-radius: var(--radius-md); padding: 10px 12px; margin: 0 0 12px; font-size: 13px; }
+  .steps { margin: 0 0 12px 18px; padding: 0; font-size: 13px; line-height: 1.6; }
+  .result { max-height: 360px; overflow: auto; font-family: var(--mono); font-size: var(--fs-meta); white-space: pre-wrap;
+    background: var(--surface-2); border-radius: var(--radius-md); padding: 10px; margin: 6px 0 0; }
+  .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 14px; }
+  .danger-zone { margin-top: 14px; padding-top: 12px; }
+  button.danger { color: var(--off); }
+  .pin-big { font-family: var(--mono); font-size: 28px; letter-spacing: 0.15em; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+  <div class="app-shell">
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+    <aside class="sidebar-rail" id="sidebar-rail"></aside>
+    <aside class="sidebar-flyout" id="sidebar-flyout"></aside>
+    <aside class="module-subnav" id="module-subnav"></aside>
+    <main>
+      <div id="mdm-page-head"></div>
+      <div class="notebox" id="mdm-off" hidden>
+        Apple MDM is off. An administrator sets it up under <a href="#setup">Setup</a>: a push certificate from Apple,
+        the MDM CA, then the switch. Until then Macs cannot enroll and nothing here reaches a device.
+      </div>
+
+      <div class="module-section" id="section-devices" hidden>
+        <div class="panel">
+          <div class="panel-header"><h2>Enrolled Macs</h2><span class="scan-status" id="dev-status"></span></div>
+          <p class="hint">
+            Macs enrolled in mustra's own MDM. A Mac running the mustra agent too is linked to its endpoint by serial number.
+            Pick a Mac to see what it last reported and to send it a command.
+          </p>
+          <div class="table-scroll rows-10">
+            <table class="table-compact" id="dev-table">
+              <thead><tr><th>Name</th><th>Serial</th><th>Model</th><th>macOS</th><th>Endpoint</th><th>Last check-in</th><th>Waiting</th><th>State</th></tr></thead>
+              <tbody id="dev-body"><tr><td class="empty" colspan="8">loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel u-mt-14" id="dev-panel" hidden>
+          <div class="panel-header"><h2 id="dev-title">Mac</h2><span class="scan-status" id="dev-sub"></span></div>
+          <div class="facts" id="dev-facts"></div>
+          <div id="dev-security"></div>
+
+          <div id="dev-send" hidden>
+            <h3>Send a command</h3>
+            <div class="form-grid">
+              <div><label for="cmd-type">Command</label><select id="cmd-type"></select></div>
+              <div id="cmd-profile-f" hidden><label for="cmd-profile">Profile from the library</label><select id="cmd-profile"></select></div>
+              <div id="cmd-ident-f" hidden><label for="cmd-ident">Or its identifier</label><input id="cmd-ident" autocomplete="off" spellcheck="false" placeholder="com.example.wifi"></div>
+              <div id="cmd-msg-f" hidden><label for="cmd-msg">Message on the lock screen</label><input id="cmd-msg" maxlength="256" placeholder="This Mac is locked. Call IT."></div>
+              <div id="cmd-phone-f" hidden><label for="cmd-phone">Phone number on the lock screen</label><input id="cmd-phone" maxlength="32" placeholder="+1 555 0100"></div>
+              <div id="cmd-notify-f" hidden><label><input type="checkbox" id="cmd-notify"> Let the person signed in postpone it</label></div>
+              <div id="cmd-confirm-f" class="wide" hidden><label for="cmd-confirm">Type the Mac's serial number to erase it</label><input id="cmd-confirm" autocomplete="off" spellcheck="false"></div>
+            </div>
+            <p class="hint" id="cmd-note"></p>
+            <div class="actions"><button class="primary" id="cmd-send">Send</button><span class="muted" id="cmd-status" role="status"></span></div>
+          </div>
+
+          <h3 class="u-mt-14">Commands</h3>
+          <div class="table-scroll rows-10">
+            <table class="table-compact" id="cmd-table">
+              <thead><tr><th>Asked</th><th>Command</th><th>By</th><th>State</th><th>Finished</th><th></th></tr></thead>
+              <tbody id="cmd-body"></tbody>
+            </table>
+          </div>
+          <div id="cmd-result"></div>
+
+          <details class="u-mt-14" id="dev-apps-d"><summary>Installed applications</summary><div id="dev-apps"></div></details>
+          <details class="u-mt-8" id="dev-profiles-d"><summary>Installed profiles</summary><div id="dev-profiles"></div></details>
+
+          <div class="danger-zone" id="dev-delete-zone" hidden>
+            <button class="secondary danger u-w-auto" id="dev-delete">Forget this Mac</button>
+            <span class="muted">Removes it and its history here and revokes its identity. It does not unenroll the Mac:
+              remove the profile on the Mac, or erase it, first.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="module-section" id="section-profiles" hidden>
+        <div class="panel">
+          <div class="panel-header"><h2>Profile library</h2><span class="scan-status" id="prof-status"></span></div>
+          <p class="hint">
+            Configuration profiles (.mobileconfig, signed or not) that Install a profile sends. A profile can carry Wi-Fi
+            passwords and certificates, so this library is visible to deploy.manage only. A profile that contains an MDM
+            payload is refused: it would move the Mac to another server.
+          </p>
+          <div class="form-grid">
+            <div><label for="prof-file">Profile file</label><input type="file" id="prof-file" accept=".mobileconfig,application/x-apple-aspen-config"></div>
+            <div><label for="prof-name">Name in the library</label><input id="prof-name" placeholder="its own display name"></div>
+          </div>
+          <div class="actions"><button class="primary" id="prof-upload">Add to the library</button><span class="muted" id="prof-upload-status" role="status"></span></div>
+          <div class="table-scroll rows-10 u-mt-14">
+            <table class="table-compact">
+              <thead><tr><th>Name</th><th>Identifier</th><th>Payloads</th><th>Signed</th><th>Added</th><th></th></tr></thead>
+              <tbody id="prof-body"><tr><td class="empty" colspan="6">loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="module-section" id="section-enroll" hidden>
+        <div class="panel">
+          <div class="panel-header"><h2>Enrollment links</h2><span class="scan-status" id="tok-status"></span></div>
+          <p class="hint">
+            A Mac enrolls by opening a link in Safari, then approving the downloaded profile in System Settings → Privacy
+            &amp; Security → Profiles (user-approved enrollment). Each link works a set number of times and then expires,
+            so a Mac nobody sent a link to cannot enroll. Every download counts as one use.
+          </p>
+          <div class="form-grid">
+            <div><label for="tok-label">Label</label><input id="tok-label" maxlength="120" placeholder="Finance laptops"></div>
+            <div><label for="tok-uses">Macs it may enroll</label><input id="tok-uses" type="number" min="1" max="1000" value="1"></div>
+            <div><label for="tok-ttl">Works for (hours)</label><input id="tok-ttl" type="number" min="1" max="720" value="168"></div>
+          </div>
+          <div class="actions"><button class="primary" id="tok-create">Create link</button><span class="muted" id="tok-create-status" role="status"></span></div>
+          <div id="tok-new" class="u-mt-8"></div>
+          <div class="table-scroll rows-10 u-mt-14">
+            <table class="table-compact">
+              <thead><tr><th>Label</th><th>Used</th><th>Expires</th><th>Made by</th><th>State</th><th></th></tr></thead>
+              <tbody id="tok-body"><tr><td class="empty" colspan="6">loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="module-section" id="section-setup" hidden>
+        <div class="panel">
+          <div class="panel-header"><h2>Apple MDM</h2><span class="pill" id="set-state">—</span></div>
+          <div id="set-warning"></div>
+          <div id="set-missing"></div>
+          <div class="facts" id="set-facts"></div>
+          <div class="form-grid">
+            <div><label for="set-org">Organization shown on the Mac</label><input id="set-org" maxlength="120"></div>
+          </div>
+          <div class="actions">
+            <button class="secondary" id="set-save-org">Save name</button>
+            <button class="primary" id="set-on">Turn on</button>
+            <button class="secondary" id="set-off">Turn off</button>
+            <span class="muted" id="set-status" role="status"></span>
+          </div>
+          <p class="muted u-mt-8" id="set-readonly" hidden>You can see this setup; changing it needs integrations.manage.</p>
+        </div>
+
+        <div class="grid-2 u-mt-14">
+          <div class="panel">
+            <div class="panel-header"><h2>1. Push certificate</h2></div>
+            <p class="hint">
+              Apple wakes an enrolled Mac only for a server holding an MDM push certificate. Apple issues one only for a
+              request signed by an MDM vendor, which mustra cannot be: make the request here, have it signed by a vendor
+              you have an agreement with (your own Apple Developer Enterprise account's MDM CSR role, or a vendor signing
+              service), upload the signed request at identity.apple.com with an Apple ID the organization keeps, and bring
+              the certificate back here. Renew it every year with the same Apple ID. <a href="/help#apple-mdm">Help → Apple MDM</a> walks through it.
+            </p>
+            <div class="form-grid">
+              <div><label for="csr-email">Email for the request (optional)</label><input id="csr-email" type="email" autocomplete="off"></div>
+            </div>
+            <div class="actions"><button class="secondary" id="csr-make">Make a certificate request</button></div>
+            <div id="csr-out"></div>
+            <div class="form-grid u-mt-14">
+              <div class="wide"><label for="push-cert">Certificate (PEM) from Apple</label><textarea id="push-cert" spellcheck="false" placeholder="-----BEGIN CERTIFICATE-----"></textarea></div>
+              <div class="wide"><label for="push-key">Its private key (PEM), unless the request was made here</label><textarea id="push-key" spellcheck="false" placeholder="-----BEGIN PRIVATE KEY-----"></textarea></div>
+              <div><label for="push-p12">Or a .p12</label><input type="file" id="push-p12" accept=".p12,.pfx"></div>
+              <div><label for="push-pw">.p12 password</label><input type="password" id="push-pw" autocomplete="off"></div>
+            </div>
+            <div class="actions"><button class="primary" id="push-upload">Upload push certificate</button><span class="muted" id="push-status" role="status"></span></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header"><h2>2. MDM CA</h2></div>
+            <p class="hint">
+              Each enrollment link hands the Mac its own identity certificate, issued by a CA mustra keeps in its
+              credential vault. The Mac signs every message with it, which is how the server knows which Mac is talking,
+              even behind a proxy that ends TLS. Created once; replacing it would cut off every enrolled Mac.
+            </p>
+            <div id="ca-info"></div>
+            <div class="actions"><button class="primary" id="ca-make">Create the MDM CA</button><span class="muted" id="ca-status" role="status"></span></div>
+          </div>
+        </div>
+
+        <div class="grid-2 u-mt-14">
+          <div class="panel">
+            <div class="panel-header"><h2>3. Profile signing (optional)</h2></div>
+            <p class="hint">
+              Unsigned, the enrollment profile installs but shows as unverified. A certificate the Macs already trust, such
+              as the console's TLS certificate, signs it as verified. Paste the certificate (and its chain) and its key.
+            </p>
+            <div id="sign-info"></div>
+            <div class="form-grid">
+              <div class="wide"><label for="sign-cert">Certificate and chain (PEM)</label><textarea id="sign-cert" spellcheck="false"></textarea></div>
+              <div class="wide"><label for="sign-key">Private key (PEM)</label><textarea id="sign-key" spellcheck="false"></textarea></div>
+            </div>
+            <div class="actions"><button class="secondary" id="sign-save">Save signing identity</button><button class="secondary" id="sign-clear">Stop signing</button><span class="muted" id="sign-status" role="status"></span></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+<script src="/static/app.js"></script>
+<script>
+let me = null, devices = [], profiles = [], current = null, commandTypes = [];
+const stateLabel = { queued: "Waiting for the Mac", sent: "With the Mac", acknowledged: "Done", error: "Failed",
+  format_error: "Refused as malformed", not_now: "Mac said not now", cancelled: "Cancelled", expired: "Expired unanswered" };
+const can = p => hasPermission(me, p);
+
+async function api(method, url, body) {
+  const r = await fetch(url, { method, headers: body ? { "Content-Type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { window.location.href = "/login"; throw new Error("signed out"); }
+  const text = await r.text();
+  if (!r.ok) throw new Error(text.trim() || ("HTTP " + r.status));
+  return { status: r.status, data: text ? JSON.parse(text) : null };
+}
+const fact = (k, v) => `<div class="fact"><span class="k">${escapeHtml(k)}</span><span class="v">${escapeHtml(v == null || v === "" ? "—" : String(v))}</span></div>`;
+const when = v => v ? fmtAgo(v) : "—";
+function fileBase64(file) {
+  return new Promise((ok, fail) => {
+    const rd = new FileReader();
+    rd.onload = () => ok(String(rd.result).split(",")[1] || "");
+    rd.onerror = () => fail(rd.error);
+    rd.readAsDataURL(file);
+  });
+}
+
+document.addEventListener("mustra:user", async (e) => {
+  me = e.detail;
+  const items = [{ hash: "devices", label: "Macs" }];
+  if (can("deploy.manage")) items.push({ hash: "profiles", label: "Profile Library" }, { hash: "enroll", label: "Enrollment" });
+  if (can("settings.manage")) items.push({ hash: "setup", label: "Setup" });
+  initModuleSections(items);
+  renderPageHead("mdm-page-head", "/mdm", { title: "Apple MDM" });
+  await loadDevices();
+  if (can("deploy.manage")) { loadProfiles(); loadTokens(); }
+  if (can("settings.manage")) loadSetup();
+  const want = new URLSearchParams(window.location.search).get("udid");
+  if (want) openDevice(want);
+});
+
+// --- Macs ------------------------------------------------------------------
+async function loadDevices() {
+  let d;
+  try { d = (await api("GET", "/api/mdm/devices")).data; } catch (err) { document.getElementById("dev-body").innerHTML = `<tr><td class="empty" colspan="8">${escapeHtml(err.message)}</td></tr>`; return; }
+  devices = d.devices || [];
+  document.getElementById("mdm-off").hidden = d.active;
+  const enrolled = devices.filter(x => x.enrolled).length;
+  document.getElementById("dev-status").textContent = `${enrolled} enrolled${devices.length > enrolled ? `, ${devices.length - enrolled} no longer` : ""}`;
+  const body = document.getElementById("dev-body");
+  if (!devices.length) {
+    body.innerHTML = `<tr><td class="empty" colspan="8">No Mac has enrolled yet.${can("deploy.manage") ? ' Make an <a href="#enroll">enrollment link</a> and open it on the Mac.' : ""}</td></tr>`;
+    return;
+  }
+  body.innerHTML = devices.map(x => `<tr class="dev-row" tabindex="0" data-udid="${escapeHtml(x.udid)}" aria-selected="${current && current.udid === x.udid}">
+    <td><b>${escapeHtml(x.device_name || x.udid)}</b></td>
+    <td class="mono">${escapeHtml(x.serial_number || "—")}</td>
+    <td>${escapeHtml(x.model_name || x.model || "—")}</td>
+    <td>${escapeHtml(x.os_version || "—")}</td>
+    <td>${x.agent_id ? `<a href="/endpoint/${encodeURIComponent(x.agent_id)}">endpoint</a>` : '<span class="muted">no agent</span>'}</td>
+    <td data-sort="${escapeHtml(x.last_seen_at)}">${escapeHtml(when(x.last_seen_at))}</td>
+    <td>${x.pending_commands ? escapeHtml(String(x.pending_commands)) : ""}</td>
+    <td>${x.enrolled ? '<span class="pill ok">Enrolled</span>' : '<span class="pill cancelled">Unenrolled</span>'}</td></tr>`).join("");
+  body.querySelectorAll(".dev-row").forEach(tr => {
+    tr.addEventListener("click", () => openDevice(tr.dataset.udid));
+    tr.addEventListener("keydown", ev => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); openDevice(tr.dataset.udid); } });
+  });
+}
+
+async function openDevice(udid) {
+  let d;
+  try { d = (await api("GET", "/api/mdm/devices/" + encodeURIComponent(udid))).data; } catch (err) { showToast(err.message, "error"); return; }
+  current = d.device; commandTypes = d.command_types || [];
+  document.querySelectorAll(".dev-row").forEach(tr => tr.setAttribute("aria-selected", String(tr.dataset.udid === udid)));
+  const dv = current, info = parseJSON(dv.device_info, {}), sec = parseJSON(dv.security_info, {});
+  document.getElementById("dev-panel").hidden = false;
+  document.getElementById("dev-title").textContent = dv.device_name || dv.udid;
+  document.getElementById("dev-sub").textContent = dv.enrolled ? `enrolled ${when(dv.enrolled_at)}` : "not enrolled";
+  document.getElementById("dev-facts").innerHTML = [
+    fact("Serial number", dv.serial_number), fact("Model", [dv.model_name, dv.model].filter(Boolean).join(" · ")),
+    fact("macOS", [dv.os_version, dv.build_version && `(${dv.build_version})`].filter(Boolean).join(" ")),
+    fact("UDID", dv.udid), fact("Last check-in", when(dv.last_seen_at)),
+    fact("Last push", dv.last_push_at ? when(dv.last_push_at) + (dv.last_push_error ? " — " + dv.last_push_error : "") : "—"),
+    fact("Supervised", yesNo(info.IsSupervised)), fact("Activation Lock", yesNo(info.IsActivationLockEnabled)),
+    fact("Find My", yesNo(info.IsDeviceLocatorServiceEnabled)), fact("System Integrity Protection", yesNo(info.SystemIntegrityProtectionEnabled)),
+    fact("Free space", info.AvailableDeviceCapacity != null && info.DeviceCapacity != null ? `${Number(info.AvailableDeviceCapacity).toFixed(0)} of ${Number(info.DeviceCapacity).toFixed(0)} GB` : null),
+    fact("Device information", when(dv.device_info_at)),
+  ].join("");
+  const fv = sec.FDE_Enabled, fw = (sec.FirewallSettings || {}).FirewallEnabled;
+  document.getElementById("dev-security").innerHTML = dv.security_info_at ? `<h3>Security</h3><div class="facts">${[
+    fact("FileVault", yesNo(fv)), fact("Firewall", yesNo(fw)),
+    fact("Secure boot", (sec.SecureBoot || {}).SecureBootLevel), fact("Remote Desktop", yesNo(sec.RemoteDesktopEnabled)),
+    fact("Bootstrap token escrowed", yesNo(sec.BootstrapTokenAllowedForAuthentication === "allowed" ? true : sec.IsBootstrapTokenEscrowed)),
+    fact("Reported", when(dv.security_info_at))].join("")}</div>` : "";
+  renderSendForm();
+  renderCommands(d.commands || []);
+  renderList("dev-apps", parseJSON(dv.apps, []), a => [a.Name, a.ShortVersion || a.Version, a.Identifier], ["Name", "Version", "Bundle ID"], dv.apps_at);
+  renderList("dev-profiles", parseJSON(dv.profiles, []), p => [p.PayloadDisplayName, p.PayloadIdentifier, p.PayloadOrganization], ["Name", "Identifier", "Organization"], dv.profiles_at);
+  document.getElementById("dev-delete-zone").hidden = !can("deploy.manage");
+  document.getElementById("dev-panel").scrollIntoView({ block: "start", behavior: "smooth" });
+}
+
+function parseJSON(v, dflt) { if (v == null) return dflt; if (typeof v === "object") return v; try { return JSON.parse(v); } catch (e) { return dflt; } }
+function yesNo(v) { return v === true ? "yes" : v === false ? "no" : null; }
+
+function renderList(id, rows, cols, heads, at) {
+  const el = document.getElementById(id);
+  if (!at) { el.innerHTML = '<p class="muted">Not reported yet.</p>'; return; }
+  el.innerHTML = `<p class="muted">${escapeHtml(rows.length + " · reported " + when(at))}</p><div class="table-scroll rows-10"><table class="table-compact">
+    <thead><tr>${heads.map(h => `<th>${escapeHtml(h)}</th>`).join("")}</tr></thead>
+    <tbody>${rows.map(r => `<tr>${cols(r).map(c => `<td>${escapeHtml(c == null ? "" : String(c))}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+}
+
+function renderSendForm() {
+  const box = document.getElementById("dev-send");
+  box.hidden = !can("deploy.manage") || !current.enrolled;
+  if (box.hidden) return;
+  const sel = document.getElementById("cmd-type");
+  sel.innerHTML = commandTypes.map(c => `<option value="${escapeHtml(c.request_type)}">${escapeHtml(c.label)}${c.destructive ? " (needs approval)" : ""}</option>`).join("");
+  document.getElementById("cmd-profile").innerHTML = '<option value="">—</option>' + profiles.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join("");
+  showCmdFields();
+}
+
+function showCmdFields() {
+  const t = document.getElementById("cmd-type").value;
+  const show = (id, on) => { document.getElementById(id).hidden = !on; };
+  show("cmd-profile-f", t === "InstallProfile" || t === "RemoveProfile");
+  show("cmd-ident-f", t === "RemoveProfile");
+  show("cmd-msg-f", t === "DeviceLock"); show("cmd-phone-f", t === "DeviceLock");
+  show("cmd-notify-f", t === "RestartDevice");
+  show("cmd-confirm-f", t === "EraseDevice");
+  const notes = {
+    DeviceLock: "Locks the Mac with a six-digit PIN mustra makes. A second person must approve first. The PIN is shown, and audited, to someone with enforce.recovery_keys.",
+    EraseDevice: "Erases this one Mac. On Apple silicon and T2 Macs that is Erase All Content and Settings; older Macs also get a firmware PIN. A second person must approve first, and it cannot be undone.",
+    RestartDevice: "Restarts the Mac as soon as it receives this.",
+    InstallProfile: "Installs the chosen library profile.",
+    RemoveProfile: "Removes the profile with that identifier, if mustra's MDM installed it.",
+  };
+  document.getElementById("cmd-note").textContent = notes[t] || "Asks the Mac; its answer appears here when it checks in.";
+}
+document.getElementById("cmd-type").addEventListener("change", showCmdFields);
+
+document.getElementById("cmd-send").addEventListener("click", async () => {
+  const t = document.getElementById("cmd-type").value, st = document.getElementById("cmd-status");
+  const body = { request_type: t };
+  if (t === "InstallProfile" || t === "RemoveProfile") body.profile_id = document.getElementById("cmd-profile").value;
+  if (t === "RemoveProfile") body.identifier = document.getElementById("cmd-ident").value.trim();
+  if (t === "DeviceLock") { body.message = document.getElementById("cmd-msg").value; body.phone_number = document.getElementById("cmd-phone").value; }
+  if (t === "RestartDevice") body.notify_user = document.getElementById("cmd-notify").checked;
+  if (t === "EraseDevice") body.confirm = document.getElementById("cmd-confirm").value;
+  if (t === "RestartDevice" && !confirm(`Restart ${current.device_name || current.serial_number} now?`)) return;
+  st.textContent = "sending…";
+  try {
+    const r = await api("POST", `/api/mdm/devices/${encodeURIComponent(current.udid)}/commands`, body);
+    st.textContent = r.data.message || "queued";
+    document.getElementById("cmd-confirm").value = "";
+    openDevice(current.udid); loadDevices();
+  } catch (err) { st.textContent = err.message; }
+});
+
+function renderCommands(cmds) {
+  const body = document.getElementById("cmd-body");
+  if (!cmds.length) { body.innerHTML = '<tr><td class="empty" colspan="6">No commands yet.</td></tr>'; return; }
+  const label = rt => (commandTypes.find(c => c.request_type === rt) || {}).label || rt;
+  body.innerHTML = cmds.map(c => `<tr>
+    <td data-sort="${escapeHtml(c.created_at)}">${escapeHtml(fmtTime(c.created_at))}</td>
+    <td>${escapeHtml(label(c.request_type))}${c.approval_id ? ' <span class="muted">approved</span>' : ""}</td>
+    <td>${escapeHtml(c.requested_by)}</td>
+    <td><span class="pill ${escapeHtml(c.state)}">${escapeHtml(stateLabel[c.state] || c.state)}</span></td>
+    <td>${escapeHtml(c.finished_at ? fmtAgo(c.finished_at) : "")}</td>
+    <td class="actions">
+      ${c.result || (c.error_chain && c.error_chain.length) ? `<button class="secondary tiny" data-show="${escapeHtml(c.uuid)}">Details</button>` : ""}
+      ${c.has_pin && can("enforce.recovery_keys") ? `<button class="secondary tiny" data-pin="${escapeHtml(c.uuid)}">Show PIN</button>` : ""}
+      ${(c.state === "queued" || c.state === "not_now") && can("deploy.manage") ? `<button class="secondary tiny" data-cancel="${escapeHtml(c.uuid)}">Cancel</button>` : ""}
+    </td></tr>`).join("");
+  const byId = Object.fromEntries(cmds.map(c => [c.uuid, c]));
+  body.querySelectorAll("[data-show]").forEach(b => b.addEventListener("click", () => {
+    const c = byId[b.dataset.show];
+    document.getElementById("cmd-result").innerHTML = `<h3 class="u-mt-14">${escapeHtml(label(c.request_type) + " · " + (stateLabel[c.state] || c.state))}</h3>
+      <pre class="result">${escapeHtml(JSON.stringify(c.error_chain && c.error_chain.length ? c.error_chain : c.result, null, 2))}</pre>`;
+  }));
+  body.querySelectorAll("[data-pin]").forEach(b => b.addEventListener("click", async () => {
+    if (!confirm("Reading the PIN is recorded in the audit log. Show it?")) return;
+    try {
+      const r = await api("POST", `/api/mdm/commands/${encodeURIComponent(b.dataset.pin)}/reveal-pin`);
+      openModal("PIN", `<p>The PIN for this ${escapeHtml(label(r.data.request_type).toLowerCase())}:</p><p class="pin-big">${escapeHtml(r.data.pin)}</p>`);
+    } catch (err) { showToast(err.message, "error"); }
+  }));
+  body.querySelectorAll("[data-cancel]").forEach(b => b.addEventListener("click", async () => {
+    try { await api("POST", `/api/mdm/devices/${encodeURIComponent(current.udid)}/commands/${encodeURIComponent(b.dataset.cancel)}/cancel`); openDevice(current.udid); }
+    catch (err) { showToast(err.message, "error"); }
+  }));
+}
+
+document.getElementById("dev-delete").addEventListener("click", async () => {
+  if (!current || !confirm(`Forget ${current.device_name || current.udid}? Its history here is deleted and its identity revoked; the Mac stays enrolled until its profile is removed.`)) return;
+  try { await api("DELETE", "/api/mdm/devices/" + encodeURIComponent(current.udid)); current = null; document.getElementById("dev-panel").hidden = true; loadDevices(); }
+  catch (err) { showToast(err.message, "error"); }
+});
+
+// --- profile library -------------------------------------------------------
+async function loadProfiles() {
+  try { profiles = (await api("GET", "/api/mdm/profiles")).data.profiles || []; } catch (err) { return; }
+  document.getElementById("prof-status").textContent = profiles.length + (profiles.length === 1 ? " profile" : " profiles");
+  const body = document.getElementById("prof-body");
+  body.innerHTML = profiles.length ? profiles.map(p => `<tr>
+    <td><b>${escapeHtml(p.name)}</b>${p.description ? `<div class="muted">${escapeHtml(p.description)}</div>` : ""}</td>
+    <td class="mono">${escapeHtml(p.identifier)}</td>
+    <td>${escapeHtml((p.payload_types || []).join(", "))}</td>
+    <td>${p.signed ? "signed" : "unsigned"}</td>
+    <td>${escapeHtml(fmtAgo(p.created_at) + " by " + p.created_by)}</td>
+    <td class="actions"><a href="/api/mdm/profiles/${encodeURIComponent(p.id)}/download">Download</a>
+      <button class="secondary tiny danger" data-del="${escapeHtml(p.id)}">Delete</button></td></tr>`).join("")
+    : '<tr><td class="empty" colspan="6">No profiles yet.</td></tr>';
+  body.querySelectorAll("[data-del]").forEach(b => b.addEventListener("click", async () => {
+    if (!confirm("Delete this profile from the library? Macs that have it keep it.")) return;
+    try { await api("DELETE", "/api/mdm/profiles/" + encodeURIComponent(b.dataset.del)); loadProfiles(); } catch (err) { showToast(err.message, "error"); }
+  }));
+  if (current) renderSendForm();
+}
+document.getElementById("prof-upload").addEventListener("click", async () => {
+  const f = document.getElementById("prof-file").files[0], st = document.getElementById("prof-upload-status");
+  if (!f) { st.textContent = "choose a .mobileconfig first"; return; }
+  st.textContent = "uploading…";
+  try {
+    await api("POST", "/api/mdm/profiles", { name: document.getElementById("prof-name").value.trim(), content: await fileBase64(f) });
+    st.textContent = "added"; document.getElementById("prof-file").value = ""; document.getElementById("prof-name").value = "";
+    loadProfiles();
+  } catch (err) { st.textContent = err.message; }
+});
+
+// --- enrollment links ------------------------------------------------------
+async function loadTokens() {
+  let toks = [];
+  try { toks = (await api("GET", "/api/mdm/enroll-tokens")).data.tokens || []; } catch (err) { return; }
+  document.getElementById("tok-status").textContent = toks.filter(t => t.usable).length + " usable";
+  const body = document.getElementById("tok-body");
+  body.innerHTML = toks.length ? toks.map(t => `<tr>
+    <td>${escapeHtml(t.label || t.id)}</td><td>${escapeHtml(t.uses + " of " + t.max_uses)}</td>
+    <td>${escapeHtml(fmtTime(t.expires_at))}</td><td>${escapeHtml(t.created_by)}</td>
+    <td>${t.usable ? '<span class="pill ok">Usable</span>' : `<span class="pill cancelled">${t.revoked_at ? "Revoked" : t.uses >= t.max_uses ? "Used up" : "Expired"}</span>`}</td>
+    <td>${t.usable ? `<button class="secondary tiny danger" data-revoke="${escapeHtml(t.id)}">Revoke</button>` : ""}</td></tr>`).join("")
+    : '<tr><td class="empty" colspan="6">No enrollment links yet.</td></tr>';
+  body.querySelectorAll("[data-revoke]").forEach(b => b.addEventListener("click", async () => {
+    try { await api("DELETE", "/api/mdm/enroll-tokens/" + encodeURIComponent(b.dataset.revoke)); loadTokens(); } catch (err) { showToast(err.message, "error"); }
+  }));
+}
+document.getElementById("tok-create").addEventListener("click", async () => {
+  const st = document.getElementById("tok-create-status");
+  st.textContent = "creating…";
+  try {
+    const r = await api("POST", "/api/mdm/enroll-tokens", { label: document.getElementById("tok-label").value.trim(),
+      max_uses: Number(document.getElementById("tok-uses").value) || 1, ttl_hours: Number(document.getElementById("tok-ttl").value) || 168 });
+    st.textContent = "";
+    document.getElementById("tok-new").innerHTML = `<div class="notebox">Open this on the Mac, in Safari. It is shown only now:<div class="mono u-mt-8">${escapeHtml(r.data.url)}</div>
+      <div class="actions u-mt-8"><button class="secondary tiny" id="tok-copy">Copy link</button></div></div>`;
+    document.getElementById("tok-copy").addEventListener("click", () => navigator.clipboard.writeText(r.data.url).then(() => showToast("Copied")));
+    loadTokens();
+  } catch (err) { st.textContent = err.message; }
+});
+
+// --- setup -----------------------------------------------------------------
+function certFacts(c, what) {
+  if (!c) return `<p class="muted">No ${escapeHtml(what)} yet.</p>`;
+  return `<div class="facts">${[fact("Subject", c.subject), fact("Expires", `${fmtTime(c.not_after)} (${c.days_left} days)`), fact("Serial", c.serial)].join("")}</div>`;
+}
+async function loadSetup() {
+  let v;
+  try { v = (await api("GET", "/api/mdm/settings")).data; } catch (err) { return; }
+  const state = document.getElementById("set-state");
+  state.textContent = v.active ? "On" : v.enabled ? "On, but incomplete" : "Off";
+  state.className = "pill " + (v.active ? "ok" : v.enabled ? "bad" : "cancelled");
+  document.getElementById("set-warning").innerHTML = v.push_warning ? `<div class="warnbox">${escapeHtml(v.push_warning)}</div>` : "";
+  document.getElementById("set-missing").innerHTML = v.missing.length ? `<div class="notebox">Still needed before it can be turned on: ${escapeHtml(v.missing.join("; "))}.</div>` : "";
+  document.getElementById("set-facts").innerHTML = [fact("Push topic", v.push_topic), fact("Check-in URL", v.checkin_url), fact("Server URL", v.server_url), fact("Enrolled Macs", v.devices)].join("");
+  document.getElementById("set-org").value = v.organization || "";
+  document.getElementById("ca-info").innerHTML = certFacts(v.ca, "MDM CA");
+  document.getElementById("ca-make").hidden = !!v.ca;
+  document.getElementById("sign-info").innerHTML = v.signing ? certFacts(v.signing, "signing identity") : '<p class="muted">Profiles are served unsigned.</p>';
+  document.getElementById("csr-out").innerHTML = v.pending_csr ? `<p class="muted u-mt-8">A request is waiting for its certificate. Have it signed and uploaded at Apple, then paste the certificate below; the key stays here.</p>
+    <pre class="result">${escapeHtml(v.pending_csr)}</pre>` : "";
+  document.getElementById("set-on").hidden = v.enabled; document.getElementById("set-off").hidden = !v.enabled;
+  document.getElementById("set-readonly").hidden = v.can_change;
+  document.querySelectorAll("#section-setup button").forEach(b => { b.disabled = !v.can_change; });
+}
+async function setupCall(statusId, method, url, body) {
+  const st = document.getElementById(statusId);
+  st.textContent = "saving…";
+  try { await api(method, url, body); st.textContent = "saved"; loadSetup(); loadDevices(); }
+  catch (err) { st.textContent = err.message; }
+}
+document.getElementById("set-save-org").addEventListener("click", () => setupCall("set-status", "PUT", "/api/mdm/settings", { organization: document.getElementById("set-org").value }));
+document.getElementById("set-on").addEventListener("click", () => setupCall("set-status", "PUT", "/api/mdm/settings", { enabled: true }));
+document.getElementById("set-off").addEventListener("click", () => {
+  if (confirm("Turn Apple MDM off? Enrolled Macs stay enrolled but can neither check in nor receive commands until it is on again.")) setupCall("set-status", "PUT", "/api/mdm/settings", { enabled: false });
+});
+document.getElementById("csr-make").addEventListener("click", () => setupCall("push-status", "POST", "/api/mdm/push-csr", { email: document.getElementById("csr-email").value.trim() }));
+document.getElementById("ca-make").addEventListener("click", () => setupCall("ca-status", "POST", "/api/mdm/ca"));
+document.getElementById("push-upload").addEventListener("click", async () => {
+  const f = document.getElementById("push-p12").files[0];
+  const body = f ? { p12: await fileBase64(f), password: document.getElementById("push-pw").value }
+    : { cert_pem: document.getElementById("push-cert").value, key_pem: document.getElementById("push-key").value };
+  await setupCall("push-status", "POST", "/api/mdm/push-certificate", body);
+  ["push-cert", "push-key", "push-pw"].forEach(id => { document.getElementById(id).value = ""; });
+  document.getElementById("push-p12").value = "";
+});
+document.getElementById("sign-save").addEventListener("click", async () => {
+  await setupCall("sign-status", "PUT", "/api/mdm/signing-identity", { cert_pem: document.getElementById("sign-cert").value, key_pem: document.getElementById("sign-key").value });
+  document.getElementById("sign-key").value = "";
+});
+document.getElementById("sign-clear").addEventListener("click", () => setupCall("sign-status", "DELETE", "/api/mdm/signing-identity"));
+</script>
+</body>
+</html>

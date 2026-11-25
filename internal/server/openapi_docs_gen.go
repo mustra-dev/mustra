@@ -88,6 +88,14 @@ var typeDocs = map[string]typeDoc{
 	"github.com/mustra-dev/mustra/internal/impact.Reach": {
 		Doc: "Reach is an endpoint reachable in N hops.",
 	},
+	"github.com/mustra-dev/mustra/internal/mdm.CommandInfo": {
+		Doc: "CommandInfo describes one request type for the server and the console.",
+		Fields: map[string]string{
+			"Destructive": "Destructive commands need a second person's approval every time, whatever approval policies say, and run on one device at a time.",
+			"NeedsPIN":    "NeedsPIN commands carry a six-digit PIN the server generates when the command is queued (after any approval), seals in the vault and shows only to someone allowed to read recovery secrets.",
+			"Query":       "Query commands only read; their responses are kept on the device.",
+		},
+	},
 	"github.com/mustra-dev/mustra/internal/patchpolicy.Rules": {
 		Doc: "Rules is the matching part of a list. Empty slices match anything, so a list with no rules matches every patch; a list is the AND of its non-empty rules, and each rule is the OR of its values.",
 		Fields: map[string]string{
@@ -751,6 +759,16 @@ var typeDocs = map[string]typeDoc{
 	"github.com/mustra-dev/mustra/internal/server.createEnrollTokenResponse": {
 		Doc: "createEnrollTokenResponse is what POST /api/enrollment-tokens answers: the install commands, or why they could not be built.",
 	},
+	"github.com/mustra-dev/mustra/internal/server.createMDMEnrollTokenRequest": {
+		Doc: "createMDMEnrollTokenRequest is the body of POST /api/mdm/enroll-tokens.",
+		Fields: map[string]string{
+			"MaxUses":  "MaxUses is how many enrollment profiles the link hands out (one per Mac, and one more each time a page is reloaded); 1 by default, at most 1000.",
+			"TTLHours": "TTLHours is how long the link works; a week by default, at most 30 days.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.createMDMEnrollTokenResponse": {
+		Doc: "createMDMEnrollTokenResponse shows the token, and the link built from it, this once.",
+	},
 	"github.com/mustra-dev/mustra/internal/server.createPatchListAssignmentRequest": {
 		Doc: "createPatchListAssignmentRequest is the body of POST /api/patches/list-assignments. At least one target is required. An assignment naming an endpoint applies to that endpoint whatever else it names. A site and a platform combine: together they mean that platform's hosts at that site. When several assignments match a host, the most specific wins: one naming the endpoint, then site and platform, then site, then platform; within a rank, the most recent.",
 		Fields: map[string]string{
@@ -1117,7 +1135,7 @@ var typeDocs = map[string]typeDoc{
 	"github.com/mustra-dev/mustra/internal/server.expiringItem": {
 		Fields: map[string]string{
 			"Extra": "Extra is what this kind of item adds: issuer and fingerprint for a fleet certificate, authority for a managed one, provider and mode for an app credential. Sent as \"Extra\" before #86.",
-			"Type":  "managed_certificate, certificate, app_credential, app_credential_rotation",
+			"Type":  "managed_certificate, certificate, app_credential, app_credential_rotation, apple_mdm_push_certificate",
 		},
 	},
 	"github.com/mustra-dev/mustra/internal/server.expiryAlertIntegration": {
@@ -1576,6 +1594,101 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/server.mcpResponse": {
 		Doc: "mcpResponse is a JSON-RPC 2.0 response: a result or an error.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.mdmCancelResponse": {
+		Doc: "mdmCancelResponse is what POST /api/mdm/devices/{id}/commands/{command}/cancel answers.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.mdmCertSummary": {
+		Doc: "mdmCertSummary describes a certificate for the settings page.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.mdmCommandRequest": {
+		Doc: "mdmCommandRequest is the body of POST /api/mdm/devices/{id}/commands.",
+		Fields: map[string]string{
+			"Confirm":     "Confirm must repeat the Mac's serial number for EraseDevice.",
+			"Identifier":  "Identifier is the PayloadIdentifier RemoveProfile removes, for a profile not in the library.",
+			"Message":     "Message and PhoneNumber are shown on a locked Mac's screen.",
+			"NotifyUser":  "NotifyUser lets the person at the Mac postpone a restart (macOS 11.3+).",
+			"PhoneNumber": "Message and PhoneNumber are shown on a locked Mac's screen.",
+			"ProfileID":   "ProfileID names a library profile: the one InstallProfile installs, or the one whose identifier RemoveProfile removes.",
+			"RequestType": "RequestType is one of DeviceInformation, SecurityInfo, InstalledApplicationList, ProfileList, InstallProfile, RemoveProfile, RestartDevice, DeviceLock and EraseDevice.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.mdmCommandResponse": {
+		Doc: "mdmCommandResponse is what POST /api/mdm/devices/{id}/commands answers when the command is queued.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.mdmDeleteResponse": {
+		Doc: "mdmDeleteResponse is what DELETE /api/mdm/devices/{id} answers.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.mdmDeviceResponse": {
+		Doc: "mdmDeviceResponse is what GET /api/mdm/devices/{id} answers.",
+		Fields: map[string]string{
+			"CommandTypes": "CommandTypes are the commands this server can send.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.mdmDevicesResponse": {
+		Doc: "mdmDevicesResponse is what GET /api/mdm/devices answers.",
+		Fields: map[string]string{
+			"Active": "Active says whether the MDM is on and complete.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.mdmEnrollTokenRow": {
+		Doc: "mdmEnrollTokenRow is an entry of GET /api/mdm/enroll-tokens.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.mdmEnrollTokensResponse": {
+		Doc: "mdmEnrollTokensResponse is what GET /api/mdm/enroll-tokens answers.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.mdmPINResponse": {
+		Doc: "mdmPINResponse is what POST /api/mdm/commands/{id}/reveal-pin answers.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.mdmParkedResponse": {
+		Doc: "mdmParkedResponse is the 202 answer when a lock or erase waits for approval.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.mdmProfilesResponse": {
+		Doc: "mdmProfilesResponse is what GET /api/mdm/profiles answers.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.mdmPushCSRRequest": {
+		Doc: "mdmPushCSRRequest is the body of POST /api/mdm/push-csr.",
+		Fields: map[string]string{
+			"Email": "Email goes into the request; some signing services ask for it.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.mdmPushCSRResponse": {
+		Doc: "mdmPushCSRResponse carries the request to have signed.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.mdmPushCertRequest": {
+		Doc: "mdmPushCertRequest is the body of POST /api/mdm/push-certificate: the certificate as PEM (with its key as PEM, or none to use the key made with the pending request), or a .p12 with its password.",
+		Fields: map[string]string{
+			"P12":          "P12 is a base64 PKCS#12 file, as Keychain Access exports it.",
+			"ReplaceTopic": "ReplaceTopic accepts a certificate for a different topic while Macs are enrolled under the current one. Those Macs can no longer be pushed to and must enroll again.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.mdmRevokeResponse": {
+		Doc: "mdmRevokeResponse is what DELETE /api/mdm/enroll-tokens/{id} answers.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.mdmSettingsResponse": {
+		Doc: "mdmSettingsResponse is what GET /api/mdm/settings answers.",
+		Fields: map[string]string{
+			"Active":       "Enabled is the switch; Ready says nothing is missing; Active is both, and is when devices can enroll and check in.",
+			"CanChange":    "CanChange says whether the caller may change the setup (integrations.manage, or an administrator).",
+			"CheckInURL":   "CheckInURL and ServerURL are what enrollment profiles point Macs at.",
+			"Enabled":      "Enabled is the switch; Ready says nothing is missing; Active is both, and is when devices can enroll and check in.",
+			"Organization": "Organization is shown on the Mac as who manages it.",
+			"PendingCSR":   "PendingCSR is a certificate signing request generated here and waiting for its signed certificate.",
+			"PushTopic":    "PushTopic is the push certificate's topic, com.apple.mgmt.External.<uuid>.",
+			"PushWarning":  "PushWarning is set when the push certificate expires within 30 days: renew it at Apple with the same Apple ID, or every Mac must enroll again.",
+			"Ready":        "Enabled is the switch; Ready says nothing is missing; Active is both, and is when devices can enroll and check in.",
+			"ServerURL":    "CheckInURL and ServerURL are what enrollment profiles point Macs at.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.mdmSigningRequest": {
+		Doc: "mdmSigningRequest is the body of PUT /api/mdm/signing-identity: a certificate (with any intermediates after it) and its key, both PEM, that enrollment profiles are signed with. A certificate a Mac already trusts, such as the console's own TLS certificate, makes the profile show as verified.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.mdmUploadProfileRequest": {
+		Doc: "mdmUploadProfileRequest is the body of POST /api/mdm/profiles.",
+		Fields: map[string]string{
+			"Content": "Content is the .mobileconfig, signed or not, base64.",
+			"Name":    "Name is the library's name for it; the profile's own display name when empty.",
+		},
 	},
 	"github.com/mustra-dev/mustra/internal/server.meResponse": {
 		Fields: map[string]string{
@@ -2129,6 +2242,13 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/server.saveIntegrationRequest": {
 		Doc: "saveIntegrationRequest is the body of POST /api/admin/integrations and PUT /api/admin/integrations/{id}.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.saveMDMSettingsRequest": {
+		Doc: "saveMDMSettingsRequest is the body of PUT /api/mdm/settings. An omitted field is left as it is.",
+		Fields: map[string]string{
+			"Enabled":      "Enabled turns the MDM on or off. It turns on only once nothing is missing. Off, devices cannot enroll or check in; nothing is erased.",
+			"Organization": "Organization is shown on the Mac as who manages it.",
+		},
 	},
 	"github.com/mustra-dev/mustra/internal/server.saveMaintenanceWindowResponse": {
 		Doc: "saveMaintenanceWindowResponse is what POST /api/maintenance-windows and PUT /api/maintenance-windows/{id} answer.",
@@ -3015,6 +3135,21 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/store.JumpPolicy": {
 		Doc: "JumpPolicy says what reaching an endpoint costs: a reason, an approval, a time limit. The highest-priority enabled policy covering an endpoint wins; an endpoint no policy covers costs nothing beyond the permission and management rights that already applied.",
+	},
+	"github.com/mustra-dev/mustra/internal/store.MDMCommand": {
+		Doc: "MDMCommand is one command in a device's queue.",
+	},
+	"github.com/mustra-dev/mustra/internal/store.MDMDevice": {
+		Doc: "MDMDevice is an enrolled (or formerly enrolled) device.",
+		Fields: map[string]string{
+			"PendingCommands": "PendingCommands counts commands still waiting for the device.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/store.MDMEnrollToken": {
+		Doc: "MDMEnrollToken is an enrollment token's record; the token itself is shown once and stored only as a hash.",
+	},
+	"github.com/mustra-dev/mustra/internal/store.MDMProfile": {
+		Doc: "MDMProfile is a library profile. Content is loaded only by GetMDMProfile.",
 	},
 	"github.com/mustra-dev/mustra/internal/store.MaintenanceWindow": {
 		Fields: map[string]string{

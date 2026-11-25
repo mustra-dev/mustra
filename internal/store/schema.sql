@@ -3321,3 +3321,132 @@ CREATE TABLE IF NOT EXISTS saas_extension (
     uploaded_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     uploaded_by  TEXT NOT NULL DEFAULT ''
 );
+
+-- Apple MDM (internal/mdm; docs/APPLE-MDM.md): mustra as a Mac's MDM server.
+-- Off until an administrator uploads a push certificate, creates the MDM CA
+-- and turns it on. Private keys are stored sealed by the credential vault
+-- (the *_sealed columns hold "vault:<base64>"), never in the clear.
+CREATE TABLE IF NOT EXISTS mdm_config (
+    id                  INT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+    enabled             BOOLEAN NOT NULL DEFAULT false,
+    organization        TEXT NOT NULL DEFAULT '',
+    push_cert_pem       TEXT NOT NULL DEFAULT '',
+    push_key_sealed     TEXT NOT NULL DEFAULT '',
+    push_topic          TEXT NOT NULL DEFAULT '',
+    push_expires_at     TIMESTAMPTZ,
+    -- A key generated with a CSR, waiting for the signed certificate.
+    push_csr_pem        TEXT NOT NULL DEFAULT '',
+    push_csr_key_sealed TEXT NOT NULL DEFAULT '',
+    ca_cert_pem         TEXT NOT NULL DEFAULT '',
+    ca_key_sealed       TEXT NOT NULL DEFAULT '',
+    -- Optional identity enrollment profiles are signed with.
+    sign_cert_pem       TEXT NOT NULL DEFAULT '',
+    sign_key_sealed     TEXT NOT NULL DEFAULT '',
+    updated_by          TEXT NOT NULL DEFAULT '',
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- A secret in the enrollment profile's URL: without one a Mac cannot get a
+-- profile, so a stranger cannot enroll. Stored hashed; bounded in uses and time.
+CREATE TABLE IF NOT EXISTS mdm_enroll_tokens (
+    id          TEXT PRIMARY KEY,
+    label       TEXT NOT NULL DEFAULT '',
+    token_hash  TEXT NOT NULL UNIQUE,
+    max_uses    INT NOT NULL DEFAULT 1,
+    uses        INT NOT NULL DEFAULT 0,
+    expires_at  TIMESTAMPTZ NOT NULL,
+    revoked_at  TIMESTAMPTZ,
+    created_by  TEXT NOT NULL DEFAULT '',
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Every device identity certificate the MDM CA issued. udid is set by the
+-- first check-in the identity signs, and from then on it speaks only for
+-- that device.
+CREATE TABLE IF NOT EXISTS mdm_identities (
+    serial      TEXT PRIMARY KEY,
+    fingerprint TEXT NOT NULL,
+    token_id    TEXT NOT NULL DEFAULT '',
+    udid        TEXT NOT NULL DEFAULT '',
+    issued_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    not_after   TIMESTAMPTZ NOT NULL,
+    revoked_at  TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_mdm_identities_udid ON mdm_identities (udid) WHERE udid <> '';
+
+CREATE TABLE IF NOT EXISTS mdm_devices (
+    udid             TEXT PRIMARY KEY,
+    serial_number    TEXT NOT NULL DEFAULT '',
+    model            TEXT NOT NULL DEFAULT '',
+    model_name       TEXT NOT NULL DEFAULT '',
+    product_name     TEXT NOT NULL DEFAULT '',
+    os_version       TEXT NOT NULL DEFAULT '',
+    build_version    TEXT NOT NULL DEFAULT '',
+    device_name      TEXT NOT NULL DEFAULT '',
+    identity_serial  TEXT NOT NULL DEFAULT '',
+    topic            TEXT NOT NULL DEFAULT '',
+    push_token       BYTEA,
+    push_magic       TEXT NOT NULL DEFAULT '',
+    -- The mustra agent on the same Mac, matched by serial number.
+    agent_id         TEXT NOT NULL DEFAULT '',
+    enrolled         BOOLEAN NOT NULL DEFAULT true,
+    enrolled_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_seen_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    checked_out_at   TIMESTAMPTZ,
+    last_push_at     TIMESTAMPTZ,
+    last_push_error  TEXT NOT NULL DEFAULT '',
+    device_info      JSONB NOT NULL DEFAULT '{}',
+    device_info_at   TIMESTAMPTZ,
+    security_info    JSONB NOT NULL DEFAULT '{}',
+    security_info_at TIMESTAMPTZ,
+    apps             JSONB NOT NULL DEFAULT '[]',
+    apps_at          TIMESTAMPTZ,
+    profiles         JSONB NOT NULL DEFAULT '[]',
+    profiles_at      TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_mdm_devices_agent ON mdm_devices (agent_id) WHERE agent_id <> '';
+
+-- The per-device command queue. state: queued | sent | acknowledged | error
+-- | format_error | not_now | cancelled | expired (internal/mdm/queue.go).
+-- A command carrying a PIN has its payload sealed, and the PIN sealed apart
+-- for reading back under enforce.recovery_keys.
+CREATE TABLE IF NOT EXISTS mdm_commands (
+    uuid           TEXT PRIMARY KEY,
+    udid           TEXT NOT NULL REFERENCES mdm_devices(udid) ON DELETE CASCADE,
+    request_type   TEXT NOT NULL,
+    params         JSONB NOT NULL DEFAULT '{}',
+    profile_id     TEXT NOT NULL DEFAULT '',
+    payload        BYTEA NOT NULL,
+    payload_sealed BOOLEAN NOT NULL DEFAULT false,
+    pin_sealed     TEXT NOT NULL DEFAULT '',
+    state          TEXT NOT NULL DEFAULT 'queued',
+    deliveries     INT NOT NULL DEFAULT 0,
+    requested_by   TEXT NOT NULL DEFAULT '',
+    approval_id    TEXT NOT NULL DEFAULT '',
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    sent_at        TIMESTAMPTZ,
+    finished_at    TIMESTAMPTZ,
+    updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    result         JSONB,
+    error_chain    JSONB NOT NULL DEFAULT '[]'
+);
+CREATE INDEX IF NOT EXISTS idx_mdm_commands_udid ON mdm_commands (udid, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_mdm_commands_pending ON mdm_commands (udid, created_at) WHERE state IN ('queued', 'sent', 'not_now');
+
+-- The profile library: configuration profiles InstallProfile sends. A
+-- profile can hold Wi-Fi passwords and certificates, so reading one takes
+-- deploy.manage like writing one.
+CREATE TABLE IF NOT EXISTS mdm_profiles (
+    id            TEXT PRIMARY KEY,
+    name          TEXT NOT NULL,
+    identifier    TEXT NOT NULL,
+    display_name  TEXT NOT NULL DEFAULT '',
+    description   TEXT NOT NULL DEFAULT '',
+    organization  TEXT NOT NULL DEFAULT '',
+    payload_types TEXT[] NOT NULL DEFAULT '{}',
+    signed        BOOLEAN NOT NULL DEFAULT false,
+    content       BYTEA NOT NULL,
+    sha256        TEXT NOT NULL,
+    created_by    TEXT NOT NULL DEFAULT '',
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);

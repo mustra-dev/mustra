@@ -1553,6 +1553,43 @@ const (
 // schema admits it, and it is what encoding/json would write. A list
 // shows one or two entries; a route that answers in several shapes shows
 // its main one, Resp.
+// Apple MDM: build-mac-02 enrolled, with the push certificate and CA set up.
+const (
+	mdmSettingsExample = `{
+		"enabled": true, "ready": true, "active": true, "missing": [],
+		"organization": "Example Corp",
+		"checkin_url": "https://console.example.com/mdm/checkin",
+		"server_url": "https://console.example.com/mdm/connect",
+		"push_topic": "com.apple.mgmt.External.3c1f6b2e-8a4d-4e7f-9b0c-5d2a1e6f8c34",
+		"push": {"subject": "UID=com.apple.mgmt.External.3c1f6b2e-8a4d-4e7f-9b0c-5d2a1e6f8c34,CN=APSP:3c1f6b2e-8a4d-4e7f-9b0c-5d2a1e6f8c34,C=US",
+			"issuer": "CN=Apple Application Integration 2 Certification Authority,OU=Apple Certification Authority,O=Apple Inc.,C=US",
+			"serial": "5a1c9e2f7b3d4e60", "not_before": "2026-02-10T09:12:00Z", "not_after": "2027-02-10T09:12:00Z", "days_left": 77,
+			"fingerprint": "8e2b4c6d1f3a5e7b9c0d2f4a6b8c1e3d5f7a9b0c2e4d6f8a1b3c5e7d9f0a2b4c"},
+		"ca": {"subject": "CN=Example Corp MDM device identity CA,O=Example Corp", "issuer": "CN=Example Corp MDM device identity CA,O=Example Corp",
+			"serial": "3f9a1c7e2b40d5e8a6c4b2f1e9d7c5a3", "not_before": "2026-02-10T09:20:00Z", "not_after": "2036-02-10T09:20:00Z", "days_left": 3364,
+			"fingerprint": "1a3c5e7b9d0f2a4c6e8b1d3f5a7c9e0b2d4f6a8c1e3b5d7f9a0c2e4b6d8f1a3c"},
+		"devices": 1,
+		"can_change": true
+	}`
+
+	mdmDeviceFields = `"udid": "6D1A9C3E-2F4B-5A7D-8E0C-1B3D5F7A9C2E", "serial_number": "C02ZK1EXMD6R", "model": "Mac14,2",
+		"model_name": "MacBook Air", "product_name": "Mac14,2", "os_version": "15.1", "build_version": "24B83", "device_name": "build-mac-02",
+		"has_push_token": true, "agent_id": "agt-a5f17ac9d34a0b8dd362373426b5497f", "enrolled": true,
+		"enrolled_at": "2026-10-02T11:04:19Z", "last_seen_at": "2026-10-20T08:12:44Z", "last_push_at": "2026-10-20T08:12:40Z"`
+
+	mdmCommandExample = `{"uuid": "9F2C4A6E-1B3D-4F5A-8C7E-0D2B4F6A8C1E", "udid": "6D1A9C3E-2F4B-5A7D-8E0C-1B3D5F7A9C2E",
+		"request_type": "DeviceInformation", "params": {}, "has_pin": false, "state": "queued", "deliveries": 0,
+		"requested_by": "alice", "created_at": "2026-10-20T08:12:39Z", "updated_at": "2026-10-20T08:12:39Z", "error_chain": []}`
+
+	mdmProfileExample = `{"id": "mdmp-7c2e9a4f1b3d", "name": "Screen saver after 5 minutes", "identifier": "com.example.screensaver",
+		"display_name": "Screen saver", "description": "", "organization": "Example Corp", "payload_types": ["com.apple.screensaver"],
+		"signed": false, "size": 1184, "sha256": "4d7f1a3c5e8b0d2f6a9c1e3b5d7f9a0c2e4b6d8f1a3c5e7b9d0f2a4c6e8b1d3f",
+		"created_by": "alice", "created_at": "2026-10-19T15:30:02Z"}`
+
+	mdmEnrollTokenFields = `"id": "mdmt-4e8c2a6f1d3b", "label": "Finance laptops", "max_uses": 10, "uses": 3,
+		"expires_at": "2026-10-23T08:00:00Z", "created_by": "alice", "created_at": "2026-10-20T08:00:00Z"`
+)
+
 var respExamples = map[string]string{
 	// about
 	"GET /api/about": `{
@@ -3907,6 +3944,33 @@ var respExamples = map[string]string{
 			` + defenderPUAResultExample + `
 		]
 	}`,
+
+	// mdm
+	"GET /api/mdm/settings":            mdmSettingsExample,
+	"PUT /api/mdm/settings":            mdmSettingsExample,
+	"POST /api/mdm/push-certificate":   mdmSettingsExample,
+	"POST /api/mdm/ca":                 mdmSettingsExample,
+	"PUT /api/mdm/signing-identity":    mdmSettingsExample,
+	"DELETE /api/mdm/signing-identity": mdmSettingsExample,
+	"POST /api/mdm/push-csr":           `{"csr_pem": "-----BEGIN CERTIFICATE REQUEST-----\nMIICrzCCAZcCAQAwajEaMBgGA1UEAwwRRXhhbXBsZSBNRE0gcHVzaDEUMBIGA1UE…\n-----END CERTIFICATE REQUEST-----\n"}`,
+	"GET /api/mdm/enroll-tokens":       `{"tokens": [{` + mdmEnrollTokenFields + `, "usable": true}]}`,
+	"POST /api/mdm/enroll-tokens": `{"token": "<enrollment token, shown once>", "url": "https://console.example.com/mdm/enroll/<enrollment token, shown once>",
+		"record": {` + mdmEnrollTokenFields + `}}`,
+	"DELETE /api/mdm/enroll-tokens/{id}": `{"revoked": true}`,
+	"GET /api/mdm/devices":               `{"devices": [{` + mdmDeviceFields + `, "pending_commands": 0}], "active": true}`,
+	"GET /api/mdm/devices/{id}": `{"device": {` + mdmDeviceFields + `, "pending_commands": 0,
+		"device_info": {"DeviceName": "build-mac-02", "OSVersion": "15.1", "SerialNumber": "C02ZK1EXMD6R", "IsSupervised": false},
+		"device_info_at": "2026-10-20T08:12:45Z"},
+		"commands": [` + mdmCommandExample + `],
+		"command_types": [{"request_type": "DeviceInformation", "label": "Device information", "destructive": false, "needs_pin": false, "query": true},
+			{"request_type": "EraseDevice", "label": "Erase", "destructive": true, "needs_pin": true, "query": false}]}`,
+	"POST /api/mdm/devices/{id}/commands":                  `{"command": ` + mdmCommandExample + `, "message": "Queued; the Mac has been asked to check in."}`,
+	"POST /api/mdm/devices/{id}/commands/{command}/cancel": `{"cancelled": true}`,
+	"DELETE /api/mdm/devices/{id}":                         `{"deleted": true}`,
+	"POST /api/mdm/commands/{id}/reveal-pin":               `{"command": "9F2C4A6E-1B3D-4F5A-8C7E-0D2B4F6A8C1E", "request_type": "DeviceLock", "pin": "<six-digit PIN>"}`,
+	"GET /api/mdm/profiles":                                `{"profiles": [` + mdmProfileExample + `]}`,
+	"POST /api/mdm/profiles":                               mdmProfileExample,
+	"DELETE /api/mdm/profiles/{id}":                        `{"deleted": true}`,
 
 	// enrollment-tokens
 	"GET /api/enrollment-tokens": `{"tokens": [{` + enrollTokenRecordFields + `, "usable": true}]}`,

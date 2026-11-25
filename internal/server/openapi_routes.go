@@ -411,6 +411,28 @@ var routeDocs = map[string]routeDoc{
 	"POST /api/enrollment-tokens":        {Body: createEnrollTokenRequest{}, Resp: createEnrollTokenResponse{}, Errors: []int{400, 500}},
 	"DELETE /api/enrollment-tokens/{id}": {Resp: revokeEnrollTokenResponse{}, Errors: []int{404, 500}},
 
+	// mdm (Apple MDM)
+	"GET /api/mdm/settings":                                {Resp: mdmSettingsResponse{}, Errors: []int{500}},
+	"PUT /api/mdm/settings":                                {Body: saveMDMSettingsRequest{}, Resp: mdmSettingsResponse{}, Errors: []int{400, 403, 409, 500}},
+	"POST /api/mdm/push-csr":                               {Body: mdmPushCSRRequest{}, Resp: mdmPushCSRResponse{}, Errors: []int{400, 403, 500, 503}},
+	"POST /api/mdm/push-certificate":                       {Body: mdmPushCertRequest{}, Resp: mdmSettingsResponse{}, Errors: []int{400, 403, 409, 500, 503}},
+	"POST /api/mdm/ca":                                     {NoBody: true, Resp: mdmSettingsResponse{}, Errors: []int{403, 409, 500, 503}},
+	"PUT /api/mdm/signing-identity":                        {Body: mdmSigningRequest{}, Resp: mdmSettingsResponse{}, Errors: []int{400, 403, 500, 503}},
+	"DELETE /api/mdm/signing-identity":                     {Resp: mdmSettingsResponse{}, Errors: []int{403, 500}},
+	"GET /api/mdm/enroll-tokens":                           {Resp: mdmEnrollTokensResponse{}, Errors: []int{500}},
+	"POST /api/mdm/enroll-tokens":                          {Body: createMDMEnrollTokenRequest{}, Resp: createMDMEnrollTokenResponse{}, Status: 201, Errors: []int{400, 409, 500}},
+	"DELETE /api/mdm/enroll-tokens/{id}":                   {Resp: mdmRevokeResponse{}, Errors: []int{404, 500}},
+	"GET /api/mdm/devices":                                 {Query: []queryParam{{Name: "agent_id", Desc: "only the Mac linked to this endpoint"}}, Resp: mdmDevicesResponse{}, Errors: []int{500}},
+	"GET /api/mdm/devices/{id}":                            {Resp: mdmDeviceResponse{}, Errors: []int{404, 500}},
+	"POST /api/mdm/devices/{id}/commands":                  {Body: mdmCommandRequest{}, Resp: mdmCommandResponse{}, RespAlt: []any{mdmParkedResponse{}}, Also: []int{202}, Errors: []int{400, 403, 404, 409, 500, 503}},
+	"POST /api/mdm/devices/{id}/commands/{command}/cancel": {NoBody: true, Resp: mdmCancelResponse{}, Errors: []int{409, 500}},
+	"DELETE /api/mdm/devices/{id}":                         {Resp: mdmDeleteResponse{}, Errors: []int{404, 500}},
+	"POST /api/mdm/commands/{id}/reveal-pin":               {NoBody: true, Resp: mdmPINResponse{}, Errors: []int{404, 500, 503}},
+	"GET /api/mdm/profiles":                                {Resp: mdmProfilesResponse{}, Errors: []int{500}},
+	"POST /api/mdm/profiles":                               {Body: mdmUploadProfileRequest{}, Resp: store.MDMProfile{}, Status: 201, Errors: []int{400, 500}},
+	"GET /api/mdm/profiles/{id}/download":                  {Content: "application/x-apple-aspen-config", Errors: []int{404, 500}},
+	"DELETE /api/mdm/profiles/{id}":                        {Resp: mdmDeleteResponse{}, Errors: []int{404, 500}},
+
 	// entra
 	"GET /api/admin/entra":       {Resp: entraConfigResponse{}},
 	"POST /api/admin/entra":      {Body: saveEntraConfigRequest{}, Resp: entraConfigResponse{}, Errors: []int{400, 403, 500}},

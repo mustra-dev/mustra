@@ -55,7 +55,11 @@ func (s *Server) endpointActionRoutes() map[string]actionSpec {
 		"POST /api/agents/{id}/update":        {Module: "deploy", Resolve: pathAgent("id")},
 		// Intune restarts or syncs the endpoint: an act on it, gated like one.
 		"POST /api/agents/{id}/intune/{action}": {Module: "deploy", Resolve: pathAgent("id")},
-		"POST /api/sensors/custom/test":         {Module: "deploy", Resolve: bodyAgentsOrFleet([]string{"agent_id"}, nil, false)},
+		// Apple MDM: the Mac's linked endpoint (mdm_api.go). Locking and
+		// erasing are also always parked for a second person.
+		"POST /api/mdm/devices/{id}/commands": {Module: "mdm", Resolve: resolveMDMDevice},
+		"DELETE /api/mdm/devices/{id}":        {Resolve: resolveMDMDevice},
+		"POST /api/sensors/custom/test":       {Module: "deploy", Resolve: bodyAgentsOrFleet([]string{"agent_id"}, nil, false)},
 		// The endpoint's own record and settings: management rights only.
 		"POST /api/agents/{id}/sensor-interval": {Resolve: pathAgent("id")},
 		"DELETE /api/agents/{id}":               {Resolve: pathAgent("id")},

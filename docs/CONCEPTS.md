@@ -2241,6 +2241,42 @@ Restart, which are endpoint actions under the usual gate and audit. Without
 Intune the Entra half still works.
 
 
+## Apple MDM — mustra as the Macs' own MDM
+
+Fleet and Intune are MDMs mustra talks to. Apple MDM makes mustra one: a
+Mac enrolls in it directly and takes commands from it, with or without the
+mustra agent beside it. It is off until an administrator gives it the three
+things Apple's protocol needs: an **APNs push certificate** (the only way to
+wake a Mac; Apple issues it for a request an MDM vendor signs, which mustra
+cannot do itself), an **MDM CA** that mustra keeps in the credential vault,
+and an https public URL.
+
+**Enrollment** is user-approved: somebody opens an enrollment link on the
+Mac and approves the profile. A link enrolls a set number of Macs within a
+set time, so a stranger's Mac cannot join. Each Mac gets its own identity
+certificate from the MDM CA and **signs every message** with it; the server
+checks the signature, that it issued the certificate and has not revoked it,
+and that the certificate belongs to the Mac the message names. Signatures
+rather than TLS client certificates are what let the server sit behind a
+proxy that ends TLS. A Mac running the mustra agent is linked to its endpoint
+by serial number, which is how management rights and computer groups reach
+it.
+
+**Commands** are a queue per Mac. Asking queues the command and asks Apple
+to wake the Mac; the Mac fetches commands one at a time and reports each as
+done, failed, malformed or "not now". Not now is offered again on the Mac's
+next session; a command delivered without any answer is offered again at
+most three times, then fails, so a Mac that restarts before acknowledging a
+restart is not restarted forever; one nobody fetched in 30 days expires.
+Locking and erasing a Mac always wait for a **second person's approval**,
+whatever approval policies say, and an API token cannot ask for them; the
+approved request runs as its requester, through the same checks, like any
+other approval. Their PIN is made by the server when the command is queued
+and read only by someone allowed to read recovery keys. What the Mac reports
+(device and security information, its apps and profiles) is kept on its
+record and shown on its page.
+
+
 ## Telemetry — endpoint metrics in Prometheus
 
 Administration → Telemetry turns every agent into a host metrics exporter.
