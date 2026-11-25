@@ -40,8 +40,9 @@ and keep a record of what was done.
   and which images have an update. It only reports, so nothing is pulled
   or restarted.
 - 🤖 **AI clients over MCP:** Copilot, Claude, ChatGPT and other MCP
-  clients read the fleet with a token's permissions. What they ask to
-  change waits for a person to approve it.
+  clients read the fleet with a token's permissions, and the console's own
+  assistant does the same with a model you choose (including a self-hosted
+  one). What they ask to change waits for a person to approve it.
 - 🔐 **Access control and audit:** OIDC SSO, SCIM, RBAC, two-person
   approvals, and one audit log you can stream to your SIEM.
 - 🪟 **For the people at the keyboard:** a Self Service app, notices,

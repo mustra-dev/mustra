@@ -72,6 +72,13 @@
   .ai-snippet-head .seg button { padding: 4px 10px; font-size: 12px; }
   .ai-snippet pre { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px 12px; margin: 0;
     overflow-x: auto; font-family: var(--mono); font-size: 12px; line-height: 1.5; max-height: 360px; }
+  .ai-privacy { border: 1px solid var(--border); border-left: 3px solid var(--warn); background: var(--surface-2); border-radius: var(--radius-md);
+    padding: 10px 12px; font-size: var(--fs-meta); line-height: 1.55; margin: 0 0 12px; }
+  .ai-clear { display: inline-flex; gap: 6px; align-items: center; }
+  .ai-clear input { width: auto; min-height: 0; }
+  .ai-test-result { font-size: var(--fs-meta); margin-left: 6px; }
+  .ai-test-result.ok { color: var(--ok); }
+  .ai-test-result.bad { color: var(--off); }
   .ai-snippet-note { font-size: var(--fs-meta); color: var(--text-muted); margin: 0 0 8px; line-height: 1.5; }
 </style>
 </head>
@@ -760,6 +767,42 @@
       </div>
     </div>
 
+    <div class="module-section" id="section-ai" hidden>
+      <div class="panel settings-section u-maxw-none">
+        <h2>AI assistant</h2>
+        <p class="hint">
+          The <a href="/assistant">Assistant</a> answers questions about the fleet with a model you connect here, using the
+          same tools as the MCP endpoint. Its tools run with the signed-in user's own permissions, using it needs the
+          <b>Use the assistant</b> permission, and anything it asks to change waits under Access → Approvals for somebody
+          else. Every tool call is in the audit log.
+        </p>
+        <div class="ai-privacy" role="note">
+          <b>What leaves this server.</b> A conversation, and what the assistant's tools read to answer it (hostnames,
+          inventory, vulnerabilities, deployment results and other endpoint data), is sent to the provider of the
+          connection in use, under that provider's terms. To keep it inside your network, use a self-hosted
+          OpenAI-compatible server (Ollama, LM Studio, vLLM) and tick <b>Only self-hosted connections</b>.
+        </div>
+        <label class="pa-opt"><input type="checkbox" id="ai-enabled"><span><b>Turn the assistant on</b><span class="pa-hint">Off, nobody can use it, whatever connections exist.</span></span></label>
+        <label class="pa-opt"><input type="checkbox" id="ai-selfhosted"><span><b>Only self-hosted connections</b><span class="pa-hint">The assistant uses OpenAI-compatible connections only; Anthropic, OpenAI, Azure OpenAI and Gemini connections are kept but not used.</span></span></label>
+        <div class="save-row">
+          <button class="primary" type="button" id="ai-save">Save</button>
+          <span class="save-status" id="ai-status"></span>
+        </div>
+
+        <h3 class="u-fs-12 u-c-text-muted u-tt-upper u-ls-006em u-m-18-0-10">Model connections</h3>
+        <p class="hint" id="ai-vault-note" hidden>No credential encryption key is configured (MUSTRA_CREDENTIAL_ENCRYPTION_KEY), so connections that need an API key cannot be saved.</p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Name</th><th>Provider</th><th>Model</th><th>API key</th><th>Action</th></tr></thead>
+            <tbody id="ai-body"><tr><td class="empty" colspan="5">loading…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="save-row u-mt-12">
+          <button class="secondary u-w-auto" type="button" id="ai-add">Add connection</button>
+        </div>
+      </div>
+    </div>
+
     <div class="module-section" id="section-about" hidden>
       <div class="panel settings-section">
         <h2>This build</h2>
@@ -1415,6 +1458,107 @@ document.getElementById("token-create").addEventListener("click", async () => {
   tokenPermList.setValues([]);
   loadTokens();
 });
+
+// --- AI assistant ---
+
+let aiState = null;
+const AI_URL_HINT = {
+  anthropic: "Optional. Leave empty for https://api.anthropic.com.",
+  openai: "Optional. Leave empty for https://api.openai.com/v1.",
+  azure_openai: "Required: the resource endpoint, such as https://contoso.openai.azure.com. The model is the deployment name.",
+  gemini: "Optional. Leave empty for https://generativelanguage.googleapis.com.",
+  openai_compatible: "Required: the server's /v1 address, such as http://ollama.internal:11434/v1. A host on your network must be on Network Allowlists.",
+};
+
+async function loadAI() {
+  const r = await fetch("/api/ai/settings");
+  if (!r.ok) return;
+  aiState = await r.json();
+  document.getElementById("ai-enabled").checked = aiState.enabled;
+  document.getElementById("ai-selfhosted").checked = aiState.self_hosted_only;
+  document.getElementById("ai-vault-note").hidden = aiState.vault_configured;
+  const body = document.getElementById("ai-body");
+  if (aiState.connections.length === 0) {
+    body.innerHTML = '<tr><td class="empty" colspan="5">No connections yet. The assistant stays off until there is one.</td></tr>';
+    return;
+  }
+  body.innerHTML = aiState.connections.map(c => `<tr>
+      <td>${escapeHtml(c.name)}${c.self_hosted ? ' <span class="chip builtin">self-hosted</span>' : ""}</td>
+      <td>${escapeHtml(aiState.providers[c.provider] || c.provider)}<div class="u-fs-meta u-c-text-muted">${escapeHtml(c.base_url || "")}</div></td>
+      <td><code class="mono">${escapeHtml(c.model)}</code></td>
+      <td>${c.key_set ? '<span class="badge-flag on">set</span>' : '<span class="badge-flag off">none</span>'}</td>
+      <td class="inline-actions"><button class="tiny" data-ai-test="${escapeHtml(c.id)}">Test connection</button><button class="tiny" data-ai-edit="${escapeHtml(c.id)}">edit</button><button class="tiny danger" data-ai-del="${escapeHtml(c.id)}">delete</button><span class="ai-test-result" data-ai-result="${escapeHtml(c.id)}"></span></td>
+    </tr>`).join("");
+  body.querySelectorAll("[data-ai-edit]").forEach(b => b.addEventListener("click", () => editAIConnection(aiState.connections.find(c => c.id === b.dataset.aiEdit))));
+  body.querySelectorAll("[data-ai-del]").forEach(b => b.addEventListener("click", async () => {
+    if (!confirm("Delete this connection? Its API key is deleted with it.")) return;
+    const r = await fetch(`/api/ai/connections/${encodeURIComponent(b.dataset.aiDel)}`, { method: "DELETE" });
+    if (!r.ok) showToast((await r.text()).trim(), "error");
+    loadAI();
+  }));
+  body.querySelectorAll("[data-ai-test]").forEach(b => b.addEventListener("click", async () => {
+    const out = body.querySelector(`[data-ai-result="${CSS.escape(b.dataset.aiTest)}"]`);
+    out.className = "ai-test-result";
+    out.textContent = "testing…";
+    b.disabled = true;
+    const r = await fetch(`/api/ai/connections/${encodeURIComponent(b.dataset.aiTest)}/test`, { method: "POST" });
+    b.disabled = false;
+    const res = r.ok ? await r.json() : { error: (await r.text()).trim() };
+    out.className = "ai-test-result " + (res.ok ? "ok" : "bad");
+    out.textContent = res.ok ? "works" + (res.reply ? ` (“${res.reply}”)` : "") : res.error;
+  }));
+}
+
+document.getElementById("ai-save").addEventListener("click", async () => {
+  const status = document.getElementById("ai-status");
+  status.textContent = "saving…";
+  const r = await fetch("/api/ai/settings", { method: "PUT", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ enabled: document.getElementById("ai-enabled").checked, self_hosted_only: document.getElementById("ai-selfhosted").checked }) });
+  status.textContent = r.ok ? "saved" : (await r.text()).trim();
+  if (r.ok) loadAI();
+});
+document.getElementById("ai-add").addEventListener("click", () => editAIConnection(null));
+
+// editAIConnection adds or changes one connection. The key is never shown:
+// leaving the field empty keeps the stored one.
+function editAIConnection(c) {
+  const providers = (aiState && aiState.providers) || {};
+  const cur = c || { provider: "anthropic", name: "", model: "", base_url: "", max_tokens: 0 };
+  openModal(c ? `Edit connection: ${c.name}` : "Add a model connection", `
+    <div class="field"><label for="aic-name">Name</label><input id="aic-name" value="${escapeHtml(cur.name)}" placeholder="Claude, or Ollama on the GPU box"></div>
+    <div class="field"><label for="aic-provider">Provider</label><select id="aic-provider">${Object.keys(providers).sort().map(k =>
+      `<option value="${escapeHtml(k)}"${k === cur.provider ? " selected" : ""}>${escapeHtml(providers[k])}</option>`).join("")}</select></div>
+    <div class="field"><label for="aic-url">Base URL</label><input id="aic-url" value="${escapeHtml(cur.base_url || "")}" spellcheck="false"><div class="pa-hint" id="aic-url-hint"></div></div>
+    <div class="field"><label for="aic-model">Model ID</label><input id="aic-model" value="${escapeHtml(cur.model)}" placeholder="the model, or Azure's deployment name" spellcheck="false"></div>
+    <div class="field"><label for="aic-key">API key</label><input id="aic-key" type="password" autocomplete="new-password" placeholder="${c && c.key_set ? "set — leave empty to keep it" : "not set"}">
+      <div class="pa-hint">Stored encrypted and never shown again.${c && c.key_set ? ' <label class="ai-clear"><input type="checkbox" id="aic-clear"> remove the stored key</label>' : ""}</div></div>
+    <div class="field"><label for="aic-max">Max tokens per answer</label><input id="aic-max" type="number" min="0" max="200000" value="${escapeHtml(String(cur.max_tokens || ""))}" placeholder="4096"></div>
+    <div class="modal-actions u-d-flex u-gap-8 u-mt-16 u-ai-center">
+      <button class="primary" id="aic-save" type="button">Save</button><button class="tiny" id="aic-cancel" type="button">Cancel</button>
+      <span class="muted" id="aic-status"></span></div>`, wrap => {
+    const prov = wrap.querySelector("#aic-provider");
+    const hint = () => { wrap.querySelector("#aic-url-hint").textContent = AI_URL_HINT[prov.value] || ""; };
+    prov.addEventListener("change", hint);
+    hint();
+    wrap.querySelector("#aic-cancel").addEventListener("click", () => wrap.remove());
+    wrap.querySelector("#aic-save").addEventListener("click", async () => {
+      const status = wrap.querySelector("#aic-status");
+      const body = {
+        name: wrap.querySelector("#aic-name").value.trim(), provider: prov.value,
+        base_url: wrap.querySelector("#aic-url").value.trim(), model: wrap.querySelector("#aic-model").value.trim(),
+        api_key: wrap.querySelector("#aic-key").value, clear_key: !!(wrap.querySelector("#aic-clear") || {}).checked,
+        max_tokens: parseInt(wrap.querySelector("#aic-max").value, 10) || 0,
+      };
+      status.textContent = "saving…";
+      const r = await fetch(c ? `/api/ai/connections/${encodeURIComponent(c.id)}` : "/api/ai/connections", {
+        method: c ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!r.ok) { status.textContent = (await r.text()).trim(); return; }
+      wrap.remove();
+      showToast("Connection saved");
+      loadAI();
+    });
+  });
+}
 
 // --- Connect an AI client ---
 //
@@ -2417,6 +2561,7 @@ function humanDuration(secs) {
 // labelled by its key.
 const PERMISSION_INFO = {
   "fleet.read":              { group: "Viewing", label: "See the fleet", hint: "Endpoints, inventory, findings, deployments and reports, and read-only questions to endpoints. Without it an account sees only its own preferences and Help. Every other permission is used from pages that need this too." },
+  "ai.use":                  { group: "Viewing", label: "Use the assistant", hint: "Ask the console assistant about the fleet. What its tools read is sent to the model provider an administrator connected; the tools still need this account's own permissions." },
   "audit.read":              { group: "Viewing", label: "Read the audit log", hint: "Who did what, to which endpoint, from where. The built-in roles hold it so everyone with access knows the record is kept." },
   "settings.manage":         { group: "Administration", label: "Manage settings", hint: "Server configuration and API tokens. Allowlists, agent trust, sign-in, integrations and restoring outside backups each also need their own permission below." },
   "users.manage":            { group: "Administration", label: "Manage users and roles", hint: "Create users and groups, and decide who holds which role." },
@@ -2967,8 +3112,10 @@ document.addEventListener("mustra:user", (e) => {
       { hash: "directory", label: "Directory" },
       { hash: "environment", label: "Branding" },
       { hash: "tokens", label: "API Tokens" },
+      { hash: "ai", label: "AI" },
       { hash: "about", label: "About" },
     );
+    loadAI();
     loadSettings();
     loadDirectory();
     loadIdps();

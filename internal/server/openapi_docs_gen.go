@@ -363,6 +363,52 @@ var typeDocs = map[string]typeDoc{
 			"ServingVersion": "ServingVersion is the agent build this server hands out, which is what \"behind\" means: the fleet's own newest version is not it when no endpoint has updated yet.",
 		},
 	},
+	"github.com/mustra-dev/mustra/internal/server.aiChatMessage": {
+		Fields: map[string]string{
+			"Role": "user | assistant",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.aiChatRequest": {
+		Doc: "aiChatRequest is the body of POST /api/ai/chat: the conversation so far, as the page keeps it, oldest first, ending with the user's turn.",
+		Fields: map[string]string{
+			"ConnectionID": "ConnectionID picks the connection; empty means the first usable one.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.aiChatResponse": {
+		Doc: "aiChatResponse is what POST /api/ai/chat answers.",
+		Fields: map[string]string{
+			"Reply":   "Reply is the model's answer, in Markdown. The page renders it with every character escaped and no HTML passed through.",
+			"Stopped": "Stopped says why the answer is incomplete, when it is: the step limit or the time limit.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.aiConnectionView": {
+		Doc: "aiConnectionView is a connection as the API shows it: never the key, only whether one is stored.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.aiSettingsResponse": {
+		Doc: "aiSettingsResponse is what GET /api/ai/settings answers.",
+		Fields: map[string]string{
+			"Enabled":         "Enabled is the administrator's switch; the assistant also needs a connection.",
+			"Providers":       "Providers names each provider type.",
+			"SelfHostedOnly":  "SelfHostedOnly restricts the assistant to OpenAI-compatible connections, which an operator runs themselves.",
+			"VaultConfigured": "VaultConfigured says whether API keys can be stored: they are sealed with the credential encryption key.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.aiStatusResponse": {
+		Doc: "aiStatusResponse is what GET /api/ai/status answers: whether the assistant can be used, and with which connections.",
+		Fields: map[string]string{
+			"Notice": "Provider data notice, for the page to show.",
+			"Reason": "Reason says why not, when it cannot.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.aiTestResponse": {
+		Doc: "aiTestResponse is what POST /api/ai/connections/{id}/test answers.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.aiToolCallView": {
+		Doc: "aiToolCallView is one tool the model called, as the page lists it.",
+		Fields: map[string]string{
+			"Action": "Action marks a request_* tool: it filed an approval request.",
+		},
+	},
 	"github.com/mustra-dev/mustra/internal/server.applyClientProfilesResponse": {
 		Doc: "applyClientProfilesResponse is what POST /api/clients/profiles/apply answers.",
 	},
@@ -1435,6 +1481,9 @@ var typeDocs = map[string]typeDoc{
 			"NoRemoteCode":       "NoRemoteCode installs in inventory-and-patching mode: the endpoint refuses code from the server, and only an administrator on it can undo that.",
 		},
 	},
+	"github.com/mustra-dev/mustra/internal/server.putAISettingsRequest": {
+		Doc: "putAISettingsRequest is the body of PUT /api/ai/settings.",
+	},
 	"github.com/mustra-dev/mustra/internal/server.putAgentTrustRequest": {
 		Doc: "putAgentTrustRequest is the body of PUT /api/agent-trust. A field left out keeps its current value.",
 		Fields: map[string]string{
@@ -1636,6 +1685,15 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/server.runScheduledActionNowResponse": {
 		Doc: "runScheduledActionNowResponse is what POST /api/schedules/{id}/run answers.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.saveAIConnectionRequest": {
+		Doc: "saveAIConnectionRequest is the body of POST /api/ai/connections and PUT /api/ai/connections/{id}.",
+		Fields: map[string]string{
+			"APIKey":   "APIKey replaces the stored key when set. Leave it empty to keep the current one; it is never returned.",
+			"BaseURL":  "BaseURL is required for Azure OpenAI (the resource endpoint) and OpenAI-compatible servers; optional for the others.",
+			"ClearKey": "ClearKey removes the stored key (a local server that needs none).",
+			"Model":    "Model is the model ID, or for Azure OpenAI the deployment name.",
+		},
 	},
 	"github.com/mustra-dev/mustra/internal/server.saveAppCredConnectionResponse": {
 		Doc: "saveAppCredConnectionResponse is what POST /api/certificates/apps/connections and PUT /api/certificates/apps/connections/{id} answer.",
@@ -2169,6 +2227,11 @@ var typeDocs = map[string]typeDoc{
 		Doc: "Store is one storage location's usage.",
 		Fields: map[string]string{
 			"FullAt": "FullAt is the system's own estimate of when the store fills up, only when it is in the future.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/store.AIConnection": {
+		Fields: map[string]string{
+			"Provider": "anthropic | openai | azure_openai | gemini | openai_compatible",
 		},
 	},
 	"github.com/mustra-dev/mustra/internal/store.APIToken": {

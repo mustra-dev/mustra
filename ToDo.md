@@ -22,6 +22,10 @@ Open work, kept here so it can be picked up. Add to it when deferring something,
 - [ ] A tool that asks endpoints a live question (Interact) within a time and row budget; today only cached sensor answers are offered.
 - [ ] A request to retry the failed devices of a deployment, filed for approval like the other request tools.
 - [ ] Per-token rate limits on tool calls.
+- [ ] Stream the assistant's answer as it is written, rather than waiting for the whole turn.
+- [ ] Keep assistant conversations across page loads, per user, with a retention limit.
+- [ ] Per-user limits on assistant requests, and a cost or token count per answer.
+- [ ] Amazon Bedrock and Vertex AI connections, which sign requests rather than sending a key.
 
 ## Custom sensors
 

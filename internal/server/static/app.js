@@ -418,6 +418,8 @@ const NAV_TREE = [
   { label: "Explore", href: "/interact#explore", icon: "star", group: "explore" },
   { label: "Guide", href: "/guide", icon: "alert", group: "tools",
     desc: "Everything the console wants you to know, in one place: what to fix, and what to look at." },
+  { label: "Assistant", href: "/assistant", icon: "chat", perm: "ai.use", group: "tools",
+    desc: "Ask about the fleet in plain words. It reads with your permissions, and what it asks to change waits for approval." },
   { label: "Access", href: "/access", icon: "key", group: "admin",
     desc: "What a role may act on, what a module may reach at all, and which operations wait for a second person.", sub: [
       { label: "Approvals", hash: "approvals", icon: "alert", desc: "Operations parked for a decision, and what your own scope is." },
@@ -629,6 +631,7 @@ const NAV_TREE = [
       { label: "Directory", href: "/settings", hash: "directory", perm: "settings.manage", icon: "users", desc: "Read users, groups and computers from Active Directory for Impact." },
       { label: "Branding", href: "/settings", hash: "environment", perm: "settings.manage", icon: "globe", desc: "The console logo in the top bar, the rail and the menu." },
       { label: "API Tokens", href: "/settings", hash: "tokens", perm: "settings.manage", icon: "plug", desc: "Scoped tokens so scripts can call the same API the console uses." },
+      { label: "AI", href: "/settings", hash: "ai", perm: "settings.manage", icon: "chat", desc: "Model connections for the console assistant, and whether it is on at all." },
       { label: "Users", href: "/admin", hash: "users", perm: "users.manage", icon: "user", desc: "Local and SSO accounts, admin flags, and role assignment." },
       { label: "Groups", href: "/admin", hash: "groups", perm: "users.manage", icon: "users", desc: "SCIM-synced or local groups, membership, and group roles." },
       { label: "Roles", href: "/admin", hash: "roles", perm: "users.manage", icon: "shield", desc: "Named bundles of permissions assignable to a user or group." },

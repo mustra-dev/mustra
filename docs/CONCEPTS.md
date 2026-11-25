@@ -1828,6 +1828,41 @@ and release notes from third parties reach the model as data; the server's
 instructions tell it so, and tell it that a request is waiting for approval,
 not done.
 
+## The console assistant — bring your own model
+
+**Assistant** (in Tools) is a chat that answers from the fleet. It sends the
+conversation to a model an administrator connected under Administration → AI,
+offers it the [MCP tool registry](#ai-clients-over-mcp) as tools in that
+provider's function-calling format, runs the tools the model calls, and loops
+until the model answers. It stops after eight model turns (the last one is
+offered no tools, so it has to answer) or three minutes. Tool results reach the
+model cut to 24 KB each.
+
+**Connections** are Anthropic (Messages API), OpenAI (Chat Completions), Azure
+OpenAI, Google Gemini, or any OpenAI-compatible server (Ollama, LM Studio,
+vLLM, OpenRouter), each with a model ID, a base URL where the provider needs
+one, an optional answer length, and an API key sealed with the credential
+vault. The key is never returned; the API says only whether one is set, and
+changing a connection's provider or base URL needs the key typed again, so a
+stored key cannot be redirected to another host. Requests go through the same
+outbound guard as webhooks: an internal address only for an allowlisted host,
+plain HTTP only to one. **Test connection** sends a one-word prompt.
+
+**Off until configured.** The assistant needs an administrator's switch and a
+connection, and using it needs `ai.use`. It runs every tool as the signed-in
+user, so it reads only what they could read in the console and is offered only
+the tools their permissions allow; its action tools file approval requests
+exactly as over MCP, attributed to the user. Each tool call is audited
+(`ai.tool_call`, with the connection, model and arguments) before it runs, and
+does not run if the audit row cannot be written. The page renders the model's
+Markdown with every character escaped first, so no HTML from a model reaches
+the page, and lists each tool call with its arguments.
+
+**Privacy.** What the tools return is endpoint data, and it goes to the
+provider of the connection in use. Settings says so, and **Only self-hosted
+connections** restricts the assistant to OpenAI-compatible connections, which
+an operator runs. The conversation is kept by the page, not the server.
+
 ## Microsoft Entra ID and Intune
 
 With an app registration (Settings → Integrations), the server reads Entra

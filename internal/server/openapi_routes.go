@@ -183,6 +183,16 @@ var routeDocs = map[string]routeDoc{
 	"GET /api/mcp":  {Errors: []int{405}},
 	"POST /api/mcp": {Body: mcpRequest{}, Resp: mcpResponse{}, Also: []int{202}, Errors: []int{400, 413}},
 
+	// ai
+	"GET /api/ai/settings":               {Resp: aiSettingsResponse{}, Errors: []int{500}},
+	"PUT /api/ai/settings":               {Body: putAISettingsRequest{}, Resp: aiSettingsResponse{}, Errors: []int{400, 500, 503}},
+	"POST /api/ai/connections":           {Body: saveAIConnectionRequest{}, Resp: aiConnectionView{}, Errors: []int{400, 404, 500, 503}},
+	"PUT /api/ai/connections/{id}":       {Body: saveAIConnectionRequest{}, Resp: aiConnectionView{}, Errors: []int{400, 404, 500, 503}},
+	"DELETE /api/ai/connections/{id}":    {Status: 204, Errors: []int{404, 500, 503}},
+	"POST /api/ai/connections/{id}/test": {NoBody: true, Resp: aiTestResponse{}, Errors: []int{404, 500}},
+	"GET /api/ai/status":                 {Resp: aiStatusResponse{}, Errors: []int{500}},
+	"POST /api/ai/chat":                  {Body: aiChatRequest{}, Resp: aiChatResponse{}, Errors: []int{400, 409, 429, 500, 502}},
+
 	// certificates
 	"GET /api/certificates":                                {Resp: certificatesResponse{}, Errors: []int{500}},
 	"GET /api/certificates/alerts":                         {Resp: getExpiryAlertsResponse{}},

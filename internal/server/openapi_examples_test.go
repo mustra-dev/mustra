@@ -26,6 +26,7 @@ const bodiesWithoutExample = 0
 // The builder starts them from the schema instead, as it did before.
 var noBodyExample = map[string]string{
 	"PUT /api/agent-trust":             "the public URL every agent downloads from",
+	"PUT /api/ai/settings":             "whether the console assistant is on, and which providers it may use",
 	"POST /api/assets/purge-after":     "when retired assets are purged for good",
 	"POST /api/backup-status/settings": "when a backup counts as stale",
 	"PUT /api/backups/settings":        "the backup schedule, and how many archives are kept",

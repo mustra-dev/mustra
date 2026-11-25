@@ -102,9 +102,15 @@ const (
 	// which endpoint, from where. Separate from fleet.read because the log
 	// is evidence about people, not machines.
 	PermAuditRead = "audit.read"
+
+	// PermAIUse lets an account use the console's assistant, which sends
+	// the conversation and what its tools read to the model provider an
+	// administrator connected. Its tools still run with the account's own
+	// permissions, and its action tools only file approval requests.
+	PermAIUse = "ai.use"
 )
 
 // AllPermissions is the full permission set — what the builtin "admin" role
 // is reseeded with on every startup (see store.SeedBuiltinRoles).
 var AllPermissions = []string{PermSettingsManage, PermUsersManage, PermPatchesManage, PermDeployManage, PermGroupsManage, PermDeployOverride, PermRecoveryKeys, PermApprovalsDecide, PermSessionsAudit, PermJumpApprove, PermAlertsTriage,
-	PermAllowlistsManage, PermAgentTrustManage, PermIdentityManage, PermIntegrationsManage, PermBackupsRestore, PermTokensManage, PermFleetRead, PermAuditRead}
+	PermAllowlistsManage, PermAgentTrustManage, PermIdentityManage, PermIntegrationsManage, PermBackupsRestore, PermTokensManage, PermFleetRead, PermAuditRead, PermAIUse}

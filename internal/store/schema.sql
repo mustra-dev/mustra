@@ -2893,3 +2893,20 @@ BEGIN
     ON CONFLICT (key) DO NOTHING;
   END IF;
 END $$;
+
+-- The console assistant's model connections (Settings → AI). The API key
+-- is sealed with the credential vault ("vault:" prefix) and never returned
+-- by the API. Nothing here is used until an administrator turns the
+-- assistant on.
+CREATE TABLE IF NOT EXISTS ai_connections (
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL,
+    provider    TEXT NOT NULL,
+    base_url    TEXT NOT NULL DEFAULT '',
+    model       TEXT NOT NULL,
+    api_key     TEXT NOT NULL DEFAULT '',
+    max_tokens  INT NOT NULL DEFAULT 0,
+    created_by  TEXT NOT NULL DEFAULT '',
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);

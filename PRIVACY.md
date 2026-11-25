@@ -31,6 +31,7 @@ your own server.
 | Notifications and log forwarding | The webhook, chat service, email server, SIEM or syslog server you enter |
 | Library packages | Package managers on your endpoints (winget, Homebrew, apt) |
 | AI clients over MCP | Nothing, from mustra. An AI client you connect with an API token reads what the token may see, and sends it to whichever model provider that client uses. |
+| Console assistant | The model provider you connect under Administration → AI (Anthropic, OpenAI, Azure OpenAI, Google, or a server you run): each question, and what the assistant's tools read about your endpoints to answer it. Off until an administrator adds a connection and turns it on; it can be limited to self-hosted servers. |
 
 Each of these services' own privacy terms apply to what it receives.
 
