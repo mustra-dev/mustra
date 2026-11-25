@@ -36,6 +36,11 @@ type patchPlan struct {
 	Allowed    []string
 	Blocked    map[string]string
 	Restricted bool
+	// IncludeDrivers and FeatureTarget are the Windows opt-ins the lists
+	// granted for what Allowed holds; the agent installs neither kind
+	// without them (patchpolicy.Decision).
+	IncludeDrivers bool
+	FeatureTarget  string
 }
 
 // pendingPatchesByAgent reads every endpoint's cached patches snapshot
@@ -59,7 +64,8 @@ func (s *Server) pendingPatchesByAgent(ctx context.Context) (map[string][]patchp
 			continue
 		}
 		for _, p := range patches {
-			pp := patchpolicy.Patch{Name: p.Name, NewVersion: p.NewVersion, Severity: p.Severity, OS: row.OS}
+			pp := patchpolicy.Patch{Name: p.Name, NewVersion: p.NewVersion, Severity: p.Severity, OS: row.OS,
+				Category: p.Category, TargetVersion: p.TargetVersion}
 			if o, ok := seen[store.PatchObservationKey{OS: row.OS, Name: p.Name, NewVersion: p.NewVersion}]; ok {
 				pp.FirstSeen = o.FirstSeen
 			}
@@ -122,7 +128,8 @@ func (s *Server) planPatches(ctx context.Context, agentIDs []string) (map[string
 	out := map[string]patchPlan{}
 	for _, id := range agentIDs {
 		d := patchpolicy.Evaluate(pending[id], covering(id), now)
-		plan := patchPlan{Pending: len(pending[id]), Blocked: d.Blocked, Restricted: d.Restricted}
+		plan := patchPlan{Pending: len(pending[id]), Blocked: d.Blocked, Restricted: d.Restricted,
+			IncludeDrivers: d.IncludeDrivers, FeatureTarget: d.FeatureTarget}
 		for _, p := range d.Allowed {
 			plan.Allowed = append(plan.Allowed, p.Name)
 		}
@@ -206,6 +213,9 @@ func validatePatchPolicy(p *store.PatchPolicy) error {
 	p.Rules.NamePatterns = clean
 	if p.Rules.MinAgeDays < 0 || p.Rules.MinAgeDays > 365 {
 		return fmt.Errorf("minimum age must be 0–365 days")
+	}
+	if err := validateWindowsOptIns(p); err != nil {
+		return err
 	}
 	if p.GroupIDs == nil {
 		p.GroupIDs = []string{}
@@ -632,6 +642,7 @@ func (s *Server) dispatchPatchApply(ctx context.Context, a store.AgentRecord, ru
 		}
 		cmd.Selective = true
 		cmd.Patches = plan.Allowed
+		cmd.IncludeDrivers, cmd.FeatureTarget = plan.IncludeDrivers, plan.FeatureTarget
 		if len(plan.Allowed) == 0 {
 			return fail("skipped", fmt.Sprintf("No pending patches are permitted by the patch lists that cover this endpoint (%d pending, all blocked)", plan.Pending))
 		}
@@ -651,6 +662,7 @@ func (s *Server) dispatchPatchApply(ctx context.Context, a store.AgentRecord, ru
 		}
 		cmd.Selective = true
 		cmd.Patches = picked
+		cmd.IncludeDrivers, cmd.FeatureTarget = plan.IncludeDrivers, plan.FeatureTarget
 	}
 	payload, err := json.Marshal(cmd)
 	if err != nil {
@@ -675,6 +687,9 @@ func (s *Server) dispatchPatchApply(ctx context.Context, a store.AgentRecord, ru
 		detail = "Endpoint accepted the job: updating " + strings.Join(cmd.Patches, ", ")
 	case cmd.Selective:
 		detail = fmt.Sprintf("Endpoint accepted the job: %d of %d pending patches permitted by patch lists, %d blocked", len(plan.Allowed), plan.Pending, len(plan.Blocked))
+	}
+	if cmd.FeatureTarget != "" {
+		detail += "; includes the feature update to Windows " + cmd.FeatureTarget + ", which restarts the endpoint"
 	}
 	_ = s.store.SetAgentActionProgress(ctx, a.AgentID, actionID, "started", detail)
 	return true, ""

@@ -130,12 +130,12 @@ func sensorCatalog() []sensorDoc {
 			Name:    "Available patches",
 			Summary: "OS updates that are available but not yet installed.",
 			Answers: "How far behind is this machine, and is anything security-relevant outstanding. Drives the Patches module and the compliance view.",
-			Returns: "name, current_version, new_version, severity",
+			Returns: "name, current_version, new_version, severity, restart_required, category (Windows: driver | feature), driver (class, manufacturer, provider, model, date), target_product, target_version, hotpatch",
 			Mechanism: []sensorMechanism{
 				{OS: "linux", How: "apt-get update then a simulated upgrade on Debian/Ubuntu; dnf/yum check-update on RHEL-family; apk on Alpine; pacman -Qu on Arch, against the sync databases as they are (the agent never runs pacman -Sy alone, which Arch warns sets up a partial upgrade). A patch list can scope this to specific repos instead of whatever the host has configured. On an LXC set up by the Proxmox VE community scripts, the app the script installed is also listed, as community-script:<app>: its installed version (/root/.<app>) against the latest GitHub release, or the version the script pins, read from the script its update command names. Applying it runs that update command unattended (PHS_SILENT=1) after the OS updates; it fetches and runs the script from GitHub, so inventory-and-patching mode refuses it."},
 				{OS: "darwin", How: "softwareupdate -l, Apple's own update listing tool, which queries the Software Update catalogue the machine is pointed at."},
 				{OS: "freebsd", How: "pkg version -vRl '<': packages with a newer version in the remote catalogue, which pkg refreshes when it is out of date. Base system updates (freebsd-update) are not packages and are not read. On TrueNAS CORE the check fails and says why: its updates are whole images from its own updater. On OPNsense packages are listed, and applying them is refused in favour of its firmware updater."},
-				{OS: "windows", How: "the Windows Update Agent COM API directly — Microsoft.Update.Session, CreateUpdateSearcher, searching IsInstalled=0 and IsHidden=0. Deliberately not the PSWindowsUpdate module, which is not installed by default, so this works on a stock Windows box with no prerequisites."},
+				{OS: "windows", How: "the Windows Update Agent COM API directly — Microsoft.Update.Session, CreateUpdateSearcher, searching IsInstalled=0 and IsHidden=0, which returns software and driver updates alike. Deliberately not the PSWindowsUpdate module, which is not installed by default, so this works on a stock Windows box with no prerequisites. Each update is classified: a driver (IUpdate.Type 2, or the Drivers classification) is reported as category driver with its device class, manufacturer, provider, model and driver date from IWindowsDriverUpdate, and its version from the title; a feature update (the Upgrades classification, or a \"Feature update to Windows\" title) as category feature with the target product and version read from its title; a security update titled as a hotpatch, that Windows does not say always restarts, is marked hotpatch."},
 			},
 			Interval: "the agent's sensor interval (15 minutes by default), plus an immediate republish after patches are applied",
 			Timeout:  "10 minutes — its own budget, not the 30 seconds every other sensor gets",
@@ -275,6 +275,22 @@ func sensorCatalog() []sensorDoc {
 			Caveat:   "BitLocker recovery passwords travel inside the snapshot over the agent's TLS channel and are stored only in the encrypted escrow table; if the server has no credential encryption key configured, they are discarded with a warning rather than stored in the clear.",
 		},
 		{
+			Kind:    string(proto.SensorHotpatch),
+			Name:    "Hotpatch",
+			Summary: "Whether a Windows endpoint can receive hotpatches, security updates that need no restart, and whether it is enrolled.",
+			Answers: "Which Windows machines will take this month's security update without a restart, which could if something were fixed (VBS, edition, build, CHPE on Arm64), and which are enrolled. The Patches page's Hotpatch column and filter read it.",
+			Returns: "edition, product_name, build, display_version, arch, server, vbs (off | enabled | running | unknown), chpe_disabled (Arm64), enrolled, eligible, reasons, errors",
+			Mechanism: []sensorMechanism{
+				{OS: "windows", How: "One PowerShell pass: EditionID, CurrentBuildNumber, UBR, DisplayVersion and InstallationType from HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion; VirtualizationBasedSecurityStatus from Win32_DeviceGuard (root\\Microsoft\\Windows\\DeviceGuard); HotPatchRestrictions under Session Manager\\Memory Management (CHPE off on Arm64); enrolment from the AllowRebootlessUpdates value under HKLM\\SOFTWARE\\Microsoft\\PolicyManager\\current\\device\\Update, which a Windows quality update policy with hotpatch allowed sets, or on Windows Server the Hotpatch.amd64/arm64 key under ...\\CurrentVersion\\Update\\TargetingInfo\\DynamicInstalled. Eligible applies Microsoft's published prerequisites to those readings: Windows 11 Enterprise or Education (or Enterprise multi-session), version 24H2 (build 26100) or later; Windows Server 2025, or 2022 Datacenter: Azure Edition; VBS running; x64 or Arm64 with CHPE off."},
+				{OS: "linux", How: "Not collected: hotpatching as described here is a Windows Update mechanism, so the agent starts no loop for it."},
+				{OS: "darwin", How: "Not collected: hotpatching as described here is a Windows Update mechanism, so the agent starts no loop for it."},
+			},
+			Interval: "the agent's sensor interval (15 minutes by default), Windows only",
+			Timeout:  "1 minute",
+			Cost:     "Cheap: one PowerShell start, three registry reads and one WMI query.",
+			Caveat:   "The licence (Windows 11 Enterprise E3/E5, Education A3/A5, Microsoft 365 Business Premium and the like) and whether the device is on the current quarterly baseline cannot be seen on the device, so an eligible, enrolled endpoint can still be offered the ordinary update that needs a restart. Microsoft documents the AllowRebootlessUpdates policy by name, not the registry location the agent reads it from, so enrolment through some other route may read as not enrolled. Windows Server hotpatching also needs Azure or Azure Arc, which the agent does not check.",
+		},
+		{
 			Kind:    string(proto.SensorHardware),
 			Name:    "Hardware",
 			Summary: "CPU, memory and machine model.",
@@ -387,7 +403,9 @@ func sensorSourceFiles(kind string) []string {
 	case proto.SensorDisks, proto.SensorNetwork, proto.SensorUsers, proto.SensorHardware:
 		return []string{"inventory.go"}
 	case proto.SensorPatches, proto.SensorPatchStatus:
-		return []string{"patches.go", "patchlist.go", "freebsd.go", "communityscripts.go"}
+		return []string{"patches.go", "winupdate.go", "patchlist.go", "freebsd.go", "communityscripts.go"}
+	case proto.SensorHotpatch:
+		return []string{"hotpatch.go", "hotpatch_windows.go"}
 	case proto.SensorPrivileges:
 		return []string{"privileges_linux.go", "privileges_darwin.go", "privileges_windows.go"}
 	case proto.SensorNeighbors:

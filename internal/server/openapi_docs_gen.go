@@ -91,10 +91,13 @@ var typeDocs = map[string]typeDoc{
 	"github.com/mustra-dev/mustra/internal/patchpolicy.Rules": {
 		Doc: "Rules is the matching part of a list. Empty slices match anything, so a list with no rules matches every patch; a list is the AND of its non-empty rules, and each rule is the OR of its values.",
 		Fields: map[string]string{
-			"MinAgeDays":   "MinAgeDays admits a patch only once the fleet has seen it pending for this many days: \"nothing younger than a week\" is the classic ring-zero rule. Age is measured from first observation anywhere in the fleet, the closest thing to a release date every OS can give.",
-			"NamePatterns": "case-insensitive globs: linux-image-*, KB50*, \"2026-09 Cumulative*\"",
-			"OS":           "linux | windows | darwin",
-			"Severities":   "\"security\" | \"\" (unclassified)",
+			"Drivers":              "Drivers, on a patch list, also admits the Windows driver updates its other rules match. Without a list that sets it, driver updates are never installed.",
+			"FeatureHoldVersion":   "FeatureHoldVersion holds Windows at this version (\"23H2\"): on any list covering an endpoint, patch list or block list, it blocks every feature update to a newer version, and one whose version is unknown, even when another list names it as a target.",
+			"FeatureTargetVersion": "FeatureTargetVersion, on a patch list, admits the Windows feature update to exactly this version (\"24H2\") when its other rules match. Without it no feature update is ever installed.",
+			"MinAgeDays":           "MinAgeDays admits a patch only once the fleet has seen it pending for this many days: \"nothing younger than a week\" is the classic ring-zero rule. Age is measured from first observation anywhere in the fleet, the closest thing to a release date every OS can give.",
+			"NamePatterns":         "case-insensitive globs: linux-image-*, KB50*, \"2026-09 Cumulative*\"",
+			"OS":                   "linux | windows | darwin",
+			"Severities":           "\"security\" | \"\" (unclassified)",
 		},
 	},
 	"github.com/mustra-dev/mustra/internal/proto.AgentCommandResult": {
@@ -199,6 +202,12 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/proto.DeploySensor": {
 		Doc: "A published custom sensor snapshot is independent of the mutable inventory definition. Its invocation results belong only to this deployment.",
+	},
+	"github.com/mustra-dev/mustra/internal/proto.DriverUpdate": {
+		Doc: "DriverUpdate is what Windows Update says about a pending driver (IWindowsDriverUpdate): the device class, who made and who packaged the driver, the model it is for, and the driver's version date. Its version is PatchInfo.NewVersion, read from the update's title, since the Windows Update API has no version property for drivers.",
+		Fields: map[string]string{
+			"Date": "YYYY-MM-DD",
+		},
 	},
 	"github.com/mustra-dev/mustra/internal/proto.EUNButton": {
 		Doc: "EUNButton is one operator-defined choice on a notification.\n\nLabel is the only free text: Action stays inside the vocabulary above, so relabelling \"Got it\" to \"Understood, thanks\" changes what the person reads and nothing about what is recorded, what the agent does, or what a report can be run over afterwards. A button that could invent its own outcome would make the answer column untrustworthy the first time someone typed one.",
@@ -1660,6 +1669,10 @@ var typeDocs = map[string]typeDoc{
 			"CheckError":        "CheckError is set when the device's last check for pending updates failed, so PatchCount and CollectedAt describe an older check; CheckFailingSince is when the failures began.",
 			"CheckFailingSince": "CheckError is set when the device's last check for pending updates failed, so PatchCount and CollectedAt describe an older check; CheckFailingSince is when the failures began.",
 			"Distro":            "Distro is every device's actual system (debian, raspbian, ubuntu, darwin, the Windows edition), for the overview charts; Platform above stays limited to what the Devices table's OS column should name.",
+			"Drivers":           "Drivers, FeatureUpdates and Hotpatches count the pending Windows driver updates, feature updates and hotpatches among PatchCount. Zero from agents that do not classify Windows updates.",
+			"FeatureUpdates":    "Drivers, FeatureUpdates and Hotpatches count the pending Windows driver updates, feature updates and hotpatches among PatchCount. Zero from agents that do not classify Windows updates.",
+			"Hotpatch":          "Hotpatch is the endpoint's hotpatch standing (the hotpatch sensor); absent for non-Windows endpoints and older agents.",
+			"Hotpatches":        "Drivers, FeatureUpdates and Hotpatches count the pending Windows driver updates, feature updates and hotpatches among PatchCount. Zero from agents that do not classify Windows updates.",
 			"Patching":          "Patching is the status of a patch job still open on this endpoint (\"installing\", \"waiting\"…), empty when none is.",
 			"Platform":          "Platform and its version name the system the device runs (Debian 13.7, Ubuntu 25.10, Windows 11 Pro), as the Home page does.",
 		},
@@ -1669,9 +1682,17 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/server.patchGroupEntry": {
 		Fields: map[string]string{
+			"Category":        "Category is \"driver\" or \"feature\" for a Windows driver or feature update, empty for an ordinary update. Neither kind is installed unless a patch list opts in.",
+			"Driver":          "Driver describes a driver update: device class, manufacturer, provider, model and driver date.",
+			"Hotpatch":        "Hotpatch: installs and takes effect without a restart.",
 			"NewVersion":      "NewVersion splits a package into one row per pending version, so a version some endpoint has already moved past can be flagged superseded (replaced the moment one endpoint reports the replacement). Empty on platforms that do not version updates.",
 			"RestartRequired": "RestartRequired: installing it restarts the machine (macOS says so).",
+			"TargetProduct":   "TargetProduct and TargetVersion are where a feature update takes Windows (\"Windows 11\", \"25H2\").",
+			"TargetVersion":   "TargetProduct and TargetVersion are where a feature update takes Windows (\"Windows 11\", \"25H2\").",
 		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.patchHotpatchState": {
+		Doc: "patchHotpatchState is the part of the hotpatch sensor the Patches page shows: whether the endpoint is enrolled, whether it could be, and why not.",
 	},
 	"github.com/mustra-dev/mustra/internal/server.patchPolicyView": {
 		Doc: "patchPolicyView is an entry of what GET /api/patch-policies answers.",

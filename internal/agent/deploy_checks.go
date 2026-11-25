@@ -246,6 +246,8 @@ func (a *Agent) deploySensorRows(ctx context.Context, kind string, lookback int)
 		data, e = a.containers.collect(cctx)
 	case proto.SensorSecurityPosture:
 		data, e = collectSecurityPosture(cctx)
+	case proto.SensorHotpatch:
+		data, e = collectHotpatch(cctx)
 	default:
 		if kind == "facts" {
 			v, err := collectFacts(cctx, a.agentID, a.info, a.cfg.AgentVersion)

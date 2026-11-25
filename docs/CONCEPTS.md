@@ -379,6 +379,46 @@ the Patch page flags it as **Patch check failing**, with the error and since
 when, rather than counting it as up to date. Agents from 0.58.0 report the
 outcome of every check; for older agents only Rescan now records a failure.
 
+### Windows drivers, feature updates and hotpatches
+
+Windows Update's search returns driver updates alongside software, and on
+some machines the next Windows version too. An agent that classifies them
+reports a **driver** with its device class, manufacturer, provider, model
+and driver date (its version comes from the title, the only place Windows
+Update gives it), and a **feature update** with the product and version it
+moves to. Neither is installed unless a patch list opts in, and this is the
+one exception to "an endpoint no patch list covers is unrestricted":
+
+```
+driver  allowed only if a patch list covering the endpoint has drivers on
+        and its other rules match
+feature allowed only if a patch list covering the endpoint targets exactly
+        its version, and no list covering the endpoint holds Windows below it
+```
+
+then block lists subtract as usual. A hold applies from a patch list or a
+block list; a block list whose only rule is a hold blocks nothing else.
+One feature update per run. A run that carries a driver or a feature
+update always names what it installs, and the command carries the opt-ins
+themselves, so the agent refuses a driver or feature update it was not
+told to install, even when an older server or an old list names it. A
+feature update job gets four hours instead of two; it ends needing a
+restart, which the run's restart choice and the restart watch handle as
+for any other update.
+
+A **hotpatch** is a security update that takes effect without a restart.
+The agent marks one by its title, unless Windows says it always restarts.
+When every update a job installed was a hotpatch and Windows asks for no
+restart, the job skips its restart, even under *always*. The **hotpatch**
+sensor says whether each Windows endpoint is enrolled (the
+`Update/AllowRebootlessUpdates` policy, or on Windows Server the hotpatch
+targeting key) and whether it meets the prerequisites the agent can see:
+edition, build 26100 or later, virtualization-based security running, and
+CHPE off on Arm64. Licensing and the quarterly baseline cannot be seen on
+the device, so an eligible, enrolled endpoint may still be offered the
+ordinary update. Agents that predate the split report none of this, and
+their updates behave exactly as before.
+
 ## Maintenance windows and deployment templates
 
 A **maintenance window** says when the endpoints in a computer group may be

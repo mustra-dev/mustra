@@ -7,8 +7,8 @@ rather than a page that can drift from it.
 ## Unreleased
 
 Server and agent: the Self Service category column, Enforce's `u:` rules (Linux Firewall
-policies) and Ansible playbook policies need this agent release; everything else is server
-only and works with current agents. No manual migration is needed: the server adds its new tables and columns on start.
+policies), Ansible playbook policies, and Windows driver, feature-update and Hotpatch handling
+need this agent release; everything else is server only and works with current agents. No manual migration is needed: the server adds its new tables and columns on start.
 
 ### Added
 - **The fleet over MCP, with changes that wait for approval.** The MCP endpoint at
@@ -159,6 +159,26 @@ only and works with current agents. No manual migration is needed: the server ad
   bounded by management rights and content sets. Server only: no new agent is needed and
   nothing leaves the server. Storage is bounded: five-minute values for a day, hourly
   medians for fifteen days, closed anomalies for 90 days.
+- **Windows driver updates, feature updates and hotpatches are told apart.** Windows
+  Update's search has always returned driver updates, and sometimes the next Windows
+  version, among ordinary updates; they were listed and installed like any patch. The
+  agent now reports a driver with its device class, manufacturer, model, driver date and
+  version, and a feature update with the version it moves to, and the Patches page marks
+  both. **Neither is installed any more unless a patch list opts in**: a patch list's
+  *Include Windows driver updates* admits the drivers its rules match, and its *Feature
+  update target version* admits the upgrade to exactly that version. *Hold Windows at
+  version*, on any list, blocks every feature update past it. A feature-update job gets
+  four hours and restarts through the run's usual restart choice and watch.
+- **Hotpatch.** A new Windows-only *Hotpatch* sensor reports whether an endpoint is
+  enrolled for hotpatch updates and, if it is not eligible, why (edition, build,
+  virtualization-based security, CHPE on Arm64). Pending hotpatches are marked, and a run
+  whose installed updates were all hotpatches no longer restarts the endpoint, even with
+  *always restart*. The Patches page has a Hotpatch column and filter, and groups can
+  target `hotpatch.enrolled`, `hotpatch.eligible` and `hotpatch.vbs`. Endpoints need the
+  new agent for drivers, feature updates and Hotpatch: older agents keep listing drivers and
+  feature updates as ordinary patches and installing them as before, and an older server
+  keeps sending runs that the new agent will not use to install a driver or a Windows
+  upgrade. No database migration (the opt-ins live in each list's rules).
 
 ### Changed
 - An approval request records the person behind it and, when a token asked, the token. The

@@ -61,6 +61,18 @@ A schedule whose last rollout is still running or halted skips its next firing, 
 
 Choose **Save list**, then **Assign** it. **Export JSON** and **Import JSON** move lists between servers.
 
+## Windows drivers, feature updates and hotpatches
+
+Windows Update offers more than security and quality updates. mustra shows them apart, and installs the risky ones only when you say so.
+
+- **Drivers** appear in **Missing patches** marked **driver**, with the device class, manufacturer, model and driver date. No patch run installs one until a patch list covering the endpoint has **Include Windows driver updates** ticked. That list's other rules apply to drivers too, so a name pattern such as `Intel*` limits it to Intel drivers.
+- **Feature updates** (a new Windows version, such as 24H2 to 25H2) are marked **feature update → 25H2**. One is installed only when a patch list covering the endpoint sets **Feature update target version** to exactly that version. It can take hours, ends in a restart, and reports through the run like any other job.
+- **Hold Windows at version** on any list (a block list with only a hold blocks nothing else) stops every feature update past that version, even one another list targets.
+- **Hotpatches** are security updates that take effect without a restart; they are marked **hotpatch**. When every update a run installed was a hotpatch, the run does not restart the endpoint, even with **always restart** chosen.
+- The **Hotpatch** column in **Devices** shows whether each Windows endpoint is enrolled, eligible but not enrolled, or not eligible. Hover for the reason. Use the **Hotpatch** filter above the table to list them. Enrolment itself is done in Microsoft Intune (a Windows quality update policy with hotpatch allowed).
+
+Endpoints need the current agent for any of this. Older agents list drivers and feature updates as ordinary patches, as they always have.
+
 ## Read the results
 
 Each patch run reports per endpoint which updates installed, which failed, and whether a restart is pending. An endpoint that was offline when the run started reports **no response**, which is different from **failed**.

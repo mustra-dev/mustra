@@ -113,6 +113,8 @@ func normalizeSnapshotData(kind proto.SensorKind, raw json.RawMessage) (json.Raw
 		return normalizeTyped[proto.PatchStatus](raw)
 	case proto.SensorSecurityPosture:
 		return normalizeTyped[[]proto.SecurityPosture](raw)
+	case proto.SensorHotpatch:
+		return normalizeTyped[[]proto.HotpatchStatus](raw)
 	case proto.SensorReveal:
 		return normalizeTyped[proto.RevealReport](raw)
 	}

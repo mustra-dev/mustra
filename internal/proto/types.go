@@ -199,6 +199,43 @@ type PatchInfo struct {
 	// RestartRequired: installing it restarts the machine, where the OS says
 	// so up front (macOS "Action: restart"). Agents before 0.57.8 never set it.
 	RestartRequired bool `json:"restart_required,omitempty"`
+
+	// Category sets apart what Windows Update offers besides quality and
+	// security updates: PatchCategoryDriver or PatchCategoryFeature. Empty
+	// is an ordinary update, and is all an agent that predates the split
+	// (or any non-Windows agent) ever reports, so an older peer reads
+	// exactly as before. Drivers and feature updates are installed only
+	// when a patch list opts in to them.
+	Category string `json:"category,omitempty"`
+	// Driver describes a driver update (Category "driver").
+	Driver *DriverUpdate `json:"driver,omitempty"`
+	// TargetVersion is the Windows version a feature update moves to
+	// ("24H2"), TargetProduct the product it is ("Windows 11"). Empty when
+	// the title named neither; such a feature update is never installed.
+	TargetVersion string `json:"target_version,omitempty"`
+	TargetProduct string `json:"target_product,omitempty"`
+	// Hotpatch: a Windows hotpatch, which installs and takes effect
+	// without a restart.
+	Hotpatch bool `json:"hotpatch,omitempty"`
+}
+
+// The PatchInfo.Category values.
+const (
+	PatchCategoryDriver  = "driver"
+	PatchCategoryFeature = "feature"
+)
+
+// DriverUpdate is what Windows Update says about a pending driver
+// (IWindowsDriverUpdate): the device class, who made and who packaged the
+// driver, the model it is for, and the driver's version date. Its
+// version is PatchInfo.NewVersion, read from the update's title, since
+// the Windows Update API has no version property for drivers.
+type DriverUpdate struct {
+	Class        string `json:"class,omitempty"`
+	Manufacturer string `json:"manufacturer,omitempty"`
+	Provider     string `json:"provider,omitempty"`
+	Model        string `json:"model,omitempty"`
+	Date         string `json:"date,omitempty"` // YYYY-MM-DD
 }
 
 // Predicate is a minimal agent-side filter evaluated locally by each agent
@@ -298,6 +335,10 @@ const (
 	// whether each container's image has an update (ContainerInfo). Servers
 	// before it refuse the unknown kind and drop it.
 	SensorContainers SensorKind = "containers"
+	// SensorHotpatch is whether a Windows endpoint can receive hotpatches
+	// and is enrolled for them (HotpatchStatus). Published on Windows only;
+	// servers before it refuse the unknown kind and drop it.
+	SensorHotpatch SensorKind = "hotpatch"
 )
 
 // What a container's update check concluded. Only ContainerUpToDate says
@@ -354,6 +395,40 @@ type PatchStatus struct {
 	// FailingSince is when the checks started failing; the server fills
 	// it in from the previous status, so it survives agent restarts.
 	FailingSince *time.Time `json:"failing_since,omitempty"`
+}
+
+// HotpatchStatus is a Windows endpoint's standing for hotpatch updates:
+// the security updates that install and take effect without a restart.
+// Eligible is the agent's reading of Microsoft's published prerequisites
+// it can see on the device (see internal/agent/hotpatch.go); licensing and
+// being on the current quarterly baseline cannot be seen there, so an
+// eligible, enrolled device may still be offered the ordinary update.
+type HotpatchStatus struct {
+	// Edition is the Windows EditionID (Enterprise, Education,
+	// ServerDatacenter...), Build the OS build with its revision
+	// (26100.4061), DisplayVersion the release (24H2).
+	Edition        string `json:"edition,omitempty"`
+	ProductName    string `json:"product_name,omitempty"`
+	Build          string `json:"build,omitempty"`
+	DisplayVersion string `json:"display_version,omitempty"`
+	Arch           string `json:"arch,omitempty"` // amd64 | arm64 | x86
+	// Server is a Windows Server installation (InstallationType Server).
+	Server bool `json:"server,omitempty"`
+	// VBS is virtualization-based security: off, enabled (configured but
+	// not running), running, or unknown (the WMI class did not answer).
+	VBS string `json:"vbs"`
+	// CHPEDisabled is whether compiled hybrid PE binaries are turned off
+	// (HotPatchRestrictions=1), which Arm64 devices need. Nil elsewhere.
+	CHPEDisabled *bool `json:"chpe_disabled,omitempty"`
+	// Enrolled is whether the device carries the hotpatch policy
+	// (Update/AllowRebootlessUpdates, set by a Windows quality update
+	// policy with hotpatch allowed) or, on Windows Server, the hotpatch
+	// enrolment package's targeting key.
+	Enrolled bool `json:"enrolled"`
+	Eligible bool `json:"eligible"`
+	// Reasons says why the device is not eligible, one line each.
+	Reasons []string `json:"reasons,omitempty"`
+	Errors  []string `json:"errors,omitempty"`
 }
 
 // PerformanceInfo summarizes an endpoint's recent health. Samples are kept
@@ -688,6 +763,16 @@ type AgentCommand struct {
 	// MacOSViaMDM tells a Mac agent that the server hands macOS updates to
 	// an MDM after this job, so a skipped one is not left to the user.
 	MacOSViaMDM bool `json:"macos_via_mdm,omitempty"`
+	// IncludeDrivers lets "apply_patches" install Windows driver updates;
+	// FeatureTarget lets it install the one feature update that moves
+	// Windows to that version ("24H2"). Both are set only for what a patch
+	// list opted in to. Without them an agent that classifies updates
+	// installs neither, even when one is named, so an older server, or a
+	// list written before the split, never upgrades Windows or replaces a
+	// driver by accident. Older agents ignore both and report neither kind
+	// separately, so the server never has a reason to send them.
+	IncludeDrivers bool   `json:"include_drivers,omitempty"`
+	FeatureTarget  string `json:"feature_target,omitempty"`
 	// Cert carries a certificate renewal step (cert_csr, cert_install).
 	Cert *CertJob `json:"cert,omitempty"`
 	// Secret carries a renewed application credential to write

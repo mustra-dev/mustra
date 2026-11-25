@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -376,6 +377,11 @@ func (a *Agent) Run(ctx context.Context) error {
 		proto.SensorBackups:         make(chan time.Duration),
 		proto.SensorSecurityPosture: make(chan time.Duration),
 	}
+	// Hotpatching is Windows-only; elsewhere the sensor has no loop, and
+	// set_sensor_interval answers "unknown sensor" for it.
+	if runtime.GOOS == "windows" {
+		intervalChans[proto.SensorHotpatch] = make(chan time.Duration)
+	}
 	cmdSub, err := a.subscribeCommands(ctx, intervalChans)
 	if err != nil {
 		return fmt.Errorf("subscribe to command subject: %w", err)
@@ -482,6 +488,13 @@ func (a *Agent) Run(ctx context.Context) error {
 			return collectSecurityPosture(ctx)
 		})
 	})
+	if runtime.GOOS == "windows" {
+		goRun(func() {
+			a.runSensorLoop(ctx, proto.SensorHotpatch, a.cfg.SensorInterval, intervalChans[proto.SensorHotpatch], func(ctx context.Context) (any, error) {
+				return collectHotpatch(ctx)
+			})
+		})
+	}
 	shellSub, err := a.subscribeShell(ctx)
 	if err != nil {
 		return fmt.Errorf("subscribe to shell subject: %w", err)

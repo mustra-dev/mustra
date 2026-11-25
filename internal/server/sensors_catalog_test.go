@@ -39,6 +39,7 @@ func TestEverySensorIsDocumented(t *testing.T) {
 		proto.SensorSecurityPosture,
 		proto.SensorPatchStatus,
 		proto.SensorContainers,
+		proto.SensorHotpatch,
 	}
 
 	documented := map[string]sensorDoc{}
