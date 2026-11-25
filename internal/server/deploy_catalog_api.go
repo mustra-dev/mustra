@@ -409,8 +409,13 @@ type deployPackageMetadataRequest struct {
 	Description string `json:"description"`
 	// Vendor is who makes the software.
 	Vendor string `json:"vendor"`
-	// Category groups the package in Self Service.
+	// Category is the package's older free-text category. Self Service
+	// files packages by CategoryIDs instead.
 	Category string `json:"category"`
+	// CategoryIDs are the Self Service categories the package is filed
+	// under; each must exist. Left out, the package keeps the ones it has;
+	// an empty list files it under none.
+	CategoryIDs []string `json:"category_ids"`
 	// GroupIDs are the computer groups whose members see the package in
 	// Self Service; each must exist.
 	GroupIDs []string `json:"group_ids"`
@@ -473,6 +478,17 @@ func (s *Server) handleDeployPackageMetadata(w http.ResponseWriter, r *http.Requ
 			http.Error(w, "target group no longer exists", 400)
 			return
 		}
+	}
+	if body.CategoryIDs, e = s.cleanCategoryIDs(r.Context(), body.CategoryIDs); e != nil {
+		if errors.Is(e, errCategoryGone) {
+			http.Error(w, e.Error(), 400)
+		} else {
+			http.Error(w, e.Error(), 500)
+		}
+		return
+	}
+	if body.CategoryIDs != nil {
+		pkg.CategoryIDs = body.CategoryIDs
 	}
 	pkg.Name = body.Name
 	pkg.Description = body.Description

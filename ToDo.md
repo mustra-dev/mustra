@@ -43,6 +43,8 @@ Open work, kept here so it can be picked up. Add to it when deferring something,
 
 ## Deploy
 
+- [ ] Check the Self Service category column on a real Windows and macOS desktop (`endpoint-ui-testing`): it was tested in the console's preview frame only, at desktop and narrow widths, in both themes.
+- [ ] Let the Appearance preview show the server's own Self Service categories. It shows sample categories today, because the sample packages would have to be filed under real ones to mean anything.
 - [ ] Decide whether catalog package names should be unique. Nothing prevents two packages with the same name, which is how four entries called ShareX happened; the causes of that are fixed, but the shape is still possible. Uniqueness is not obviously right — the same application from two vendors is a real case — so this is a decision, not a fix.
 
 ## Sensor examples

@@ -695,7 +695,8 @@ var typeDocs = map[string]typeDoc{
 		Doc: "deployPackageMetadataRequest is the body of PUT /api/deploy/packages/{id}: a package's details, as opposed to what it installs or runs, which its revisions hold. Every field replaces the stored one as sent, so a field left out is cleared (enabled becomes false, group_ids empty); the console sends the whole package it loaded. Other package fields in the body (kind, version, commands, detect, …) are ignored.",
 		Fields: map[string]string{
 			"AllowRequests":           "AllowRequests lets an endpoint's user ask for the package when it is not offered to them. Never set for an action package.",
-			"Category":                "Category groups the package in Self Service.",
+			"Category":                "Category is the package's older free-text category. Self Service files packages by CategoryIDs instead.",
+			"CategoryIDs":             "CategoryIDs are the Self Service categories the package is filed under; each must exist. Left out, the package keeps the ones it has; an empty list files it under none.",
 			"Description":             "Description is shown under the name in the catalog and in Self Service.",
 			"Enabled":                 "Enabled makes the package available to deploy.",
 			"ExpireSeconds":           "ExpireSeconds stops a deployment of the package being worth attempting after that long; 0 never expires.",
@@ -1822,6 +1823,25 @@ var typeDocs = map[string]typeDoc{
 	"github.com/mustra-dev/mustra/internal/server.selfServiceBrandingResponse": {
 		Doc: "selfServiceBrandingResponse is what GET and PUT /api/selfservice/branding answer.",
 	},
+	"github.com/mustra-dev/mustra/internal/server.selfServiceCategoriesResponse": {
+		Doc: "selfServiceCategoriesResponse is the category list, in display order.",
+		Fields: map[string]string{
+			"Icons": "Icons are the icon names a category may use.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.selfServiceCategoryOrderRequest": {
+		Doc: "selfServiceCategoryOrderRequest sets the display order.",
+		Fields: map[string]string{
+			"IDs": "IDs are every category, first to last.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.selfServiceCategoryRequest": {
+		Doc: "selfServiceCategoryRequest creates or changes a category.",
+		Fields: map[string]string{
+			"Icon": "Icon is one of the response's Icons, or empty for none.",
+			"Name": "Name is what the Self Service window shows: at most 40 characters, unique ignoring case, and not \"All\" or \"Other\", which the window uses itself.",
+		},
+	},
 	"github.com/mustra-dev/mustra/internal/server.sendEUNResponse": {
 		Doc: "sendEUNResponse is what POST /api/eun/{id}/send answers.",
 	},
@@ -2674,6 +2694,15 @@ var typeDocs = map[string]typeDoc{
 			"OverrideWindows": "The options a deployment from the Deploy window carries.",
 		},
 	},
+	"github.com/mustra-dev/mustra/internal/store.SelfServiceCategory": {
+		Doc: "SelfServiceCategory is one section the Self Service window files its catalog under. A package names the categories it belongs to in SoftwarePackage.CategoryIDs; the list's order is Position.",
+		Fields: map[string]string{
+			"Icon":         "Icon is a name from the console's line-icon set, or empty for none.",
+			"Name":         "Name is what the window shows. Unique, ignoring case.",
+			"PackageCount": "PackageCount is how many packages are filed under it, offered in Self Service or not.",
+			"Position":     "Position orders the list, lowest first.",
+		},
+	},
 	"github.com/mustra-dev/mustra/internal/store.SensorCoverageRow": {
 		Doc: "SensorCoverageRow summarises one sensor across the whole fleet.",
 		Fields: map[string]string{
@@ -2706,6 +2735,7 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/store.SoftwarePackage": {
 		Fields: map[string]string{
+			"CategoryIDs":            "CategoryIDs are the Self Service categories the package is filed under, each a SelfServiceCategory ID; empty files it under All and Other only. They replace Category, the free-text category kept for API clients that still send it. Left out of a save (nil), the package keeps the ones it has.",
 			"CommandTimeoutSeconds":  "CommandTimeoutSeconds caps this package's command; 0 uses the agent's default. ExpireSeconds stops the deployment being worth attempting after that long; 0 never expires.",
 			"ExpireSeconds":          "CommandTimeoutSeconds caps this package's command; 0 uses the agent's default. ExpireSeconds stops the deployment being worth attempting after that long; 0 never expires.",
 			"RequireExplicitTargets": "RequireExplicitTargets refuses a fleet-wide run. The operator has to name the endpoints. For a package that removes the agent, \"all online endpoints\" is one mis-click away from a fleet nobody can manage remotely any more -- including to put the agent back.",

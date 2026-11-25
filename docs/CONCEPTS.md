@@ -109,8 +109,15 @@ Catalog** and, in its Catalog settings, tick **Offer in Self Service**, pick
 the computer groups it is offered to (none means every machine), whether a
 machine outside them may request it, and which published version Self
 Service installs. A machine is offered a package only on a platform it can
-install on, and never one whose install needs parameters. **Deploy → Self
-Service** lists what is offered, each row linking to its package, beside the
+install on, and never one whose install needs parameters. Catalog settings
+also file the package under any number of **categories**, kept under **Deploy
+→ Self Service → Categories** (a name, an optional icon from the console's
+icon set, and an order). The window lists the categories something it offers
+is in beside **All**, plus **Other** for packages filed nowhere; search runs
+across all of them. The first upgrade creates six defaults and turns each
+free-text category packages already carried into a category, once: a deleted
+default is not recreated. An agent from before categories filters by the
+first category's name only. **Deploy → Self Service** lists what is offered, each row linking to its package, beside the
 requests waiting on you: approving one grants that machine that package
 without moving it into a group. The catalog items of releases before the
 package model were copied into packages once, on upgrade; nothing edits

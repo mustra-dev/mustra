@@ -46,6 +46,8 @@ var noBodyExample = map[string]string{
 	"PUT /api/deploy/settings":         "the deployment log and cache limits of every agent",
 	"PUT /api/preferences":             "the caller's own preferences, replaced whole",
 	"PUT /api/selfservice/branding":    "the Self Service window's look",
+
+	"PUT /api/selfservice/categories/order": "the order of every Self Service category, replaced whole",
 }
 
 // Every example is one its route takes, and every route with a JSON body

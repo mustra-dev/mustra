@@ -130,13 +130,19 @@ type SoftwarePackage struct {
 	// VersionSource makes Version follow an upstream project's latest
 	// release: "github:<owner>/<repo>". Empty: Version is set by hand.
 	VersionSource string `json:"version_source,omitempty"`
+	// CategoryIDs are the Self Service categories the package is filed
+	// under, each a SelfServiceCategory ID; empty files it under All and
+	// Other only. They replace Category, the free-text category kept for
+	// API clients that still send it. Left out of a save (nil), the
+	// package keeps the ones it has.
+	CategoryIDs []string `json:"category_ids"`
 }
 
 const softwareColumns = `id, kind, name, vendor, version, description, category, icon,
        commands, detect, requirements, group_ids, self_service, allow_requests,
        require_explicit_targets,
        enabled, source, command_timeout_seconds, expire_seconds, parameters,
-       created_at, updated_at, created_by, deploy_revision, (SELECT definition FROM deploy_revisions WHERE id=software_packages.deploy_revision), self_service_revision, self_service_follow_latest, updated_by, version_source`
+       created_at, updated_at, created_by, deploy_revision, (SELECT definition FROM deploy_revisions WHERE id=software_packages.deploy_revision), self_service_revision, self_service_follow_latest, updated_by, version_source, category_ids`
 
 func scanSoftwarePackage(row pgx.Row) (*SoftwarePackage, error) {
 	var p SoftwarePackage
@@ -145,7 +151,7 @@ func scanSoftwarePackage(row pgx.Row) (*SoftwarePackage, error) {
 		&p.Icon, &commands, &detect, &requirements, &p.GroupIDs, &p.SelfService,
 		&p.AllowRequests, &p.RequireExplicitTargets, &p.Enabled, &p.Source,
 		&p.CommandTimeoutSeconds, &p.ExpireSeconds,
-		&parameters, &p.CreatedAt, &p.UpdatedAt, &p.CreatedBy, &p.DeployRevision, &definition, &p.SelfServiceRevision, &p.SelfServiceFollowLatest, &p.UpdatedBy, &p.VersionSource); err != nil {
+		&parameters, &p.CreatedAt, &p.UpdatedAt, &p.CreatedBy, &p.DeployRevision, &definition, &p.SelfServiceRevision, &p.SelfServiceFollowLatest, &p.UpdatedBy, &p.VersionSource, &p.CategoryIDs); err != nil {
 		return nil, err
 	}
 	// A row whose JSON we can't parse is still a usable package row — the
@@ -165,6 +171,9 @@ func scanSoftwarePackage(row pgx.Row) (*SoftwarePackage, error) {
 	}
 	if p.GroupIDs == nil {
 		p.GroupIDs = []string{}
+	}
+	if p.CategoryIDs == nil {
+		p.CategoryIDs = []string{}
 	}
 	return &p, nil
 }
@@ -227,8 +236,8 @@ func (s *Store) UpsertSoftwarePackage(ctx context.Context, p SoftwarePackage) (*
 INSERT INTO software_packages (id, kind, name, vendor, version, description, category, icon,
                                commands, detect, requirements, group_ids, self_service,
                                allow_requests, require_explicit_targets, enabled, source, created_by,
-                               command_timeout_seconds, expire_seconds, parameters, self_service_revision, self_service_follow_latest, updated_by, version_source)
-VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
+                               command_timeout_seconds, expire_seconds, parameters, self_service_revision, self_service_follow_latest, updated_by, version_source, category_ids)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,coalesce($26::text[], '{}'))
 ON CONFLICT (id) DO UPDATE SET
   kind = EXCLUDED.kind,
   name = EXCLUDED.name, vendor = EXCLUDED.vendor, version = EXCLUDED.version,
@@ -242,6 +251,7 @@ ON CONFLICT (id) DO UPDATE SET
  self_service_revision=CASE WHEN EXCLUDED.self_service_revision='' THEN software_packages.self_service_revision ELSE EXCLUDED.self_service_revision END, self_service_follow_latest=EXCLUDED.self_service_follow_latest,
   updated_by = CASE WHEN EXCLUDED.updated_by='' THEN software_packages.updated_by ELSE EXCLUDED.updated_by END,
   version_source = EXCLUDED.version_source,
+  category_ids = CASE WHEN $26::text[] IS NULL THEN software_packages.category_ids ELSE EXCLUDED.category_ids END,
   updated_at = now()
 RETURNING ` + softwareColumns
 	params, err := json.Marshal(p.Parameters)
@@ -252,7 +262,7 @@ RETURNING ` + softwareColumns
 		p.ID, p.Kind, p.Name, p.Vendor, p.Version, p.Description, p.Category, p.Icon,
 		commands, detect, requirements, p.GroupIDs, p.SelfService, p.AllowRequests,
 		p.RequireExplicitTargets, p.Enabled, p.Source, p.CreatedBy,
-		p.CommandTimeoutSeconds, p.ExpireSeconds, params, p.SelfServiceRevision, p.SelfServiceFollowLatest, p.UpdatedBy, p.VersionSource))
+		p.CommandTimeoutSeconds, p.ExpireSeconds, params, p.SelfServiceRevision, p.SelfServiceFollowLatest, p.UpdatedBy, p.VersionSource, p.CategoryIDs))
 	if err != nil {
 		return nil, fmt.Errorf("upsert software package: %w", err)
 	}

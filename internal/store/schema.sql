@@ -1425,6 +1425,59 @@ ALTER TABLE software_packages ADD COLUMN IF NOT EXISTS self_service_follow_lates
 -- empty means the version is typed in by hand.
 ALTER TABLE software_packages ADD COLUMN IF NOT EXISTS version_source TEXT NOT NULL DEFAULT '';
 
+-- Self Service categories: the operator's list of sections the endpoint
+-- window files its catalog under, in display order. A package belongs to
+-- any number of them (software_packages.category_ids); one in none appears
+-- under All and Other. The older free-text software_packages.category is
+-- kept for API clients that still send it, but the window reads these.
+CREATE TABLE IF NOT EXISTS selfservice_categories (
+    id         TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,
+    -- A name from the console's line-icon set (selfServiceCategoryIcons
+    -- in internal/server); empty draws no icon.
+    icon       TEXT NOT NULL DEFAULT '',
+    position   INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_by TEXT NOT NULL DEFAULT '',
+    updated_by TEXT NOT NULL DEFAULT ''
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_selfservice_categories_name ON selfservice_categories (lower(name));
+ALTER TABLE software_packages ADD COLUMN IF NOT EXISTS category_ids TEXT[] NOT NULL DEFAULT '{}';
+
+-- Once: the default categories, then one for each free-text category a
+-- package already carries, with those packages filed under it. Recorded in
+-- settings rather than re-checked by name, so a default an operator deletes
+-- stays deleted at the next start. A fresh database runs it too, and gets
+-- the defaults alone.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM settings WHERE key = 'migration.selfservice_categories') THEN
+    INSERT INTO selfservice_categories (id, name, icon, position, created_by) VALUES
+      ('sscat-browsers',     'Browsers',        'globe',    1, 'schema'),
+      ('sscat-productivity', 'Productivity',    'book',     2, 'schema'),
+      ('sscat-communication','Communication',   'chat',     3, 'schema'),
+      ('sscat-developer',    'Developer tools', 'terminal', 4, 'schema'),
+      ('sscat-utilities',    'Utilities',       'sliders',  5, 'schema'),
+      ('sscat-security',     'Security',        'shield',   6, 'schema')
+    ON CONFLICT DO NOTHING;
+    INSERT INTO selfservice_categories (id, name, position, created_by)
+    SELECT 'sscat-' || md5(lower(btrim(category))), min(btrim(category)),
+           6 + row_number() OVER (ORDER BY lower(btrim(category))), 'schema'
+      FROM software_packages
+     WHERE btrim(category) <> ''
+       AND lower(btrim(category)) NOT IN (SELECT lower(name) FROM selfservice_categories)
+     GROUP BY lower(btrim(category))
+    ON CONFLICT DO NOTHING;
+    UPDATE software_packages p SET category_ids = ARRAY[c.id]
+      FROM selfservice_categories c
+     WHERE btrim(p.category) <> '' AND lower(c.name) = lower(btrim(p.category))
+       AND p.category_ids = '{}';
+    INSERT INTO settings (key, value, updated_by) VALUES ('migration.selfservice_categories', 'done', 'schema')
+    ON CONFLICT (key) DO NOTHING;
+  END IF;
+END $$;
+
 -- Outcome history must not prevent ordinary endpoint pruning.
 ALTER TABLE deploy_jobs DROP CONSTRAINT IF EXISTS deploy_jobs_agent_id_fkey;
 

@@ -146,6 +146,11 @@ func (s *Server) selfServiceState(ctx context.Context, agentID string) proto.Sel
 		}
 	}
 
+	// A failure to read categories files everything under All rather than
+	// failing the whole window: the catalog is what the person came for.
+	cats, _ := s.store.ListSelfServiceCategories(ctx)
+	filer := newCategoryFiler(cats)
+
 	out := proto.SelfServiceReply{OK: true, Hostname: me.Hostname, AgentID: agentID,
 		LatestAgentVersion: version.Agent()}
 	for _, it := range items {
@@ -189,13 +194,16 @@ func (s *Server) selfServiceState(ctx context.Context, agentID string) proto.Sel
 		if !entitled && !pending && !it.AllowRequests {
 			continue // not offered, and can't be asked for
 		}
+		ids, first := filer.file(it.CategoryIDs)
 		out.Items = append(out.Items, proto.SelfServiceItem{
-			ID: it.ID, Name: it.Name, Description: it.Description, Category: it.Category,
+			ID: it.ID, Name: it.Name, Description: it.Description, Category: first, CategoryIDs: ids,
 			Icon: it.Icon, Package: pkg, Entitled: entitled, Pending: pending,
 			CanRequest: !entitled && !pending && it.AllowRequests,
 			Installed:  matchInstalled(it.Detect, it.Name, installed) != "",
 		})
 	}
+
+	out.Categories = filer.used()
 
 	if actions, err := s.store.ListAgentActions(ctx, agentID, 25); err == nil {
 		for _, a := range actions {
@@ -203,6 +211,58 @@ func (s *Server) selfServiceState(ctx context.Context, agentID string) proto.Sel
 				Kind: a.Kind, Summary: a.Summary, Status: a.Status, Detail: a.Detail,
 				StartedAt: a.StartedAt.UTC().Format("2006-01-02T15:04:05Z"), By: a.RequestedBy,
 			})
+		}
+	}
+	return out
+}
+
+// categoryFiler files the window's items under the operator's categories:
+// in the list's order, dropping IDs of categories since deleted, and
+// remembering which categories some item used so the reply carries only
+// those.
+type categoryFiler struct {
+	order []store.SelfServiceCategory
+	byID  map[string]int
+	in    map[string]bool
+}
+
+func newCategoryFiler(cats []store.SelfServiceCategory) *categoryFiler {
+	f := &categoryFiler{order: cats, byID: map[string]int{}, in: map[string]bool{}}
+	for i, c := range cats {
+		f.byID[c.ID] = i
+	}
+	return f
+}
+
+// file returns the item's categories in list order, and the first one's
+// name for windows that understand a single category string.
+func (f *categoryFiler) file(ids []string) ([]string, string) {
+	var pos []int
+	seen := map[int]bool{}
+	for _, id := range ids {
+		if i, ok := f.byID[id]; ok && !seen[i] {
+			seen[i] = true
+			pos = append(pos, i)
+		}
+	}
+	if len(pos) == 0 {
+		return nil, ""
+	}
+	sort.Ints(pos)
+	out := make([]string, len(pos))
+	for k, i := range pos {
+		out[k] = f.order[i].ID
+		f.in[f.order[i].ID] = true
+	}
+	return out, f.order[pos[0]].Name
+}
+
+// used is the categories some filed item is in, in list order.
+func (f *categoryFiler) used() []proto.SelfServiceCategory {
+	var out []proto.SelfServiceCategory
+	for _, c := range f.order {
+		if f.in[c.ID] {
+			out = append(out, proto.SelfServiceCategory{ID: c.ID, Name: c.Name, Icon: c.Icon})
 		}
 	}
 	return out

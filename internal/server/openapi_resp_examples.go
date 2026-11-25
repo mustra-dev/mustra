@@ -171,6 +171,7 @@ const (
 		"version": "1.7.1",
 		"description": "Command-line JSON processor",
 		"category": "Utilities",
+		"category_ids": ["sscat-utilities"],
 		"icon": "",
 		"commands": {
 			"linux": {"install": "apt-get install -y jq", "update": "apt-get install -y --only-upgrade jq"},
@@ -2943,6 +2944,7 @@ var respExamples = map[string]string{
 		"version": "",
 		"description": "Forwards nginx and system logs to the central collector",
 		"category": "Monitoring",
+		"category_ids": ["sscat-utilities"],
 		"icon": "",
 		"commands": {},
 		"detect": {},
@@ -5368,6 +5370,31 @@ var respExamples = map[string]string{
 	// selfservice
 	"GET /api/selfservice/branding": selfServiceBrandingExample,
 	"PUT /api/selfservice/branding": selfServiceBrandingExample,
+	// The defaults a new server starts with, one renamed, and one added.
+	"GET /api/selfservice/categories":       selfServiceCategoriesExample,
+	"PUT /api/selfservice/categories/order": selfServiceCategoriesExample,
+	"POST /api/selfservice/categories": `{
+		"id": "sscat-4f1c9a2e7b3d45c8a6e0d2f9b1c7e3a5",
+		"name": "Design tools",
+		"icon": "layers",
+		"position": 8,
+		"package_count": 0,
+		"created_at": "2026-11-20T14:02:11Z",
+		"updated_at": "2026-11-20T14:02:11Z",
+		"created_by": "jdoe",
+		"updated_by": "jdoe"
+	}`,
+	"PUT /api/selfservice/categories/{id}": `{
+		"id": "sscat-4f1c9a2e7b3d45c8a6e0d2f9b1c7e3a5",
+		"name": "Design and media",
+		"icon": "layers",
+		"position": 8,
+		"package_count": 3,
+		"created_at": "2026-11-20T14:02:11Z",
+		"updated_at": "2026-11-21T09:40:27Z",
+		"created_by": "jdoe",
+		"updated_by": "jdoe"
+	}`,
 
 	// sessions
 	// Newest first, without the commands. The laptop is under no Jump
@@ -5604,6 +5631,7 @@ var respExamples = map[string]string{
 		"version": "1.7.1",
 		"description": "Adopted from software already installed across the fleet. Check the commands below, then enable the package to make it deployable.",
 		"category": "",
+		"category_ids": [],
 		"icon": "",
 		"commands": {
 			"linux": {"install": "apt-get install -y jq", "update": "apt-get install -y --only-upgrade jq", "remove": "apt-get remove -y jq"}
@@ -5931,3 +5959,18 @@ const telemetryExample = `{
 
 // mfaRecoveryCodesExample is ten recovery codes, each shown only once.
 const mfaRecoveryCodesExample = `{"recovery_codes": ["<code-1>", "<code-2>", "<code-3>", "<code-4>", "<code-5>", "<code-6>", "<code-7>", "<code-8>", "<code-9>", "<code-10>"]}`
+
+// selfServiceCategoriesExample is the category list of a server that has
+// kept its defaults, renamed Utilities and added Monitoring.
+const selfServiceCategoriesExample = `{
+	"categories": [
+		{"id": "sscat-browsers", "name": "Browsers", "icon": "globe", "position": 1, "package_count": 3, "created_at": "2026-11-19T08:00:00Z", "updated_at": "2026-11-19T08:00:00Z", "created_by": "schema", "updated_by": ""},
+		{"id": "sscat-productivity", "name": "Productivity", "icon": "book", "position": 2, "package_count": 5, "created_at": "2026-11-19T08:00:00Z", "updated_at": "2026-11-19T08:00:00Z", "created_by": "schema", "updated_by": ""},
+		{"id": "sscat-communication", "name": "Communication", "icon": "chat", "position": 3, "package_count": 2, "created_at": "2026-11-19T08:00:00Z", "updated_at": "2026-11-19T08:00:00Z", "created_by": "schema", "updated_by": ""},
+		{"id": "sscat-developer", "name": "Developer tools", "icon": "terminal", "position": 4, "package_count": 4, "created_at": "2026-11-19T08:00:00Z", "updated_at": "2026-11-19T08:00:00Z", "created_by": "schema", "updated_by": ""},
+		{"id": "sscat-utilities", "name": "System utilities", "icon": "sliders", "position": 5, "package_count": 6, "created_at": "2026-11-19T08:00:00Z", "updated_at": "2026-11-20T10:31:09Z", "created_by": "schema", "updated_by": "jdoe"},
+		{"id": "sscat-security", "name": "Security", "icon": "shield", "position": 6, "package_count": 1, "created_at": "2026-11-19T08:00:00Z", "updated_at": "2026-11-19T08:00:00Z", "created_by": "schema", "updated_by": ""},
+		{"id": "sscat-1d7b6e0c9f2a4b38a5c1e8d3f6a9b2c4", "name": "Monitoring", "icon": "chart", "position": 7, "package_count": 1, "created_at": "2026-11-20T10:33:47Z", "updated_at": "2026-11-20T10:33:47Z", "created_by": "jdoe", "updated_by": "jdoe"}
+	],
+	"icons": ["globe", "book", "chat", "terminal", "sliders", "shield", "mail", "chart", "database", "download", "folder", "key", "lock", "star", "box", "rocket", "users", "cpu", "layers", "tag", "bag", "clock", "search", "sync", "plug"]
+}`

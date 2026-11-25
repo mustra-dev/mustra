@@ -633,8 +633,13 @@ var routeDocs = map[string]routeDoc{
 	"POST /api/schedules/{id}/run": {NoBody: true, Resp: runScheduledActionNowResponse{}, Errors: []int{400, 404, 500}},
 
 	// selfservice
-	"GET /api/selfservice/branding": {Resp: selfServiceBrandingResponse{}},
-	"PUT /api/selfservice/branding": {Body: proto.SelfServiceBranding{}, Resp: selfServiceBrandingResponse{}, Errors: []int{400, 500}},
+	"GET /api/selfservice/branding":           {Resp: selfServiceBrandingResponse{}},
+	"PUT /api/selfservice/branding":           {Body: proto.SelfServiceBranding{}, Resp: selfServiceBrandingResponse{}, Errors: []int{400, 500}},
+	"GET /api/selfservice/categories":         {Resp: selfServiceCategoriesResponse{}, Errors: []int{500}},
+	"POST /api/selfservice/categories":        {Body: selfServiceCategoryRequest{}, Resp: store.SelfServiceCategory{}, Status: 201, Errors: []int{400, 409, 500}},
+	"PUT /api/selfservice/categories/order":   {Body: selfServiceCategoryOrderRequest{}, Resp: selfServiceCategoriesResponse{}, Errors: []int{400, 409, 500}},
+	"PUT /api/selfservice/categories/{id}":    {Body: selfServiceCategoryRequest{}, Resp: store.SelfServiceCategory{}, Errors: []int{400, 404, 409, 500}},
+	"DELETE /api/selfservice/categories/{id}": {Status: 204, Errors: []int{404, 500}},
 
 	// sensors
 	"GET /api/sensors":                       {Resp: listSensorsResponse{}},
