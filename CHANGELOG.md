@@ -34,6 +34,19 @@ Server only; agents are unchanged.
   Settings and PRIVACY.md say.
 - **Run a playbook on some of its endpoints.** `POST /api/playbooks/{id}/run` takes an
   optional `agent_ids` list that narrows the run to those of the playbook's targets.
+- **Remediation gallery.** Playbooks → Remediations offers ten curated fixes for common
+  endpoint problems: free disk space, reset the Windows Update components, repair the WMI
+  repository (verify and salvage only), flush DNS, restart a named service, clear the print
+  spooler, renew the DHCP lease, rebuild the search index, recover an interrupted dpkg, and
+  fix time synchronisation. Each has Windows, Linux and macOS versions where they make sense,
+  says what it changes on each platform and how risky it is, and shows its script. **Import**
+  creates an ordinary action package and a one-step playbook (choose its target group and
+  inputs); **Run…** opens the deploy window on the package to choose endpoints or groups.
+  Approvals, management rights, the audit trail and outcome tracking are unchanged, and both
+  need `deploy.manage`. Importing again creates only what was deleted; a newer gallery
+  version in a later release is offered as **Update**. New API routes `GET /api/remediations`
+  and `POST /api/remediations/{id}/import`. Server only: the fixes run on agents as action
+  packages do today. The server adds a `remediation_imports` table on start.
 
 ### Changed
 - An approval request records the person behind it and, when a token asked, the token. The

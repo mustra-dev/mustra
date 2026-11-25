@@ -551,6 +551,10 @@ var routeDocs = map[string]routeDoc{
 	"DELETE /api/playbooks/{id}":   {Resp: deletePlaybookResponse{}, Errors: []int{404, 500}},
 	"POST /api/playbooks/{id}/run": {Body: runPlaybookRequest{}, BodyOptional: true, Resp: runPlaybookResponse{}, Also: []int{202}, Errors: []int{400, 403, 404, 500}},
 
+	// remediations
+	"GET /api/remediations":              {Resp: remediationsResponse{}, Errors: []int{500}},
+	"POST /api/remediations/{id}/import": {Body: remediationImportRequest{}, BodyOptional: true, Resp: remediationImportResponse{}, Errors: []int{400, 404, 500}},
+
 	// preferences
 	"GET /api/preferences": {Resp: store.UserPreferences{}, Errors: []int{401, 500}},
 	"PUT /api/preferences": {Body: store.UserPreferences{}, Resp: store.UserPreferences{}, Errors: []int{400, 401, 500}},

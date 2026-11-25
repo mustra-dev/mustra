@@ -4672,6 +4672,26 @@ var respExamples = map[string]string{
 	"DELETE /api/playbooks/{id}":   `{"deleted": "Weekly patching for web servers"}`,
 	"POST /api/playbooks/{id}/run": `{"endpoints": 12, "playbook": "Weekly patching for web servers", "run_id": "pbr-8e4a0c6f2b1d47e9a3c5b7d9f1e2a4c6"}`,
 
+	// remediations: one entry, imported at the version the gallery has.
+	"GET /api/remediations": `{"items": [
+		{"id": "flush-dns", "name": "Flush the DNS cache", "version": 1, "category": "Network",
+		 "summary": "Clears the endpoint's local DNS resolver cache so stale or poisoned answers are looked up again.",
+		 "risk": "low", "risk_note": "Names are resolved afresh, so the next few lookups are a little slower. No configuration changes.",
+		 "platforms": ["windows", "linux", "darwin"],
+		 "changes": {"windows": ["Runs ipconfig /flushdns, clearing the DNS Client service's cache."],
+		             "linux": ["Flushes systemd-resolved's cache (resolvectl flush-caches) where it is running."],
+		             "darwin": ["Runs dscacheutil -flushcache and signals mDNSResponder to drop its cache."]},
+		 "parameters": [], "timeout_seconds": 120,
+		 "scripts": {"windows": {"language": "powershell", "source": "& ipconfig.exe /flushdns\n", "timeout_seconds": 120},
+		             "linux": {"language": "shell", "source": "resolvectl flush-caches\n", "timeout_seconds": 120},
+		             "darwin": {"language": "shell", "source": "dscacheutil -flushcache\nkillall -HUP mDNSResponder\n", "timeout_seconds": 120}},
+		 "imported": {"gallery_id": "flush-dns", "version": 1, "package_id": "sw-4c1a8e2f6b9d43e7a5c0f2b8d6e4a1c3",
+		              "playbook_id": "pb-a2ee726f006fe7786489587cb1760e68", "imported_by": "alice",
+		              "imported_at": "2026-11-20T09:14:00Z", "updated_at": "2026-11-20T09:14:00Z", "update_available": false}}
+	]}`,
+	"POST /api/remediations/{id}/import": `{"status": "imported", "version": 1, "package_id": "sw-4c1a8e2f6b9d43e7a5c0f2b8d6e4a1c3",
+		"revision_id": "rev-8f2b6d0a4c1e49e7b3a5c9d1f7e0b2a4", "playbook_id": "pb-a2ee726f006fe7786489587cb1760e68"}`,
+
 	// preferences
 	"GET /api/preferences": jdoePreferencesExample,
 	"PUT /api/preferences": jdoePreferencesExample,

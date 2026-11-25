@@ -1,0 +1,28 @@
+{
+  "name": "Free disk space",
+  "version": 1,
+  "category": "Disk",
+  "summary": "Removes old temporary files and package-manager download caches, and on Windows cleans up superseded components, then reports how much space it freed.",
+  "risk": "low",
+  "risk_note": "Only temporary files older than the age you choose and caches the system re-creates are removed. A program that keeps a file in a temp directory for longer than that loses it. Windows component cleanup can take a long time and uses disk and CPU while it runs; it keeps the ability to uninstall installed updates.",
+  "timeout_seconds": 3600,
+  "changes": {
+    "windows": [
+      "Deletes files older than the chosen age from the Windows temp directory and from every local profile's AppData\\Local\\Temp; files in use are skipped, and links are never followed.",
+      "Clears the Delivery Optimization cache (peer-to-peer update downloads) where the cmdlet exists.",
+      "Runs DISM /StartComponentCleanup to remove superseded components from the component store, if that option is on. It does not use /ResetBase, so installed updates can still be uninstalled."
+    ],
+    "linux": [
+      "Empties the package manager's download cache: apt-get clean, dnf/yum clean packages or zypper clean, whichever is present. Metadata and installed packages are untouched.",
+      "Deletes regular files older than the chosen age (neither modified nor read since) from /tmp and /var/tmp, staying on their file system; services' private temp directories, snap's and X server lock files are left alone."
+    ],
+    "darwin": [
+      "Deletes regular files older than the chosen age from /private/tmp, /private/var/tmp and each user's ~/Library/Caches. Applications re-create their caches.",
+      "Deletes old downloads from Homebrew's cache, if Homebrew is installed. Installed formulae and casks are untouched."
+    ]
+  },
+  "parameters": [
+    {"name": "older_than_days", "label": "Only files older than (days)", "type": "numeric", "default": "7", "min": 1, "max": 365},
+    {"name": "component_cleanup", "label": "Clean up the Windows component store (Windows only)", "type": "checkbox", "default": "true"}
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "name": "Rebuild the search index",
+  "version": 1,
+  "category": "System",
+  "summary": "Makes Windows Search or Spotlight discard its index and build it again, the fix for searches that miss files or never finish.",
+  "risk": "low",
+  "risk_note": "Search results are incomplete until the rebuild finishes, which can take hours on a full disk, and indexing uses noticeable disk and CPU meanwhile. No files are touched, only the index. A search service that is disabled stays disabled.",
+  "timeout_seconds": 300,
+  "changes": {
+    "windows": [
+      "Stops the Windows Search service, sets SetupCompletedSuccessfully to 0 under HKLM\\SOFTWARE\\Microsoft\\Windows Search (which makes the service rebuild its index on start), and starts it again.",
+      "Does nothing where Windows Search is not installed or is disabled (the default on Windows Server)."
+    ],
+    "darwin": [
+      "Runs mdutil -E / to erase and rebuild the Spotlight index of the startup volume.",
+      "Does nothing where Spotlight indexing has been turned off for that volume."
+    ]
+  }
+}

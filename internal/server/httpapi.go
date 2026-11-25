@@ -683,6 +683,11 @@ func (s *Server) routes() http.Handler {
 	protected.Handle("PUT /api/playbooks/{id}", perm(auth.PermDeployManage, hf(s.handleSavePlaybook)))
 	protected.Handle("DELETE /api/playbooks/{id}", perm(auth.PermDeployManage, hf(s.handleDeletePlaybook)))
 	protected.Handle("POST /api/playbooks/{id}/run", perm(auth.PermDeployManage, hf(s.handleRunPlaybook)))
+	// The remediation gallery (remediations.go): curated fixes imported as
+	// an action package and a playbook. deploy.manage, like any package
+	// that runs operator-chosen code on endpoints.
+	protected.Handle("GET /api/remediations", perm(auth.PermDeployManage, hf(s.handleListRemediations)))
+	protected.Handle("POST /api/remediations/{id}/import", perm(auth.PermDeployManage, hf(s.handleImportRemediation)))
 
 	// Reports: the same data Connect streams, rendered as a page for
 	// somebody who does not have a console login. Reading one is reading

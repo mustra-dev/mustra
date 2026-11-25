@@ -26,6 +26,15 @@ A playbook runs several steps in order on a group of endpoints: tell people, pat
 
 **Load the patch-and-reboot example** fills in a typical playbook to start from.
 
+## Start from the remediation gallery
+
+**Playbooks → Remediations** lists ready-made fixes for common problems: free disk space, reset the Windows Update components, repair WMI, flush DNS, restart a service, clear the print spooler, renew the DHCP lease, rebuild the search index, recover an interrupted dpkg and fix time synchronisation. Search them, or filter by platform and category. **What it changes, and the scripts** shows, for each platform, exactly what the fix does, how risky it is, and the script it runs.
+
+- **Import** creates an action package and a one-step playbook that runs it. Choose the computer group it targets and any inputs it needs (for example the service to restart). Nothing runs until somebody runs the playbook, and you can edit both like your own.
+- **Run…** opens the deploy window on that package, so you choose the endpoints or groups, the inputs, and whether to run now or on a schedule.
+
+Approval policies, management rights and the audit trail apply to both. When a newer version of a fix ships with mustra, its card offers **Update**, which publishes the new version to the package; the imported playbook runs it from then on.
+
 ## Run it now
 
 Choose **Run now** on the playbook. **Runs** shows each run; **Open** one to see every endpoint's progress through the steps.

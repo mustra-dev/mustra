@@ -2910,3 +2910,19 @@ CREATE TABLE IF NOT EXISTS ai_connections (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Remediation gallery: which curated fix was imported, at which gallery
+-- version, and the action package and playbook it became. The gallery
+-- itself lives in the server binary; this row is what lets a later
+-- release offer an update and keeps a second import from making copies.
+-- Deleting the package or the playbook clears its column rather than the
+-- row, so importing again re-creates only what is missing.
+CREATE TABLE IF NOT EXISTS remediation_imports (
+    gallery_id  TEXT PRIMARY KEY,
+    version     INT NOT NULL,
+    package_id  TEXT REFERENCES software_packages(id) ON DELETE SET NULL,
+    playbook_id TEXT REFERENCES playbooks(id) ON DELETE SET NULL,
+    imported_by TEXT NOT NULL DEFAULT '',
+    imported_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);

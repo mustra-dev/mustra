@@ -1,0 +1,16 @@
+{
+  "name": "Reset Windows Update components",
+  "version": 1,
+  "category": "Updates",
+  "summary": "Stops the update services, sets aside the Windows Update download store and the catalog database so Windows rebuilds them, and starts the services again.",
+  "risk": "medium",
+  "risk_note": "Pending downloads start again from scratch and the update history shown in Settings is emptied (the old folders are kept, renamed). Run it when updates are stuck or failing, not as routine maintenance. Updates halfway through installing should be finished with a reboot first.",
+  "timeout_seconds": 900,
+  "changes": {
+    "windows": [
+      "Stops the Windows Update, Update Orchestrator, BITS, Cryptographic and Windows Installer services if they are running.",
+      "Renames %SystemRoot%\\SoftwareDistribution and %SystemRoot%\\System32\\catroot2 to *.mustra-<timestamp>. Nothing is deleted except older copies this remediation set aside on a previous run, so only the latest copy is kept.",
+      "Starts the Cryptographic service and every service that was running before. Windows re-creates both folders on its next update scan."
+    ]
+  }
+}
