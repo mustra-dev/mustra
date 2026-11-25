@@ -179,6 +179,56 @@ release-signed builds), `MUSTRA_BREAKGLASS_USERNAME`/`_PASSWORD` (replacing
 `MUSTRA_BACKUP_SIGNING_KEY`, `MUSTRA_IMPORT_ALLOWED_HOSTS`,
 `MUSTRA_EXPORT_DIR`, and `MUSTRA_ALLOW_PLACEHOLDER_SECRETS` (development only).
 
+## OS provisioning (network boot)
+
+Provisioning (see docs/CONCEPTS.md, "OS provisioning") is off until turned on
+under **Provisioning → Settings**. Its boot endpoints (`/boot/…`) are
+unauthenticated by nature, so serve them on a listener of their own, reachable
+only from the provisioning network:
+
+1. Set `MUSTRA_BOOT_HTTP_ADDR=:8069` in `.env`, and publish that port on the
+   host address that faces the provisioning network only (the commented
+   `10.0.20.5:8069:8069` line under `server` in `docker-compose.yml`). The
+   console's own listener then does not answer `/boot/` at all. Without the
+   variable they share the console's listener, and whatever publishes the
+   console (a tunnel, a reverse proxy) would publish them too.
+2. Enter that address as the **Boot URL**, e.g. `http://10.0.20.5:8069`, and
+   the provisioning subnets under **Allowed networks**.
+
+mustra runs no DHCP or TFTP server. Either:
+
+- **Your DHCP server chainloads iPXE**: option 66 names a TFTP server with
+  the iPXE binaries, option 67 is `ipxe.efi` (UEFI) or `undionly.kpxe`
+  (BIOS), and clients whose user class is `iPXE` get
+  `http://10.0.20.5:8069/boot/ipxe` as their filename instead. That URL
+  answers with a script that asks again with the booting interface's MAC.
+  ISC dhcpd, for example:
+
+  ```
+  if exists user-class and option user-class = "iPXE" {
+    filename "http://10.0.20.5:8069/boot/ipxe";
+  } elsif option arch = 00:07 {
+    filename "ipxe.efi";
+  } else {
+    filename "undionly.kpxe";
+  }
+  next-server 10.0.20.5;
+  ```
+
+- **Or proxy-DHCP** next to your DHCP server, which keeps handing out
+  addresses: the commented `pxe-proxydhcp` service in `docker-compose.yml`
+  runs dnsmasq with its own TFTP server for the iPXE binaries.
+
+Hand the boot URL to iPXE clients only (the user-class condition above). The
+Debian installer takes a URL in the DHCP filename as its preseed file, ahead
+of the one on its command line, so an unconditional filename makes it fetch a
+boot script instead of its answer file and stop.
+
+iPXE is not signed for Secure Boot in its usual builds: install with Secure
+Boot off, or sign and enroll your own iPXE. Answer files travel over the
+plain HTTP iPXE uses; they are single-use and expire, but keep the
+provisioning network to machines you trust.
+
 ## Console login
 
 - **First run.** A deployment with no account configured serves a one-time

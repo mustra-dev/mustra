@@ -80,6 +80,7 @@ var uploadLimits = []struct {
 	{regexp.MustCompile(`^/api/backups/restore$`), maxUploadedBackup + 1<<20},
 	{regexp.MustCompile(`^/api/deploy/packages/[^/]+/revisions$`), 64 << 20},
 	{regexp.MustCompile(`^/api/compliance/import$`), 64 << 20},
+	{regexp.MustCompile(`^/api/provisioning/images/[^/]+/files$`), maxPackageFileBytes + 1<<20},
 }
 
 func applyBodyLimits(w http.ResponseWriter, r *http.Request) {
@@ -96,7 +97,7 @@ func applyBodyLimits(w http.ResponseWriter, r *http.Request) {
 	limit := int64(defaultBodyLimit)
 	switch {
 	case r.URL.Path == "/login/local" || r.URL.Path == "/setup" || r.URL.Path == "/logout" ||
-		strings.HasPrefix(r.URL.Path, "/hooks/"):
+		strings.HasPrefix(r.URL.Path, "/hooks/") || strings.HasPrefix(r.URL.Path, "/boot/"):
 		limit = unauthBodyLimit
 	default:
 		for _, u := range uploadLimits {

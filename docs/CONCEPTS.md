@@ -2484,3 +2484,78 @@ Deleting an app deletes what was measured of it.
 **Limits.** Only full page loads are timed, not single-page-app route
 changes. Requests count toward the app whose page made them. Only Chromium
 browsers. The host needs the Self Service listener.
+
+## OS provisioning — network boot and reimaging
+
+**Provisioning** installs an operating system on a machine that boots from
+the network, and reinstalls an existing endpoint, with the new system's
+mustra agent enrolled at its first boot. It is off until an administrator
+turns it on (Provisioning → Settings).
+
+**Images** are installers: Ubuntu (autoinstall), Debian (preseed) and
+Windows (WinPE started with wimboot, then Setup from a share). Each boot file
+is a URL the machine downloads itself, or a file uploaded to mustra and kept
+with package payloads. mustra bundles no installation media. Each image has an
+answer template; the built-in one for its family is used unless the image
+carries its own.
+
+**Machines** are MAC addresses. A machine has an image, answer variables
+(hostname, locale, keyboard, timezone, disk, administrator user, SSH key,
+Windows edition and product key), an optional administrator password (kept
+sealed in the credential vault), and a one-shot **install next boot** flag
+that lapses on its own after a day by default.
+
+How a boot goes:
+
+1. Your DHCP server hands the machine iPXE, and iPXE asks
+   `GET /boot/ipxe?mac=…`. mustra runs no DHCP or TFTP server; the
+   deployment guide shows the DHCP options and a proxy-DHCP example.
+2. A MAC mustra does not know, or knows but has not armed, gets a script with
+   no menu that returns to the firmware's next boot device: its own disk.
+   Nothing ever installs on a machine nobody armed.
+3. An armed machine gets its image's installer, with a fresh random **answer
+   token** in the answer file's URL. Asking for the script again replaces the
+   token.
+4. The installer fetches its answer file once. That uses the token up and
+   clears **install next boot**, so the machine boots its disk afterwards.
+   The token also expires (an hour by default) if nobody fetches it. The
+   answer file carries a new single-use enrollment token (six hours by
+   default) and the command that enrolls the agent at first boot.
+5. The installer reports `installing`, `installed` or `failed` with a second
+   token from the answer file, and **Installs** shows the agent once it
+   enrolls with the answer file's token.
+
+**Who can reach what.** Firmware has nothing to authenticate with, so the boot
+endpoints are unauthenticated, and serve without a token only what is not
+secret: boot scripts and uploaded boot files. Do not upload anything secret as
+a boot file. Answer files, with their enrollment tokens and passwords, and the
+Windows install script with the share's credentials, need the answer token,
+and the token appears only in an armed machine's boot script. The MAC address
+is not a secret, so somebody on the provisioning network who knows an armed
+machine's MAC can take its answer file first; the real install then fails
+visibly, and the answer fetch's address is recorded. Limit the boot endpoints
+to the provisioning networks (**Allowed networks**), and set
+`MUSTRA_BOOT_HTTP_ADDR` to serve them on a listener of their own, which the
+console's listener then does not answer. They are rate limited per address.
+iPXE usually fetches over plain HTTP, so on that network an answer file can be
+read in transit.
+
+**Reimaging** an endpoint (Provisioning → Reimage, or
+`POST /api/agents/{id}/reimage`) names one endpoint and one of the network
+interfaces it reports. The request must repeat the endpoint's hostname, and it
+always waits for a second person's approval: under an approval policy for the
+`provisioning` module when one covers it, otherwise under a built-in one. An
+API token cannot request it, approval-exempt or not. Once approved, mustra
+arms that interface's MAC, audits the reimage, and asks the agent to boot from
+the network once and restart in a minute: `efibootmgr --bootnext` on Linux,
+the firmware boot sequence through `bcdedit` on Windows, both on UEFI only.
+The boot order is not changed. On BIOS, macOS, a firmware with no network
+entry, an agent too old to know the command or one in no-remote-code mode, the
+answer says the next boot could not be set; the machine stays armed and
+somebody chooses network boot at the console (usually F12). A MAC that a
+managed endpoint reports cannot be armed from **Machines**: that would be a
+reimage without its confirmation and approval.
+
+**Secure Boot.** iPXE is not signed for Secure Boot in its usual builds, so
+machines installed this way need Secure Boot off, or an iPXE you have signed
+and enrolled yourself.

@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Provisioning — mustra</title>
+<link rel="icon" href="/static/brand/favicon.ico" sizes="any">
+<link rel="icon" href="/static/brand/app-icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/brand/app-icon-256.png">
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/theme.js"></script>
+<style>
+  .hint { font-size: 12.5px; color: var(--text-muted); margin: -4px 0 12px; line-height: 1.55; max-width: 92ch; }
+  .muted { color: var(--text-muted); font-size: var(--fs-meta); }
+  .mono { font-family: var(--mono); font-size: var(--fs-meta); }
+  .pill { font-size: var(--fs-meta); padding: 2px 8px; border-radius: 999px; font-weight: 600; white-space: nowrap;
+          background: var(--surface-2); color: var(--text-muted); }
+  .pill.ok { background: var(--ok-bg); color: var(--ok); }
+  .pill.bad { background: color-mix(in srgb, var(--viz-danger, #e5484d) 18%, transparent); color: var(--viz-danger, #e5484d); }
+  .pill.warn { background: color-mix(in srgb, var(--viz-warning) 22%, transparent); color: var(--warn); }
+  .pill.live { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+  .pv-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px 14px; margin: 6px 0 12px; }
+  .pv-form label { font-size: 12.5px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .pv-form label.wide { grid-column: 1 / -1; }
+  .pv-form label.check { flex-direction: row; align-items: center; gap: 8px; }
+  .pv-form label[hidden] { display: none; }
+  .pv-form input, .pv-form select, .pv-form textarea { width: 100%; min-width: 0; }
+  .pv-form label.check input { width: auto; flex: none; }
+  .pv-danger label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .pv-danger input { width: auto; min-width: 220px; }
+  .pv-form textarea { font-family: var(--mono); font-size: 12px; min-height: 90px; padding: 8px 10px; border-radius: var(--radius-md);
+                      border: 1px solid var(--border-input); background: var(--input-bg); color: var(--text); }
+  .pv-form textarea.tall { min-height: 320px; }
+  .pv-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 4px 0 6px; }
+  .pv-actions button { width: auto; }
+  .pv-sub { font-size: 13px; margin: 16px 0 6px; }
+  .pv-asset { display: grid; grid-template-columns: 110px 1fr auto; gap: 8px; align-items: center; margin: 0 0 6px; }
+  .pv-asset .role { font-family: var(--mono); font-size: 12px; }
+  .pv-asset .file { font-size: var(--fs-meta); color: var(--text-muted); grid-column: 2 / -1; margin-top: -4px; }
+  @media (max-width: 640px) { .pv-asset { grid-template-columns: 1fr; } .pv-asset .file { grid-column: 1; } }
+  .pv-danger { border: 1px solid color-mix(in srgb, var(--viz-danger, #e5484d) 45%, var(--border)); border-radius: var(--radius-md);
+               padding: 12px 14px; margin: 10px 0; background: color-mix(in srgb, var(--viz-danger, #e5484d) 6%, transparent); }
+  .pv-danger strong { color: var(--viz-danger, #e5484d); }
+  .pv-result { margin: 10px 0 0; font-size: 13px; line-height: 1.55; }
+  .pv-result.err { color: var(--viz-danger, #e5484d); }
+  pre.pv-code { font-family: var(--mono); font-size: 12px; background: var(--surface-2); border: 1px solid var(--border);
+                border-radius: var(--radius-md); padding: 10px 12px; overflow-x: auto; margin: 4px 0 12px; }
+  .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  button.tiny { font-size: var(--fs-meta); padding: 4px 9px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+                background: var(--surface-2); color: var(--text); cursor: pointer; width: auto; }
+  button.tiny:hover { border-color: var(--accent); }
+  button.tiny.danger { color: var(--off); }
+  button.pv-erase { background: var(--off-bg); color: var(--off); border: 1px solid var(--off); border-radius: var(--radius-md);
+                    padding: 7px 14px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; width: auto; }
+  button.pv-erase:disabled { opacity: 0.45; cursor: not-allowed; }
+  button.pv-erase:hover:not(:disabled) { filter: brightness(1.1); }
+</style>
+</head>
+<body>
+  <div class="app-shell">
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+    <aside class="sidebar-rail" id="sidebar-rail"></aside>
+    <aside class="sidebar-flyout" id="sidebar-flyout"></aside>
+    <aside class="module-subnav" id="module-subnav"></aside>
+    <main>
+      <div id="pv-page-head"></div>
+      <div class="panel" id="pv-off" hidden>
+        <p class="u-m-0">OS provisioning is turned off: the boot server answers nothing and no machine can be armed.
+          <span id="pv-off-who">An administrator turns it on under Settings.</span></p>
+      </div>
+
+      <div class="module-section" id="section-installs" hidden>
+        <div class="stat-tiles" id="pv-tiles"></div>
+        <div class="panel">
+          <div class="panel-header"><h2>Recent installs</h2><span class="scan-status" id="pv-installs-status"></span></div>
+          <p class="hint">
+            One row per armed machine that network-booted. <b>Script served</b>: it fetched its boot script.
+            <b>Answer served</b>: the installer fetched its answer file, which used up its token and cleared the
+            machine's “install next boot”. <b>Installing</b> and <b>installed</b> or <b>failed</b> are the installer's own
+            reports; <b>enrolled</b> is the new system's mustra agent enrolling with the answer file's token.
+          </p>
+          <div class="table-scroll rows-10">
+            <table class="table-compact">
+              <thead><tr><th>Booted</th><th>Machine</th><th>Image</th><th>State</th><th>Answer file</th><th>Endpoint</th><th>Detail</th></tr></thead>
+              <tbody id="pv-installs"><tr><td class="empty" colspan="7">loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="module-section" id="section-machines" hidden>
+        <div class="panel">
+          <div class="panel-header"><h2>Machines</h2><span class="scan-status" id="pv-machines-status"></span></div>
+          <p class="hint">
+            A MAC address the boot server knows. Any other machine that network-boots is told to boot its own disk.
+            <b>Install next boot</b> arms a machine once: its next network boot installs its image, and fetching the
+            answer file disarms it. An unused arming lapses on its own. A MAC that a managed endpoint reports cannot be armed
+            here: use Reimage, which asks for the hostname and a second person's approval.
+          </p>
+          <div class="table-scroll rows-10">
+            <table class="table-compact">
+              <thead><tr><th>Machine</th><th>MAC</th><th>Image</th><th>Next boot</th><th>Last network boot</th><th></th></tr></thead>
+              <tbody id="pv-machines"><tr><td class="empty" colspan="6">loading…</td></tr></tbody>
+            </table>
+          </div>
+          <h3 class="pv-sub" id="m-title">Add a machine</h3>
+          <div class="pv-form">
+            <label>MAC address<input id="m-mac" placeholder="52:54:00:12:34:56" autocomplete="off" spellcheck="false"></label>
+            <label>Name<input id="m-name" placeholder="lab-07" autocomplete="off"></label>
+            <label>Image<select id="m-image"></select></label>
+            <label>Administrator password<input id="m-password" type="password" autocomplete="new-password" placeholder="blank: keep, or the image's"></label>
+          </div>
+          <div class="pv-form" id="m-vars"></div>
+          <div class="pv-actions">
+            <button class="primary" id="m-save">Save machine</button>
+            <button class="secondary" id="m-cancel" hidden>Cancel</button>
+            <span class="muted" id="m-status" role="status"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="module-section" id="section-reimage" hidden>
+        <div class="panel">
+          <div class="panel-header"><h2>Reimage an endpoint</h2></div>
+          <p class="hint">
+            Assigns an image to one endpoint's network interface, arms it, and asks its agent to boot from the network once:
+            <code>efibootmgr --bootnext</code> on Linux, the firmware boot sequence through <code>bcdedit</code> on Windows,
+            both on UEFI. Where neither works the answer says so, and somebody at the machine picks network boot (usually F12).
+            The request always waits for a second person with the approvals permission (Access → Approvals) and is audited.
+          </p>
+          <div class="pv-form">
+            <label>Endpoint<input id="r-host" list="r-hosts" placeholder="start typing a hostname" autocomplete="off"></label>
+            <datalist id="r-hosts"></datalist>
+            <label>Network interface<select id="r-mac"><option value="">pick an endpoint first</option></select></label>
+            <label>Image<select id="r-image"></select></label>
+            <label>Hostname after install<input id="r-hostname" placeholder="blank: keep the endpoint's" autocomplete="off"></label>
+            <label class="check"><input type="checkbox" id="r-restart" checked> Restart it once the next boot is set</label>
+          </div>
+          <div class="pv-danger">
+            <p class="u-m-0-0-8"><strong>This erases the endpoint's disk.</strong> Everything on it is lost; the installed system
+              enrolls as a new endpoint.</p>
+            <label class="u-font-inherit">Type the endpoint's hostname, <b id="r-confirm-name">—</b>, to confirm
+              <input id="r-confirm" autocomplete="off" spellcheck="false"></label>
+          </div>
+          <div class="pv-actions">
+            <button class="pv-erase" id="r-go" disabled>Request reimage</button>
+            <span class="muted" id="r-status" role="status"></span>
+          </div>
+          <div class="pv-result" id="r-result" role="status"></div>
+        </div>
+      </div>
+
+      <div class="module-section" id="section-images" hidden>
+        <div class="panel">
+          <div class="panel-header"><h2>Images</h2><span class="scan-status" id="pv-images-status"></span></div>
+          <p class="hint">
+            An installer the boot server can start. Boot files are each a URL the machine downloads itself, or a file uploaded
+            here and served by mustra without authentication — so upload nothing secret. mustra bundles no installation media:
+            point Windows images at your own WinPE files and a share holding your installation media. Ubuntu uses the
+            live-server ISO's <code>casper/vmlinuz</code> and <code>casper/initrd</code> with the ISO's URL as the install source;
+            Debian the netboot <code>linux</code> and <code>initrd.gz</code> with a mirror.
+          </p>
+          <div class="table-scroll rows-10">
+            <table class="table-compact">
+              <thead><tr><th>Image</th><th>Family</th><th>Boot files</th><th>Answer file</th><th></th></tr></thead>
+              <tbody id="pv-images"><tr><td class="empty" colspan="5">loading…</td></tr></tbody>
+            </table>
+          </div>
+          <div id="i-editor" hidden>
+            <h3 class="pv-sub" id="i-title">Add an image</h3>
+            <div class="pv-form">
+              <label>Name<input id="i-name" placeholder="Ubuntu 24.04 server" autocomplete="off"></label>
+              <label>Family<select id="i-family"><option value="ubuntu">Ubuntu (autoinstall)</option><option value="debian">Debian (preseed)</option><option value="windows">Windows (WinPE + Setup)</option></select></label>
+              <label class="wide"><span id="i-source-label">Install source</span><input id="i-source" autocomplete="off" spellcheck="false"></label>
+              <label class="i-win">Share user<input id="i-user" autocomplete="off" placeholder="DOMAIN\installer"></label>
+              <label class="i-win">Share password<input id="i-pass" type="password" autocomplete="new-password" placeholder="blank: keep"></label>
+              <label>Default administrator password<input id="i-admin" type="password" autocomplete="new-password" placeholder="blank: keep"></label>
+              <label>Extra kernel arguments<input id="i-args" autocomplete="off" spellcheck="false" placeholder="console=ttyS0"></label>
+            </div>
+            <h3 class="pv-sub">Boot files</h3>
+            <div id="i-assets"></div>
+            <h3 class="pv-sub">Default variables</h3>
+            <div class="pv-form" id="i-vars"></div>
+            <h3 class="pv-sub">Answer template</h3>
+            <p class="hint">Blank uses the built-in template for the family. A template is Go text/template; write every value
+              through the escaper for its format — <code>yaml</code>, <code>line</code> (preseed), <code>xml</code>, <code>sh</code>
+              — as the built-in ones do. It is test-rendered when saved.</p>
+            <div class="pv-form"><label class="wide"><textarea id="i-template" class="tall" spellcheck="false"></textarea></label></div>
+            <div class="pv-actions">
+              <button class="secondary" id="i-builtin">Start from the built-in template</button>
+              <button class="primary" id="i-save">Save image</button>
+              <button class="secondary" id="i-cancel">Cancel</button>
+              <span class="muted" id="i-status" role="status"></span>
+            </div>
+          </div>
+          <div class="pv-actions" id="i-new-wrap" hidden><button class="secondary" id="i-new">Add an image</button></div>
+        </div>
+      </div>
+
+      <div class="module-section" id="section-settings" hidden>
+        <div class="panel">
+          <div class="panel-header"><h2>Boot server</h2><span class="scan-status" id="s-listener"></span></div>
+          <p class="hint">
+            The boot endpoints under <code>/boot/</code> serve iPXE scripts and boot files without authentication — firmware has
+            nothing to authenticate with — and answer files only to the per-install token in a boot script, once, before it
+            expires. Limit them to the provisioning networks, and set <code>MUSTRA_BOOT_HTTP_ADDR</code> to serve them on a
+            listener of their own rather than wherever the console is published.
+          </p>
+          <div class="pv-form">
+            <label class="check wide"><input type="checkbox" id="s-enabled"> Provisioning on</label>
+            <label class="wide">Boot URL machines reach this server at<input id="s-url" placeholder="http://10.0.0.5:8069" autocomplete="off" spellcheck="false"></label>
+            <label class="wide">Allowed networks (CIDR, one per line; blank: any)<textarea id="s-nets" spellcheck="false" placeholder="10.0.20.0/24"></textarea></label>
+            <label>Answer file usable for (minutes)<input id="s-answer" type="number" min="5" max="1440"></label>
+            <label>“Install next boot” lapses after (hours)<input id="s-arm" type="number" min="1" max="336"></label>
+            <label>Enrollment token lifetime (hours)<input id="s-enroll" type="number" min="1" max="72"></label>
+            <label>Site new endpoints enroll into<input id="s-site" placeholder="blank: default" autocomplete="off"></label>
+          </div>
+          <div class="pv-actions"><button class="primary" id="s-save">Save</button><span class="muted" id="s-status" role="status"></span></div>
+          <p class="muted" id="s-publicurl"></p>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><h2>Chainloading from your DHCP server</h2></div>
+          <p class="hint">
+            mustra runs no DHCP or TFTP server. Point your existing DHCP at an iPXE binary (option 66, the TFTP server; option 67,
+            <code>ipxe.efi</code> for UEFI or <code>undionly.kpxe</code> for BIOS), and hand clients that already run iPXE this
+            script instead, or build it into iPXE with <code>EMBED=</code>. A proxy-DHCP example with dnsmasq is in the
+            deployment guide. iPXE is not signed for Secure Boot by default: turn Secure Boot off on machines you install this way.
+          </p>
+          <pre class="pv-code" id="s-chain"></pre>
+        </div>
+      </div>
+    </main>
+  </div>
+
+<script src="/static/app.js"></script>
+<script>
+let me = null, canSettings = false, cfg = null;
+let images = [], roles = {}, templates = {}, variables = [], machines = [], installs = [], agents = [];
+let editingMachine = null, editingImage = null;
+
+const stateInfo = {
+  script_served: ["script served", "live"], answer_served: ["answer served", "live"], installing: ["installing", "live"],
+  installed: ["installed", "ok"], enrolled: ["enrolled", "ok"], failed: ["failed", "bad"], expired: ["expired", "warn"],
+  superseded: ["withdrawn", ""],
+};
+const varHelp = {
+  hostname: "lab-07", locale: "en_US.UTF-8", keyboard: "us", timezone: "Etc/UTC or W. Europe Standard Time",
+  disk: "/dev/sda, or a Windows disk number", admin_user: "localadmin", ssh_key: "ssh-ed25519 AAAA… (Linux)",
+  image_index: "1 (Windows edition in install.wim)", product_key: "XXXXX-XXXXX-XXXXX-XXXXX-XXXXX",
+};
+
+document.addEventListener("mustra:user", (e) => {
+  me = e.detail || {};
+  canSettings = hasPermission(me, "settings.manage");
+  renderModuleSubnav("/provisioning", me);
+  renderPageHead("pv-page-head", "/provisioning", { title: "Provisioning" });
+  document.getElementById("i-new-wrap").hidden = !canSettings;
+  if (!canSettings) document.getElementById("pv-off-who").textContent = "Ask an administrator to turn it on.";
+  loadAll();
+  setInterval(() => { if (!document.hidden && !document.getElementById("section-installs").hidden) loadInstalls(); }, 15000);
+});
+
+async function getJSON(url) {
+  const r = await fetch(url);
+  if (r.status === 401) { window.location.href = "/login"; throw new Error("signed out"); }
+  if (!r.ok) throw new Error((await r.text()).trim());
+  return r.json();
+}
+
+async function send(method, url, body) {
+  const r = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const text = await r.text();
+  if (!r.ok) throw new Error(text.trim() || r.statusText);
+  return { status: r.status, data: text ? JSON.parse(text) : null };
+}
+
+async function loadAll() {
+  await loadImages();
+  await loadMachines();
+  await Promise.all([loadInstalls(), loadAgents(), canSettings ? loadSettings() : null]);
+}
+
+// --- settings ------------------------------------------------------------
+async function loadSettings() {
+  const d = await getJSON("/api/provisioning/settings");
+  cfg = d.config;
+  document.getElementById("pv-off").hidden = cfg.enabled;
+  document.getElementById("s-enabled").checked = cfg.enabled;
+  document.getElementById("s-url").value = cfg.boot_url || "";
+  document.getElementById("s-nets").value = (cfg.allowed_networks || []).join("\n");
+  document.getElementById("s-answer").value = cfg.answer_ttl_minutes;
+  document.getElementById("s-arm").value = cfg.arm_hours;
+  document.getElementById("s-enroll").value = cfg.enroll_ttl_hours;
+  document.getElementById("s-site").value = cfg.site || "";
+  document.getElementById("s-chain").textContent = d.chain_script;
+  document.getElementById("s-listener").textContent = d.boot_listener === "console" ? "served on the console's listener" : "own listener " + d.boot_listener;
+  document.getElementById("s-publicurl").textContent = d.public_url_set ? "" :
+    "The console's public URL is not set (Client Management → Overview): installed systems could not enroll their agent.";
+}
+
+document.getElementById("s-save").addEventListener("click", async () => {
+  const st = document.getElementById("s-status"); st.textContent = "saving…";
+  const nets = document.getElementById("s-nets").value.split(/[\s,]+/).map(x => x.trim()).filter(Boolean);
+  try {
+    await send("PUT", "/api/provisioning/settings", {
+      enabled: document.getElementById("s-enabled").checked, boot_url: document.getElementById("s-url").value.trim(),
+      allowed_networks: nets, answer_ttl_minutes: +document.getElementById("s-answer").value,
+      arm_hours: +document.getElementById("s-arm").value, enroll_ttl_hours: +document.getElementById("s-enroll").value,
+      site: document.getElementById("s-site").value.trim(),
+    });
+    st.textContent = "saved";
+    loadSettings();
+  } catch (err) { st.textContent = "not saved: " + err.message; }
+});
+
+// --- images ---------------------------------------------------------------
+async function loadImages() {
+  const d = await getJSON("/api/provisioning/images");
+  images = d.images || []; roles = d.roles || {}; templates = d.default_templates || {}; variables = d.variables || [];
+  document.getElementById("pv-images-status").textContent = `${images.length} image(s)`;
+  const body = document.getElementById("pv-images");
+  body.innerHTML = images.length ? images.map(im => `<tr>
+      <td><strong>${escapeHtml(im.name)}</strong></td>
+      <td>${escapeHtml(im.family)}</td>
+      <td>${im.missing ? `<span class="pill warn">${escapeHtml(im.missing)}</span>` : '<span class="pill ok">ready</span>'}</td>
+      <td class="muted">${im.answer_template ? "custom template" : "built-in template"}</td>
+      <td>${canSettings ? `<div class="row-actions"><button class="tiny" data-edit-image="${escapeHtml(im.id)}">Edit</button>
+        <button class="tiny danger" data-del-image="${escapeHtml(im.id)}">Delete</button></div>` : ""}</td>
+    </tr>`).join("") : `<tr><td class="empty" colspan="5">No images yet${canSettings ? ": add one below." : "; an administrator adds them."}</td></tr>`;
+  body.querySelectorAll("[data-edit-image]").forEach(b => b.addEventListener("click", () => openImage(images.find(i => i.id === b.dataset.editImage))));
+  body.querySelectorAll("[data-del-image]").forEach(b => b.addEventListener("click", async () => {
+    const im = images.find(i => i.id === b.dataset.delImage);
+    if (!confirm(`Delete the image ${im.name}? Machines assigned to it boot their own disk until given another.`)) return;
+    try { await send("DELETE", "/api/provisioning/images/" + encodeURIComponent(im.id)); loadImages(); }
+    catch (err) { showToast(err.message, "error"); }
+  }));
+  const opts = images.map(im => `<option value="${escapeHtml(im.id)}">${escapeHtml(im.name)}${im.missing ? " (not ready)" : ""}</option>`).join("");
+  document.getElementById("m-image").innerHTML = '<option value="">none</option>' + opts;
+  document.getElementById("r-image").innerHTML = opts || '<option value="">no images yet</option>';
+  renderVarInputs("m-vars", "mv-");
+  renderVarInputs("i-vars", "iv-");
+}
+
+function renderVarInputs(containerID, prefix) {
+  const el = document.getElementById(containerID);
+  if (el.dataset.ready) return;
+  el.dataset.ready = "1";
+  el.innerHTML = variables.map(v => `<label>${escapeHtml(v)}<input id="${escapeHtml(prefix)}${escapeHtml(v)}" placeholder="${escapeHtml(varHelp[v] || "")}" autocomplete="off" spellcheck="false"></label>`).join("");
+}
+
+function readVars(prefix) {
+  const out = {};
+  variables.forEach(v => { const x = document.getElementById(prefix + v); if (x && x.value.trim()) out[v] = x.value.trim(); });
+  return out;
+}
+
+function fillVars(prefix, vars) {
+  variables.forEach(v => { const x = document.getElementById(prefix + v); if (x) x.value = (vars || {})[v] || ""; });
+}
+
+const sourceLabels = {
+  ubuntu: ["Install source: the live-server ISO's URL", "http://mirror.example/ubuntu-24.04-live-server-amd64.iso"],
+  debian: ["Install source: a Debian mirror (blank: deb.debian.org)", "http://deb.debian.org/debian"],
+  windows: ["Install source: the share holding the installation media", "\\\\fileserver\\win11"],
+};
+
+function syncFamily() {
+  const fam = document.getElementById("i-family").value;
+  document.querySelectorAll(".i-win").forEach(el => { el.hidden = fam !== "windows"; });
+  document.getElementById("i-source-label").textContent = sourceLabels[fam][0];
+  document.getElementById("i-source").placeholder = sourceLabels[fam][1];
+  renderAssetRows(fam);
+}
+document.getElementById("i-family").addEventListener("change", syncFamily);
+
+function renderAssetRows(fam) {
+  const assets = (editingImage && editingImage.family === fam && editingImage.assets) || {};
+  const el = document.getElementById("i-assets");
+  el.innerHTML = (roles[fam] || []).map(role => {
+    const a = assets[role] || {};
+    return `<div class="pv-asset">
+      <span class="role">${escapeHtml(role)}</span>
+      <input data-asset-url="${escapeHtml(role)}" value="${escapeHtml(a.url || "")}" placeholder="${a.file_id ? "uploaded file (type a URL to use one instead)" : "http(s) URL"}" autocomplete="off" spellcheck="false" aria-label="${escapeHtml(role)} URL">
+      ${editingImage ? `<label class="tiny-upload"><input type="file" data-asset-file="${escapeHtml(role)}" class="u-m-0" aria-label="Upload ${escapeHtml(role)}"></label>` : '<span class="muted">save first to upload</span>'}
+      ${a.file_id ? `<span class="file">uploaded: ${escapeHtml(a.name || a.file_id)} · ${escapeHtml(fmtBytes(a.size_bytes))} · sha256 ${escapeHtml((a.sha256 || "").slice(0, 16))}…</span>` : ""}
+    </div>`;
+  }).join("");
+  el.querySelectorAll("[data-asset-file]").forEach(inp => inp.addEventListener("change", () => uploadAsset(inp.dataset.assetFile, inp.files[0])));
+}
+
+function fmtBytes(n) {
+  if (!n) return "0 B";
+  const u = ["B", "KB", "MB", "GB"]; let i = 0;
+  while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+  return `${n.toFixed(i ? 1 : 0)} ${u[i]}`;
+}
+
+async function uploadAsset(role, file) {
+  if (!file || !editingImage) return;
+  const st = document.getElementById("i-status");
+  st.textContent = `uploading ${file.name}…`;
+  const fd = new FormData();
+  fd.append("role", role);
+  fd.append("file", file);
+  const r = await fetch(`/api/provisioning/images/${encodeURIComponent(editingImage.id)}/files`, { method: "POST", body: fd });
+  if (!r.ok) { st.textContent = "upload failed: " + (await r.text()).trim(); return; }
+  editingImage = await r.json();
+  st.textContent = `uploaded ${file.name}`;
+  renderAssetRows(editingImage.family);
+  loadImages();
+}
+
+function openImage(im) {
+  editingImage = im || null;
+  document.getElementById("i-editor").hidden = false;
+  document.getElementById("i-new-wrap").hidden = true;
+  document.getElementById("i-title").textContent = im ? "Edit " + im.name : "Add an image";
+  document.getElementById("i-name").value = im ? im.name : "";
+  document.getElementById("i-family").value = im ? im.family : "ubuntu";
+  document.getElementById("i-family").disabled = !!im;
+  document.getElementById("i-source").value = im ? im.install_source : "";
+  document.getElementById("i-user").value = im ? im.source_user : "";
+  document.getElementById("i-pass").value = "";
+  document.getElementById("i-pass").placeholder = im && im.has_source_secret ? "set; blank keeps it" : "none";
+  document.getElementById("i-admin").value = "";
+  document.getElementById("i-admin").placeholder = im && im.has_admin_password ? "set; blank keeps it" : "none";
+  document.getElementById("i-args").value = im ? im.kernel_args : "";
+  document.getElementById("i-template").value = im ? im.answer_template : "";
+  document.getElementById("i-status").textContent = "";
+  fillVars("iv-", im ? im.defaults : {});
+  syncFamily();
+  document.getElementById("i-name").focus();
+}
+document.getElementById("i-new").addEventListener("click", () => openImage(null));
+document.getElementById("i-cancel").addEventListener("click", () => {
+  editingImage = null;
+  document.getElementById("i-editor").hidden = true;
+  document.getElementById("i-new-wrap").hidden = !canSettings;
+});
+document.getElementById("i-builtin").addEventListener("click", () => {
+  const t = document.getElementById("i-template");
+  if (t.value.trim() && !confirm("Replace the template in the box with the built-in one?")) return;
+  t.value = templates[document.getElementById("i-family").value] || "";
+});
+document.getElementById("i-save").addEventListener("click", async () => {
+  const st = document.getElementById("i-status"); st.textContent = "saving…";
+  const fam = document.getElementById("i-family").value;
+  const assets = {};
+  document.querySelectorAll("[data-asset-url]").forEach(inp => {
+    const role = inp.dataset.assetUrl, url = inp.value.trim();
+    const cur = editingImage && editingImage.assets && editingImage.assets[role];
+    if (url) assets[role] = { url };
+    else if (cur && cur.file_id) assets[role] = { file_id: cur.file_id };
+  });
+  const body = {
+    name: document.getElementById("i-name").value.trim(), family: fam, assets,
+    install_source: document.getElementById("i-source").value.trim(),
+    source_user: fam === "windows" ? document.getElementById("i-user").value.trim() : "",
+    source_password: fam === "windows" ? document.getElementById("i-pass").value : "",
+    admin_password: document.getElementById("i-admin").value,
+    kernel_args: document.getElementById("i-args").value.trim(),
+    defaults: readVars("iv-"), answer_template: document.getElementById("i-template").value,
+  };
+  try {
+    const res = await send(editingImage ? "PUT" : "POST", editingImage ? "/api/provisioning/images/" + encodeURIComponent(editingImage.id) : "/api/provisioning/images", body);
+    editingImage = res.data;
+    st.textContent = res.data.missing ? "saved; still " + res.data.missing : "saved";
+    document.getElementById("i-family").disabled = true;
+    document.getElementById("i-title").textContent = "Edit " + res.data.name;
+    renderAssetRows(fam);
+    loadImages();
+  } catch (err) { st.textContent = "not saved: " + err.message; }
+});
+
+// --- machines ---------------------------------------------------------------
+async function loadMachines() {
+  const d = await getJSON("/api/provisioning/machines");
+  machines = d.machines || [];
+  const armed = machines.filter(m => m.armed).length;
+  document.getElementById("pv-machines-status").textContent = `${machines.length} machine(s) · ${armed} armed`;
+  const body = document.getElementById("pv-machines");
+  body.innerHTML = machines.length ? machines.map(m => `<tr>
+      <td><strong>${escapeHtml(m.name || "—")}</strong>${m.agent_id ? ` <span class="muted">reimage of <a href="/endpoint/${escapeHtml(m.agent_id)}">${escapeHtml(m.hostname || m.agent_id)}</a></span>` : ""}</td>
+      <td class="mono">${escapeHtml(m.mac)}</td>
+      <td>${escapeHtml(m.image_name || (m.image_id ? "(deleted image)" : "none"))}</td>
+      <td>${m.armed ? `<span class="pill warn">installs · until ${escapeHtml(fmtTime(m.arm_expires_at))}</span>` : '<span class="pill">boots its disk</span>'}</td>
+      <td>${m.last_boot_at ? `${escapeHtml(fmtAgo(m.last_boot_at))} <span class="muted">${escapeHtml(m.last_boot_ip)}</span>` : '<span class="muted">never</span>'}</td>
+      <td><div class="row-actions">
+        ${m.armed ? `<button class="tiny" data-disarm="${escapeHtml(m.id)}">Disarm</button>`
+                  : (m.agent_id ? "" : `<button class="tiny" data-arm="${escapeHtml(m.id)}">Install next boot</button>`)}
+        <button class="tiny" data-edit-machine="${escapeHtml(m.id)}">Edit</button>
+        <button class="tiny danger" data-del-machine="${escapeHtml(m.id)}">Delete</button></div></td>
+    </tr>`).join("") : '<tr><td class="empty" colspan="6">No machines yet.</td></tr>';
+  body.querySelectorAll("[data-arm]").forEach(b => b.addEventListener("click", () => arm(b.dataset.arm, true)));
+  body.querySelectorAll("[data-disarm]").forEach(b => b.addEventListener("click", () => arm(b.dataset.disarm, false)));
+  body.querySelectorAll("[data-edit-machine]").forEach(b => b.addEventListener("click", () => openMachine(machines.find(m => m.id === b.dataset.editMachine))));
+  body.querySelectorAll("[data-del-machine]").forEach(b => b.addEventListener("click", async () => {
+    const m = machines.find(x => x.id === b.dataset.delMachine);
+    if (!confirm(`Delete ${m.name || m.mac}? It then boots its own disk when it network-boots.`)) return;
+    try { await send("DELETE", "/api/provisioning/machines/" + encodeURIComponent(m.id)); loadMachines(); }
+    catch (err) { showToast(err.message, "error"); }
+  }));
+}
+
+async function arm(id, on) {
+  const m = machines.find(x => x.id === id);
+  if (on && !confirm(`Install ${m.image_name || "its image"} on ${m.name || m.mac} at its next network boot? Its disk is erased.`)) return;
+  try { await send("POST", `/api/provisioning/machines/${encodeURIComponent(id)}/arm`, { install_next_boot: on }); }
+  catch (err) { showToast(err.message, "error"); }
+  loadMachines();
+}
+
+function openMachine(m) {
+  editingMachine = m || null;
+  document.getElementById("m-title").textContent = m ? "Edit " + (m.name || m.mac) : "Add a machine";
+  document.getElementById("m-mac").value = m ? m.mac : "";
+  document.getElementById("m-name").value = m ? m.name : "";
+  document.getElementById("m-image").value = m ? m.image_id : "";
+  document.getElementById("m-password").value = "";
+  document.getElementById("m-password").placeholder = m && m.has_admin_password ? "set; blank keeps it" : "blank: the image's";
+  document.getElementById("m-cancel").hidden = !m;
+  document.getElementById("m-status").textContent = "";
+  fillVars("mv-", m ? m.variables : {});
+  if (m) document.getElementById("m-mac").focus();
+}
+document.getElementById("m-cancel").addEventListener("click", () => openMachine(null));
+document.getElementById("m-save").addEventListener("click", async () => {
+  const st = document.getElementById("m-status"); st.textContent = "saving…";
+  const body = { mac: document.getElementById("m-mac").value.trim(), name: document.getElementById("m-name").value.trim(),
+    image_id: document.getElementById("m-image").value, variables: readVars("mv-"), admin_password: document.getElementById("m-password").value };
+  try {
+    await send(editingMachine ? "PUT" : "POST", editingMachine ? "/api/provisioning/machines/" + encodeURIComponent(editingMachine.id) : "/api/provisioning/machines", body);
+    st.textContent = "saved";
+    openMachine(null);
+    loadMachines();
+  } catch (err) { st.textContent = "not saved: " + err.message; }
+});
+
+// --- installs ---------------------------------------------------------------
+async function loadInstalls() {
+  const d = await getJSON("/api/provisioning/installs");
+  installs = d.installs || [];
+  const since = Date.now() - 7 * 86400000;
+  const recent = installs.filter(i => new Date(i.created_at).getTime() >= since);
+  const count = (...states) => recent.filter(i => states.includes(i.state)).length;
+  document.getElementById("pv-tiles").innerHTML = [
+    { label: "Armed machines", value: machines.filter(m => m.armed).length, cls: "" },
+    { label: "In progress", value: count("script_served", "answer_served", "installing"), cls: "" },
+    { label: "Installed, last 7 days", value: count("installed", "enrolled"), cls: "ok" },
+    { label: "Failed or expired, last 7 days", value: count("failed", "expired"), cls: count("failed", "expired") ? "off" : "ok" },
+  ].map(t => `<div class="stat-tile"><div class="stat-tile-label">${escapeHtml(t.label)}</div>
+      <div class="stat-tile-value ${escapeHtml(t.cls)}">${escapeHtml(t.value)}</div></div>`).join("");
+  document.getElementById("pv-installs-status").textContent = `${installs.length} install(s)`;
+  const body = document.getElementById("pv-installs");
+  body.innerHTML = installs.length ? installs.map(i => {
+    const [label, cls] = stateInfo[i.state] || [i.state, ""];
+    return `<tr>
+      <td data-sort="${escapeHtml(i.created_at)}" title="${escapeHtml(fmtTime(i.created_at))}">${escapeHtml(fmtAgo(i.created_at))} <span class="muted">${escapeHtml(i.script_ip)}</span></td>
+      <td><strong>${escapeHtml(i.hostname)}</strong> <span class="mono muted">${escapeHtml(i.mac)}</span>${i.reimage_of ? ' <span class="muted">reimage</span>' : ""}</td>
+      <td>${escapeHtml(i.image_name)}</td>
+      <td data-sort="${escapeHtml(i.state)}"><span class="pill ${escapeHtml(cls)}">${escapeHtml(label)}</span></td>
+      <td>${i.answer_fetched_at ? `${escapeHtml(fmtAgo(i.answer_fetched_at))} <span class="muted">${escapeHtml(i.answer_ip)}</span>` : '<span class="muted">not yet</span>'}</td>
+      <td>${i.agent_id ? `<a href="/endpoint/${escapeHtml(i.agent_id)}">${escapeHtml(i.enrolled_hostname || i.agent_id)}</a>` : '<span class="muted">—</span>'}</td>
+      <td class="muted">${escapeHtml(i.detail || (i.armed_by ? "armed by " + i.armed_by : ""))}</td>
+    </tr>`;
+  }).join("") : '<tr><td class="empty" colspan="7">No machine has network-booted an install yet.</td></tr>';
+  const dt = initDataTable(body.closest("table"), { storageKey: "provisioning-installs" });
+  if (dt) dt.refresh();
+}
+
+// --- reimage ---------------------------------------------------------------
+async function loadAgents() {
+  const d = await getJSON("/api/agents");
+  agents = (d.agents || []).filter(a => a.managed !== false);
+  document.getElementById("r-hosts").innerHTML = agents.map(a => `<option value="${escapeHtml(a.hostname)}">${escapeHtml(osLabel(a.os))}</option>`).join("");
+}
+
+function reimageTarget() {
+  const v = document.getElementById("r-host").value.trim().toLowerCase();
+  return agents.find(a => (a.hostname || "").toLowerCase() === v) || null;
+}
+
+async function pickEndpoint() {
+  const a = reimageTarget(), sel = document.getElementById("r-mac");
+  document.getElementById("r-confirm-name").textContent = a ? a.hostname : "—";
+  document.getElementById("r-confirm").value = "";
+  syncReimageButton();
+  if (!a) { sel.innerHTML = '<option value="">pick an endpoint first</option>'; return; }
+  sel.innerHTML = '<option value="">loading…</option>';
+  try {
+    const d = await getJSON(`/api/agents/${encodeURIComponent(a.agent_id)}/sensor/network`);
+    const ifs = (d.data || []).filter(i => i.mac && i.mac !== "00:00:00:00:00:00");
+    sel.innerHTML = ifs.length ? ifs.map(i => `<option value="${escapeHtml(i.mac)}">${escapeHtml(i.name)} · ${escapeHtml(i.mac)}${(i.addresses || []).length ? " · " + escapeHtml(i.addresses[0]) : ""}</option>`).join("")
+      : '<option value="">this endpoint reports no network interfaces</option>';
+  } catch (err) { sel.innerHTML = `<option value="">${escapeHtml(err.message)}</option>`; }
+  syncReimageButton();
+}
+document.getElementById("r-host").addEventListener("change", pickEndpoint);
+document.getElementById("r-host").addEventListener("input", () => { if (reimageTarget()) pickEndpoint(); else syncReimageButton(); });
+
+function syncReimageButton() {
+  const a = reimageTarget();
+  const typed = document.getElementById("r-confirm").value.trim().toLowerCase();
+  document.getElementById("r-go").disabled = !(a && typed === a.hostname.toLowerCase() && document.getElementById("r-mac").value && document.getElementById("r-image").value);
+}
+["r-confirm", "r-mac", "r-image"].forEach(id => document.getElementById(id).addEventListener("input", syncReimageButton));
+["r-mac", "r-image"].forEach(id => document.getElementById(id).addEventListener("change", syncReimageButton));
+
+document.getElementById("r-go").addEventListener("click", async () => {
+  const a = reimageTarget();
+  if (!a) return;
+  const out = document.getElementById("r-result"), btn = document.getElementById("r-go");
+  out.className = "pv-result"; out.textContent = ""; btn.disabled = true;
+  document.getElementById("r-status").textContent = "sending…";
+  const vars = {};
+  const h = document.getElementById("r-hostname").value.trim();
+  if (h) vars.hostname = h;
+  try {
+    const res = await send("POST", `/api/agents/${encodeURIComponent(a.agent_id)}/reimage`, {
+      image_id: document.getElementById("r-image").value, mac: document.getElementById("r-mac").value,
+      confirm_hostname: document.getElementById("r-confirm").value.trim(), variables: vars,
+      restart: document.getElementById("r-restart").checked,
+    });
+    const d = res.data || {};
+    if (res.status === 202) {
+      out.innerHTML = `Waiting for approval under <b>${escapeHtml(d.policy)}</b>. Somebody else with the approvals permission
+        decides it under <a href="/access#approvals">Access → Approvals</a>; it runs when approved and expires if nobody does.`;
+    } else {
+      out.innerHTML = `${escapeHtml(d.message || "done")}${d.instructions ? `<br><span class="muted">${escapeHtml(d.instructions)}</span>` : ""}`;
+    }
+    document.getElementById("r-confirm").value = "";
+  } catch (err) {
+    out.className = "pv-result err"; out.textContent = err.message;
+  } finally {
+    document.getElementById("r-status").textContent = "";
+    syncReimageButton();
+    loadMachines();
+  }
+});
+</script>
+</body>
+</html>

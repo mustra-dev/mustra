@@ -466,6 +466,15 @@ const NAV_TREE = [
       { label: "Self Service", href: "/catalog", hash: "items", icon: "bag", desc: "What endpoints may install themselves (lives under Deploy), and the requests waiting on you." },
     ] },
 
+  { label: "Provisioning", href: "/provisioning", icon: "download", perm: "deploy.manage", group: "shared",
+    desc: "Install an operating system over the network, and reimage an endpoint, with the agent enrolled at first boot.", sub: [
+      { label: "Installs", hash: "installs", icon: "list", desc: "Every network install: when it booted, fetched its answer file, finished and enrolled." },
+      { label: "Machines", hash: "machines", icon: "clients", desc: "MAC addresses the boot server knows, their image, and whether they install at the next boot." },
+      { label: "Reimage", hash: "reimage", icon: "sync", desc: "Erase and reinstall one endpoint; waits for a second person's approval." },
+      { label: "Images", hash: "images", icon: "box", desc: "Installers: Ubuntu, Debian and Windows, their boot files and answer templates." },
+      { label: "Settings", hash: "settings", perm: "settings.manage", icon: "settings", desc: "Turn the boot server on, where machines reach it, and how to chainload iPXE from DHCP." },
+    ] },
+
   { label: "Comply", href: "/compliance", icon: "comply", group: "modules",
     desc: "Benchmark checks and known vulnerabilities across the fleet.", sub: [
       { label: "Findings", hash: "findings", icon: "search", desc: "Every benchmark check result, worst first." },

@@ -34,7 +34,7 @@ import (
 
 // Modules that can be scoped and gated. Keys are stable: they appear in
 // action_groups.module and approval_policies.module.
-var accessModules = []string{"deploy", "patches", "playbooks", "shell", "enforce", "reveal", "mdm"}
+var accessModules = []string{"deploy", "patches", "playbooks", "shell", "enforce", "reveal", "mdm", "provisioning"}
 
 func validModule(m string) bool {
 	for _, v := range accessModules {
@@ -528,6 +528,20 @@ func approvalGranted(ctx context.Context) (string, bool) {
 	return id, ok
 }
 
+// mandatoryApprovalKey marks an operation that waits for approval even
+// when no configured policy covers it (a reimage): the policy it carries
+// is the one it waits under then.
+type mandatoryApprovalKey struct{}
+
+func withMandatoryApproval(ctx context.Context, p *store.ApprovalPolicy) context.Context {
+	return context.WithValue(ctx, mandatoryApprovalKey{}, p)
+}
+
+func mandatoryApproval(ctx context.Context) (*store.ApprovalPolicy, bool) {
+	p, ok := ctx.Value(mandatoryApprovalKey{}).(*store.ApprovalPolicy)
+	return p, ok && p != nil
+}
+
 // parkedRequest is an operation held for a decision, stored whole so that
 // approving it runs what was actually asked for rather than something
 // rebuilt from a summary.
@@ -612,14 +626,19 @@ func (s *Server) requireApproval(w http.ResponseWriter, r *http.Request, module,
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return true
 	}
+	mandatory, always := mandatoryApproval(r.Context())
 	if policy == nil {
-		return false
+		if !always {
+			return false
+		}
+		policy = mandatory
 	}
 	// A token cannot wait for somebody to decide, and running anyway is
 	// exactly what the policy exists to prevent. Only a token an
-	// administrator explicitly marked approval-exempt goes through.
+	// administrator explicitly marked approval-exempt goes through, and
+	// not even that for an operation that always needs approval.
 	if tok, isToken := auth.Token(r.Context()); isToken || auth.CurrentUser(r.Context()).ID == auth.APITokenUserID {
-		if tok != nil && tok.ApprovalExempt {
+		if tok != nil && tok.ApprovalExempt && !always {
 			s.audit(r.Context(), auditEvent{Action: module + ".approval_bypassed", Actor: auth.CurrentUser(r.Context()).Username,
 				Target: summary, Severity: "warning", Detail: map[string]any{"policy": policy.Name, "token": tok.ID}})
 			return false

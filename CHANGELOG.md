@@ -8,7 +8,7 @@ rather than a page that can drift from it.
 
 Server and agent: the Self Service category column, Enforce's `u:` rules (Linux Firewall
 policies), Ansible playbook policies, Windows driver, feature-update and Hotpatch handling,
-SaaS Experience measurements, network surveys, and the Debian-family patching fix below need this agent
+SaaS Experience measurements, network surveys, setting the next boot for a reimage, and the Debian-family patching fix below need this agent
 release; everything else is server only and works with current agents. No manual migration is
 needed: the server adds its new tables and columns on start.
 
@@ -232,6 +232,27 @@ needed: the server adds its new tables and columns on start.
   interfaces per device, and a per-run status list. Server and agent: endpoints need this agent to
   run surveys; an older agent's run is reported as "agent too old". The new tables are created on
   server start.
+- **OS provisioning: network boot and reimaging** (Provisioning, off until an
+  administrator turns it on). An image catalog of Ubuntu (autoinstall), Debian
+  (preseed) and Windows (WinPE with wimboot, Setup from your share) installers,
+  each with boot files by URL or upload and an answer template. Machines are MAC
+  addresses with an image, variables and a one-shot **install next boot**; the
+  server answers iPXE with a per-machine script, and any machine nobody armed is
+  sent to its own disk. Answer files are rendered per machine, fetched once with an
+  expiring per-install token, and carry a single-use enrollment token so the new
+  system enrolls its agent at first boot. **Installs** shows each boot, the
+  installer's reports and the enrollment. The boot endpoints can listen on their own
+  address (`MUSTRA_BOOT_HTTP_ADDR`), be limited to source networks, and are rate
+  limited. mustra runs no DHCP or TFTP server: the deployment guide shows how to
+  chainload iPXE, with a proxy-DHCP example.
+- **Reimage an endpoint** (`POST /api/agents/{id}/reimage`): one endpoint, its
+  hostname typed to confirm, always waiting for a second person's approval (a
+  `provisioning` approval policy, or a built-in one), audited. The agent sets the
+  next boot to the network once (`efibootmgr` on Linux, `bcdedit` on Windows, UEFI
+  only) and restarts; otherwise the answer says to pick network boot at the console.
+  Setting the next boot needs the new agent; with an older one the machine is armed
+  and the network boot is chosen by hand. The server needs the upgrade; the schema
+  adds three tables on start.
 
 ### Changed
 - An approval request records the person behind it and, when a token asked, the token. The
