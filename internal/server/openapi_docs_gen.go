@@ -470,6 +470,52 @@ var typeDocs = map[string]typeDoc{
 			"Action": "Action marks a request_* tool: it filed an approval request.",
 		},
 	},
+	"github.com/mustra-dev/mustra/internal/server.anomalyDetailResponse": {
+		Doc: "anomalyDetailResponse is what GET /api/anomalies/{id} answers: the anomaly, and what to draw it against.",
+		Fields: map[string]string{
+			"Band":     "Baseline is the endpoint's current baseline for the metric, and Band the normal range it gives (Ready false while learning).",
+			"Baseline": "Baseline is the endpoint's current baseline for the metric, and Band the normal range it gives (Ready false while learning).",
+			"Hours":    "Samples are the last day's five-minute values; Hours the hourly medians, lows and highs over the baseline window.",
+			"Others":   "Others are the endpoint's other open anomalies.",
+			"Ready":    "Baseline is the endpoint's current baseline for the metric, and Band the normal range it gives (Ready false while learning).",
+			"Samples":  "Samples are the last day's five-minute values; Hours the hourly medians, lows and highs over the baseline window.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.anomalyGroupView": {
+		Doc: "anomalyGroupView is the same anomaly on several endpoints.",
+		Fields: map[string]string{
+			"Active": "Active is how many are neither acknowledged nor suppressed.",
+			"Change": "Change is a change most of the group went through in the day before, when at least two and at least half did.",
+			"ID":     "ID is the metric and direction (\"cpu-high\"): stable, so a group has a URL (/anomalies?group=cpu-high) whatever its members.",
+			"Rank":   "Rank is the active members' severity scores summed: average severity times endpoints affected.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.anomalyMetricView": {
+		Doc: "anomalyMetricView describes one judged metric for the page.",
+		Fields: map[string]string{
+			"Sensor": "empty for the endpoint's own facts",
+			"Source": "Source says where the value comes from on each platform.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.anomalyPoint": {
+		Doc: "anomalyPoint is one point of a chart.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.anomalySuppressionView": {
+		Doc: "anomalySuppressionView is a suppression with its group's name.",
+		Fields: map[string]string{
+			"GroupName": "GroupName is the computer group's name; empty with GroupID set means the group was deleted and the suppression covers nothing.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.anomalyView": {
+		Doc: "anomalyView is one anomaly as the console shows it.",
+		Fields: map[string]string{
+			"BandHi":        "BandLo and BandHi are the normal range at the baseline the anomaly opened on.",
+			"BandLo":        "BandLo and BandHi are the normal range at the baseline the anomaly opened on.",
+			"Group":         "Group is the fleet group this anomaly belongs to (its metric and direction, \"cpu-high\"), as in /anomalies?group=.",
+			"Suppressed":    "Suppressed is set when a suppression covers this anomaly; SuppressionID names it.",
+			"SuppressionID": "Suppressed is set when a suppression covers this anomaly; SuppressionID names it.",
+		},
+	},
 	"github.com/mustra-dev/mustra/internal/server.applyClientProfilesResponse": {
 		Doc: "applyClientProfilesResponse is what POST /api/clients/profiles/apply answers.",
 	},
