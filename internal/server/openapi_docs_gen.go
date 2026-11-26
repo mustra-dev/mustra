@@ -256,10 +256,15 @@ var typeDocs = map[string]typeDoc{
 	"github.com/mustra-dev/mustra/internal/proto.PatchInfo": {
 		Doc: "PatchInfo is one available (not yet applied) OS patch/update, one row of a QueryKindPatches / SensorPatches result. The field names are deliberately package-manager-neutral (Name/CurrentVersion/NewVersion) since Linux (apt/dnf), macOS (softwareupdate), and Windows (Windows Update) all report this differently — see internal/agent/patches.go for how each OS's native listing maps onto it.",
 		Fields: map[string]string{
+			"Category":        "Category sets apart what Windows Update offers besides quality and security updates: PatchCategoryDriver or PatchCategoryFeature. Empty is an ordinary update, and is all an agent that predates the split (or any non-Windows agent) ever reports, so an older peer reads exactly as before. Drivers and feature updates are installed only when a patch list opts in to them.",
 			"CurrentVersion":  "empty on Windows — Windows Update doesn't expose a comparable \"installed version\" for a pending update",
+			"Driver":          "Driver describes a driver update (Category \"driver\").",
+			"Hotpatch":        "Hotpatch: a Windows hotpatch, which installs and takes effect without a restart.",
 			"Name":            "package name, or the Windows Update KB/title",
 			"RestartRequired": "RestartRequired: installing it restarts the machine, where the OS says so up front (macOS \"Action: restart\"). Agents before 0.57.8 never set it.",
 			"Severity":        "best-effort: \"security\" | \"\" (unknown/not distinguished on this OS)",
+			"TargetProduct":   "TargetVersion is the Windows version a feature update moves to (\"24H2\"), TargetProduct the product it is (\"Windows 11\"). Empty when the title named neither; such a feature update is never installed.",
+			"TargetVersion":   "TargetVersion is the Windows version a feature update moves to (\"24H2\"), TargetProduct the product it is (\"Windows 11\"). Empty when the title named neither; such a feature update is never installed.",
 		},
 	},
 	"github.com/mustra-dev/mustra/internal/proto.PerformanceInfo": {
