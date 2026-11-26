@@ -1,0 +1,22 @@
+{
+  "name": "Clear and restart the print spooler",
+  "version": 1,
+  "category": "Printing",
+  "summary": "Stops the print spooler, removes every queued print job, and starts it again: the fix for a stuck print queue.",
+  "risk": "medium",
+  "risk_note": "Every job waiting to print on this endpoint is lost and has to be sent again. A spooler that has been disabled (often deliberately, as hardening against print-spooler vulnerabilities) is left disabled.",
+  "timeout_seconds": 300,
+  "changes": {
+    "windows": [
+      "Stops the Print Spooler service (and the services that depend on it).",
+      "Deletes the queued job files from the spool directory (%SystemRoot%\\System32\\spool\\PRINTERS, or the one configured in the registry). Printers, drivers and their settings are untouched.",
+      "Starts the spooler and any dependent service that was running. Does nothing on an endpoint whose spooler is disabled or absent."
+    ],
+    "linux": [
+      "Cancels every queued job on every CUPS printer (cancel -a) and restarts CUPS. Printers and their settings are untouched. Does nothing where CUPS is not installed."
+    ],
+    "darwin": [
+      "Cancels every queued job on every printer (cancel -a) and restarts cupsd. Printers and their settings are untouched."
+    ]
+  }
+}

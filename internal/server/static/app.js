@@ -580,6 +580,7 @@ const NAV_TREE = [
     desc: "Several things in order, per endpoint — patch, wait for the reboot, verify, tell the person.", sub: [
       { label: "Playbooks", hash: "playbooks", icon: "list", desc: "The flows you have written, and what each one targets." },
       { label: "Runs", hash: "runs", icon: "clock", desc: "Every run, live while it is going and afterwards." },
+      { label: "Remediations", hash: "remediations", icon: "book", desc: "Curated fixes for common endpoint problems, ready to import as a playbook or run on chosen endpoints." },
       { label: "Triggers", hash: "triggers", perm: "deploy.manage", icon: "rocket", desc: "What starts a playbook other than a clock — a Guide item, or something posting to a URL." },
       { label: "Approvals", hash: "approvals", icon: "lock", desc: "Runs stopped at an approval step, waiting on a second person." },
     ] },
@@ -4279,6 +4280,7 @@ const SECTION_HELP = {
   "Saved queries": "Questions saved for reuse, in dashboards or by anyone with access.",
   "Playbooks": "Multi-step runbooks done in order per endpoint: patch, wait for the reboot, verify, tell the user.",
   "Runs": "Each time a playbook ran: on which endpoints, and how far each got.",
+  "Remediation gallery": "Curated fixes shipped with mustra. Each says what it changes on every platform and how risky it is; import one as a playbook, or run it on endpoints you choose.",
   "New trigger": "Start a playbook automatically from an event or a schedule, rather than by hand.",
   "Endpoint patch readiness": "How ready the fleet is to patch: endpoints up to date, needing updates, or not able to scan.",
   "Devices": "Each endpoint's pending updates. Tick endpoints to patch them together, or use Apply patches on one.",

@@ -1,0 +1,16 @@
+{
+  "name": "Repair the WMI repository",
+  "version": 1,
+  "category": "System",
+  "summary": "Checks the WMI repository for consistency and, only if it is inconsistent, salvages it. It never resets the repository.",
+  "risk": "low",
+  "risk_note": "A consistent repository is left untouched. Salvaging merges what can be read into a rebuilt repository and briefly restarts WMI, which can interrupt monitoring and management tools for a moment. If salvage is not enough the run fails and says so: resetting the repository (which discards every third-party WMI registration) is deliberately left to a person.",
+  "timeout_seconds": 900,
+  "changes": {
+    "windows": [
+      "Runs winmgmt /verifyrepository.",
+      "Only if that reports an inconsistent repository: runs winmgmt /salvagerepository and verifies again.",
+      "Never runs winmgmt /resetrepository."
+    ]
+  }
+}

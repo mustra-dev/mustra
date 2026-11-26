@@ -1,0 +1,26 @@
+{
+  "name": "Restart a service",
+  "version": 1,
+  "category": "Services",
+  "summary": "Restarts one named service and confirms it is running again: a Windows service, a systemd unit, or a macOS launchd system daemon.",
+  "risk": "medium",
+  "risk_note": "Whatever the service does is interrupted while it restarts, and on Windows services that depend on it are restarted with it. A disabled or masked service is refused rather than started. The mustra agent's own service is refused too: restarting it would end this job before it could report.",
+  "timeout_seconds": 300,
+  "changes": {
+    "windows": [
+      "Restarts the service with that name (or, failing that, that display name) and starts again any dependent service that was running.",
+      "Refuses a disabled service, a name with wildcard characters, and the mustra agent."
+    ],
+    "linux": [
+      "Runs systemctl restart on the unit (.service is assumed when no suffix is given) and checks it is active afterwards; uses service or rc-service where systemd is not running.",
+      "Refuses a unit that does not exist or is masked, and the mustra agent."
+    ],
+    "darwin": [
+      "Runs launchctl kickstart -k on the launchd system daemon with that label (for example com.openssh.sshd).",
+      "Refuses a label that is not loaded in the system domain, and the mustra agent."
+    ]
+  },
+  "parameters": [
+    {"name": "service", "label": "Service name (Windows service, systemd unit or launchd label)", "type": "text", "required": true}
+  ]
+}

@@ -979,6 +979,39 @@ fired" is byte-for-byte identical — `200 {"accepted": false}` — so a token
 that does not exist cannot be told apart from a real one inside its cooldown.
 A guesser who can tell those apart has just been told the token is right.
 
+#### The remediation gallery
+
+Playbooks → Remediations is a set of fixes for problems every fleet has:
+free disk space, reset the Windows Update components, repair the WMI
+repository, flush DNS, restart a named service, clear the print spooler,
+renew the DHCP lease, rebuild the search index, recover an interrupted
+dpkg, fix time synchronisation. They are maintained in mustra's source,
+one directory each under `internal/server/remediations`, and reviewed like
+any other code that runs as administrator on endpoints. Each says, per
+platform, exactly what it changes and how risky that is, and shows the
+script it runs. Deleting is limited to temp files and caches; anything
+more drastic is renamed rather than removed (the Windows Update store),
+refused (a disabled spooler or service, the agent's own service) or left
+to a person (resetting WMI, breaking a dpkg lock).
+
+**A fix is not a second way of running things.** Importing one creates an
+ordinary action package with a published version and a one-step playbook
+that runs it, so approvals, management rights, content sets, the audit
+trail and the per-endpoint outcome are the same as for a package and
+playbook somebody wrote. **Run** makes or refreshes just the package and
+opens the deploy window on it, where targets and inputs are chosen; the
+package is marked to need named endpoints or groups, so one click cannot
+mean the whole fleet. Both need `deploy.manage`, as any operator-chosen
+code on endpoints does. A required input (the service to restart) has to
+be given at import, because a playbook runs without asking.
+
+Importing is idempotent. The server remembers which gallery version each
+fix was imported at and what it became; importing again creates only what
+was deleted since, and when a release ships a newer version the card
+offers **Update**, which publishes it to the existing package. The
+playbook follows the package's latest version, so it runs the update from
+then on, while schedules pinned to the old version keep it.
+
 ## Enforce — holding a setting in place
 
 Comply tells you the firewall is off. Enforce turns it back on, on a timer,

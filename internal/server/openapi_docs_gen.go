@@ -1522,6 +1522,35 @@ var typeDocs = map[string]typeDoc{
 	"github.com/mustra-dev/mustra/internal/server.recoveryKeyView": {
 		Doc: "recoveryKeyView is an entry of what GET /api/enforce/recovery-keys answers.",
 	},
+	"github.com/mustra-dev/mustra/internal/server.remediationImportRequest": {
+		Doc: "remediationImportRequest is the body of POST /api/remediations/{id}/import. Every field is optional.",
+		Fields: map[string]string{
+			"GroupID":     "GroupID is the computer group the imported playbook targets. Empty means every endpoint (narrowed, as always, by the caller's management rights and any approval policy when it runs).",
+			"PackageOnly": "PackageOnly imports or updates the action package and creates no playbook: what the gallery's Run does before opening the deploy window, which asks for targets and inputs itself.",
+			"Params":      "Params are the playbook step's inputs; required when the entry has a required parameter, since a playbook runs without asking.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.remediationImportResponse": {
+		Doc: "remediationImportResponse is what POST /api/remediations/{id}/import answers.",
+		Fields: map[string]string{
+			"Status": "Status: imported (something was created), updated (a newer gallery version was published to the existing package) or unchanged.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.remediationImportState": {
+		Doc: "remediationImportState is what became of an imported entry.",
+		Fields: map[string]string{
+			"UpdateAvailable": "UpdateAvailable: the gallery has a newer version than the one imported, or the imported package has since been deleted.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.remediationItem": {
+		Doc: "remediationItem is one gallery entry as GET /api/remediations lists it.",
+		Fields: map[string]string{
+			"Imported": "Imported is set once the entry has been imported.",
+			"Risk":     "Risk is low, medium or high; RiskNote says what can go wrong.",
+			"RiskNote": "Risk is low, medium or high; RiskNote says what can go wrong.",
+			"Scripts":  "Scripts is the source each platform runs, so it can be read before anything is imported.",
+		},
+	},
 	"github.com/mustra-dev/mustra/internal/server.remediationResponse": {
 		Doc: "remediationResponse is what GET /api/risk/remediation answers.",
 	},
@@ -1530,6 +1559,9 @@ var typeDocs = map[string]typeDoc{
 			"PatchPending":         "PatchPending: endpoints whose patches sensor lists an update for this package right now, so \"Deploy now\" would fix it.",
 			"PatchPendingAgentIDs": "PatchPendingAgentIDs: the agent IDs of those endpoints, parallel to patch_pending. Deploy pending patches targets these, not hostnames, which two endpoints can share.",
 		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.remediationsResponse": {
+		Doc: "remediationsResponse is what GET /api/remediations answers.",
 	},
 	"github.com/mustra-dev/mustra/internal/server.remoteConfigResponse": {
 		Doc: "remoteConfigResponse is what GET /api/remote/config answers: jit and recording for Guacamole, the connection settings for someone who may change them.",

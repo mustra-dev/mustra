@@ -1,0 +1,21 @@
+{
+  "name": "Recover an interrupted dpkg",
+  "version": 1,
+  "category": "Updates",
+  "summary": "Finishes package installations that were interrupted (dpkg --configure -a) and, optionally, completes missing dependencies, without ever deleting lock files or removing packages.",
+  "risk": "medium",
+  "risk_note": "Packages left half-configured are configured now, which runs their maintainer scripts and can restart the services they provide. Where a package's configuration file was changed locally, the local version is kept. If another package operation is running, the remediation waits and then gives up instead of breaking its lock; if fixing dependencies would remove a package, it stops and says so.",
+  "timeout_seconds": 3600,
+  "changes": {
+    "linux": [
+      "Waits (up to the time you choose) for any running dpkg, apt or unattended-upgrades to finish. Lock files are never deleted.",
+      "Runs dpkg --configure -a, keeping locally modified configuration files (--force-confdef --force-confold).",
+      "If that option is on, runs apt-get -f install with --no-remove, so missing dependencies are installed but no package is ever removed.",
+      "Reports dpkg --audit before and after. Does nothing where dpkg is not installed."
+    ]
+  },
+  "parameters": [
+    {"name": "wait_seconds", "label": "Wait this long for a running package operation (seconds)", "type": "numeric", "default": "600", "min": 0, "max": 3000},
+    {"name": "fix_dependencies", "label": "Also install missing dependencies (never removes packages)", "type": "checkbox", "default": "true"}
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "name": "Renew the DHCP lease",
+  "version": 1,
+  "category": "Network",
+  "summary": "Asks the DHCP server to renew the lease on every interface that gets its address from DHCP. Interfaces with a fixed address are left alone.",
+  "risk": "medium",
+  "risk_note": "If the DHCP server now hands out a different address, connections using the old one drop, and the endpoint may be briefly unreachable. The lease is renewed, never released first, so an endpoint whose DHCP server is down keeps its current address. On NetworkManager the connection is re-activated, which interrupts it for a second or two.",
+  "timeout_seconds": 300,
+  "changes": {
+    "windows": [
+      "Calls RenewDHCPLease on each enabled adapter that uses DHCP. Nothing is released first."
+    ],
+    "linux": [
+      "systemd-networkd: networkctl renew on each configured link.",
+      "NetworkManager: re-activates each connected Ethernet or Wi-Fi device that holds a DHCP lease.",
+      "dhcpcd: dhcpcd --renew.",
+      "Fails with an explanation where only another DHCP client (such as dhclient from ifupdown) manages the interfaces, rather than risk releasing the address."
+    ],
+    "darwin": [
+      "Runs ipconfig set <interface> DHCP on each active interface that holds a DHCP lease, which makes it request the lease again."
+    ]
+  }
+}

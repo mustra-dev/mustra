@@ -1,0 +1,22 @@
+{
+  "name": "Flush the DNS cache",
+  "version": 1,
+  "category": "Network",
+  "summary": "Clears the endpoint's local DNS resolver cache so stale or poisoned answers are looked up again.",
+  "risk": "low",
+  "risk_note": "Names are resolved afresh, so the next few lookups are a little slower. No configuration changes.",
+  "timeout_seconds": 120,
+  "changes": {
+    "windows": [
+      "Runs ipconfig /flushdns, clearing the DNS Client service's cache."
+    ],
+    "linux": [
+      "Flushes systemd-resolved's cache (resolvectl flush-caches) where it is running.",
+      "Invalidates nscd's hosts cache where nscd is running, and sends dnsmasq the signal that clears its cache where it is running.",
+      "Reports that there is nothing to flush when none of these runs: most Linux systems without them do not cache DNS locally."
+    ],
+    "darwin": [
+      "Runs dscacheutil -flushcache and signals mDNSResponder to drop its cache."
+    ]
+  }
+}

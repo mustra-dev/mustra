@@ -114,3 +114,10 @@ Open work, kept here so it can be picked up. Add to it when deferring something,
 - [ ] Let an operator release a run held back after a failed health check, rather than starting a new deployment for the endpoints it cancelled.
 - [ ] Hold scheduled patch runs too, not only the waiting actions of the run that failed: the schedule firing again still rolls the same kernel to more endpoints.
 - [ ] Optional application probes (an HTTP URL or TCP port per endpoint or group) for apps whose systemd unit stays active while the app is broken.
+
+## Remediation gallery
+
+- [ ] Run each fix on real Windows, Linux (Debian/Ubuntu, RHEL-family, with systemd-networkd and NetworkManager) and macOS endpoints and record the result. The scripts were parse-checked (PowerShell) and linted (shellcheck) while writing them; the tests check their conventions, not their behaviour on those platforms.
+- [ ] Offer a fix from where the problem shows: a "Run a remediation" action on the endpoint page (pre-selecting the endpoint in the deploy window through `?agents=`) and from Guide items such as low disk space.
+- [ ] Say on the gallery when the imported package or playbook was edited after import, so **Update** can warn that it publishes over a locally changed version rather than beside it.
+- [ ] A gallery update that adds a required input leaves an imported playbook without a value for it; its next run is refused at the step. Ask for the new input when updating.

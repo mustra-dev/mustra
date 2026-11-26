@@ -1,0 +1,25 @@
+{
+  "name": "Fix time synchronisation",
+  "version": 1,
+  "category": "System",
+  "summary": "Makes sure the endpoint's time service is running and synchronises the clock now against the time sources it is already configured to use.",
+  "risk": "medium",
+  "risk_note": "A clock that is far off is stepped to the right time at once, which can confuse software in the middle of timing something. Configured time servers are never changed. On Linux and macOS network time is switched on if it was off; a Windows time service disabled by policy is left alone and reported.",
+  "timeout_seconds": 300,
+  "changes": {
+    "windows": [
+      "Starts the Windows Time service if it is stopped.",
+      "Runs w32tm /resync /force, and if that finds no time source, w32tm /config /update and w32tm /resync /rediscover. The configured time sources (or the domain hierarchy) are not changed.",
+      "Reports w32tm /query /status. Refuses, with an explanation, if the service is disabled."
+    ],
+    "linux": [
+      "chrony: starts it (and enables it at boot) if it is not running, takes a burst of measurements and steps the clock (chronyc makestep).",
+      "systemd-timesyncd: switches network time on (timedatectl set-ntp true) and restarts the service.",
+      "ntpd: restarts it so it re-syncs.",
+      "Fails with an explanation where no time service is installed."
+    ],
+    "darwin": [
+      "Switches network time on and synchronises against the configured time server (sntp -sS)."
+    ]
+  }
+}

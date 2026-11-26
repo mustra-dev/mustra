@@ -782,6 +782,10 @@ var bodyExamples = map[string]string{
 	// One endpoint among those the playbook targets; it never adds one.
 	"POST /api/playbooks/{id}/run": `{"agent_ids": ["agt-4f2a9c1e7b3d48e6a05c9d2f81b7e3a4"]}`,
 
+	// remediations: imports the service-restart fix as a playbook aimed at
+	// one group. Importing deploys nothing.
+	"POST /api/remediations/{id}/import": `{"group_id": "cgrp-1c8e4a2f6b9d43e7a5c0f2b8d6e4a1c3", "params": {"service": "Spooler"}}`,
+
 	// query
 	"POST /api/query": `{"kind": "services", "agent_id": "agt-4f2a9c1e7b3d48e6a05c9d2f81b7e3a4"}`,
 

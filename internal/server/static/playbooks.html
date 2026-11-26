@@ -57,6 +57,47 @@
   .pb-edge b { color: var(--text); font-weight: 600; }
   .pb-edge.branch { border-left-style: dashed; color: var(--off); }
   .pb-end { margin: 0 0 0 22px; padding: 5px 0 0 16px; font-size: var(--fs-meta); color: var(--text-muted); }
+  /* Remediation gallery */
+  .rg-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+  .rg-toolbar input[type=search] { flex: 1 1 220px; min-width: 0; padding: 7px 10px; border-radius: var(--radius-md);
+    border: 1px solid var(--border-input); background: var(--input-bg); color: var(--text); font: inherit; font-size: 13px; }
+  .rg-toolbar select { padding: 7px 10px; border-radius: var(--radius-md); border: 1px solid var(--border-input);
+    background: var(--input-bg); color: var(--text); font: inherit; font-size: 13px; }
+  .rg-count { font-size: var(--fs-meta); color: var(--text-muted); margin-left: auto; }
+  .rg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 12px; }
+  .rg-card { display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px 16px; background: var(--surface); min-width: 0; }
+  .rg-head { display: flex; align-items: flex-start; gap: 10px; }
+  .rg-name { margin: 0; font-size: 14.5px; font-weight: 600; line-height: 1.35; flex: 1; }
+  .rg-risk { font-size: var(--fs-meta); font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .rg-risk-low { background: var(--ok-bg); color: var(--ok); }
+  .rg-risk-medium { background: var(--warn-bg); color: var(--warn); }
+  .rg-risk-high { background: var(--off-bg); color: var(--off); }
+  .rg-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: var(--fs-meta); color: var(--text-muted); }
+  .rg-meta .os-logo { display: inline-flex; width: 14px; height: 14px; }
+  .rg-meta .os-logo svg { width: 14px; height: 14px; }
+  .rg-os { display: inline-flex; align-items: center; gap: 5px; }
+  .rg-sum { margin: 0; font-size: 13px; line-height: 1.5; }
+  .rg-state { font-size: var(--fs-meta); color: var(--text-muted); }
+  .rg-state.is-update { color: var(--warn); font-weight: 600; }
+  .rg-details summary { cursor: pointer; font-size: 12.5px; color: var(--accent); }
+  .rg-details[open] summary { margin-bottom: 8px; }
+  .rg-details h4 { margin: 10px 0 4px; font-size: var(--fs-meta); text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
+  .rg-details ul { margin: 0; padding-left: 18px; font-size: 12.5px; line-height: 1.5; }
+  .rg-details p { margin: 0; font-size: 12.5px; line-height: 1.5; }
+  .rg-details pre { max-height: 320px; overflow: auto; margin: 6px 0 0; padding: 10px; border-radius: var(--radius-md);
+    background: var(--surface-2); font-family: var(--mono); font-size: 11.5px; line-height: 1.45; white-space: pre; }
+  .rg-script summary { color: var(--text); font-size: 12.5px; }
+  .rg-actions { display: flex; gap: 8px; margin-top: auto; padding-top: 4px; }
+  .rg-empty { grid-column: 1 / -1; color: var(--text-muted); padding: 16px 4px; font-size: 13px; }
+  .rg-form .field { margin-bottom: 12px; }
+  .rg-form .modal-note { margin: 0 0 14px; }
+  .rg-form label { display: block; font-size: var(--fs-meta); color: var(--text-muted); margin-bottom: 4px; }
+  .rg-form label.rg-check { display: flex; gap: 8px; align-items: center; color: var(--text); font-size: 13px; }
+  .rg-form input:not([type=checkbox]), .rg-form select { width: 100%; padding: 8px 10px; border-radius: var(--radius-md);
+    border: 1px solid var(--border-input); background: var(--input-bg); color: var(--text); font: inherit; font-size: 13px; }
+  .rg-form-status { font-size: 12.5px; min-height: 1.4em; margin-top: 8px; }
+  .rg-form-status.is-error { color: var(--off); }
 </style>
 </head>
 <body>
@@ -181,6 +222,31 @@
       </div>
     </div>
 
+    <div class="module-section" id="section-remediations" hidden>
+      <div class="panel">
+        <div class="panel-header"><h2>Remediation gallery</h2><span class="scan-status" id="rg-status"></span></div>
+        <p class="hint">
+          Fixes for common endpoint problems, written and reviewed as part of mustra, each with what it changes on every
+          platform and how risky that is. <b>Import</b> copies one into your playbooks: an ordinary action package and a
+          one-step playbook that runs it, which you can edit like your own. <b>Run</b> opens the deploy window on that
+          package, so you choose the endpoints or groups. Approval policies, management rights and the audit trail
+          apply either way, and nothing runs until you say so. Read the script before running it on anything important.
+        </p>
+        <div class="rg-toolbar">
+          <input type="search" id="rg-q" placeholder="Search by name, problem or command" aria-label="Search the remediation gallery">
+          <div class="seg" role="radiogroup" aria-label="Platform" id="rg-os">
+            <button type="button" role="radio" aria-checked="true" data-os="">All</button>
+            <button type="button" role="radio" aria-checked="false" data-os="windows">Windows</button>
+            <button type="button" role="radio" aria-checked="false" data-os="linux">Linux</button>
+            <button type="button" role="radio" aria-checked="false" data-os="darwin">macOS</button>
+          </div>
+          <select id="rg-cat" aria-label="Category"><option value="">All categories</option></select>
+          <span class="rg-count" id="rg-count" aria-live="polite"></span>
+        </div>
+        <div class="rg-grid" id="rg-grid"><div class="rg-empty">loading…</div></div>
+      </div>
+    </div>
+
     <div class="module-section" id="section-triggers" hidden>
       <div class="panel">
         <div class="panel-header"><h2>Triggers</h2><span class="scan-status" id="tg-status"></span></div>
@@ -293,6 +359,7 @@ document.addEventListener("mustra:user", (e) => {
   initModuleSections([
     { hash: "playbooks", label: "Playbooks" },
     { hash: "runs", label: "Runs" },
+    { hash: "remediations", label: "Remediations" },
     { hash: "triggers", label: "Triggers" },
     { hash: "approvals", label: "Approvals" },
   ]);
@@ -914,6 +981,164 @@ async function loadApprovals() {
 
 let deployRevisions=[];
 fetch('/api/deploy/packages/all/revisions').then(r=>r.ok?r.json():Promise.reject(Error('Cannot load revisions'))).then(d=>{deployRevisions=d.revisions||[];if(typeof renderSteps==='function')renderSteps();}).catch(()=>{});
+</script>
+<script>
+// The remediation gallery (remediations.go). Import makes an action package
+// and a one-step playbook; Run makes or refreshes only the package and hands
+// over to the deploy window on /software, which already knows targets,
+// inputs, approvals and schedules.
+let rgItems = [];
+let rgFilter = { q: "", os: "", cat: "" };
+const RG_RISK = { low: "Low risk", medium: "Medium risk", high: "High risk" };
+
+document.addEventListener("mustra:user", () => {
+  const q = document.getElementById("rg-q");
+  q.addEventListener("input", () => { rgFilter.q = q.value.trim().toLowerCase(); renderGallery(); });
+  document.querySelectorAll("#rg-os button").forEach(b => b.addEventListener("click", () => {
+    rgFilter.os = b.dataset.os;
+    document.querySelectorAll("#rg-os button").forEach(x => x.setAttribute("aria-checked", String(x === b)));
+    renderGallery();
+  }));
+  document.getElementById("rg-cat").addEventListener("change", e => { rgFilter.cat = e.target.value; renderGallery(); });
+  loadGallery();
+});
+
+async function loadGallery() {
+  const resp = await fetch("/api/remediations");
+  if (!resp.ok) {
+    document.getElementById("rg-grid").innerHTML = `<div class="rg-empty">${escapeHtml(resp.status === 403 ? "The gallery needs the deploy.manage permission." : await resp.text())}</div>`;
+    return;
+  }
+  rgItems = (await resp.json()).items || [];
+  const cats = [...new Set(rgItems.map(i => i.category))].sort();
+  const sel = document.getElementById("rg-cat");
+  sel.innerHTML = `<option value="">All categories</option>` + cats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  sel.value = cats.includes(rgFilter.cat) ? rgFilter.cat : "";
+  const updates = rgItems.filter(i => i.imported && i.imported.update_available).length;
+  document.getElementById("rg-status").textContent = `${rgItems.length} fixes · ${rgItems.filter(i => i.imported).length} imported` + (updates ? ` · ${updates} with an update` : "");
+  renderGallery();
+}
+
+function rgMatches(i) {
+  if (rgFilter.os && !i.platforms.includes(rgFilter.os)) return false;
+  if (rgFilter.cat && i.category !== rgFilter.cat) return false;
+  if (!rgFilter.q) return true;
+  const hay = [i.name, i.summary, i.category, ...Object.values(i.changes || {}).flat()].join(" ").toLowerCase();
+  return rgFilter.q.split(/\s+/).every(w => hay.includes(w));
+}
+
+function rgState(i) {
+  const imp = i.imported;
+  if (!imp) return `<div class="rg-state">Not imported yet.</div>`;
+  if (imp.update_available) {
+    return `<div class="rg-state is-update">${imp.package_id ? `Version ${escapeHtml(i.version)} is available; you have ${escapeHtml(imp.version)}.` : "The imported package was deleted; import again to restore it."}</div>`;
+  }
+  const pb = imp.playbook_id ? ` · <a href="/playbooks?edit=${encodeURIComponent(imp.playbook_id)}#playbooks">open the playbook</a>` : "";
+  return `<div class="rg-state">Imported (version ${escapeHtml(imp.version)}) by ${escapeHtml(imp.imported_by || "someone")}${pb}</div>`;
+}
+
+function rgDetails(i) {
+  const changes = i.platforms.map(os => `<h4>${escapeHtml(osLabel(os))}</h4><ul>${(i.changes[os] || []).map(c => `<li>${escapeHtml(c)}</li>`).join("")}</ul>`).join("");
+  const params = (i.parameters || []).length
+    ? `<h4>Inputs</h4><ul>${i.parameters.map(p => `<li>${escapeHtml(p.label || p.name)}${p.required ? " (required)" : p.default !== undefined && p.default !== "" ? ` (default ${escapeHtml(p.default)})` : ""}</li>`).join("")}</ul>` : "";
+  const scripts = i.platforms.map(os => `<details class="rg-script"><summary>${escapeHtml(osLabel(os))} script (${escapeHtml(i.scripts[os].language)})</summary><pre>${escapeHtml(i.scripts[os].source)}</pre></details>`).join("");
+  return `<details class="rg-details"><summary>What it changes, and the scripts</summary>
+    ${changes}<h4>Risk</h4><p>${escapeHtml(i.risk_note)}</p>${params}
+    <h4>Runs for at most</h4><p>${escapeHtml(Math.round(i.timeout_seconds / 60))} minute(s) per endpoint, as administrator.</p>
+    <h4>Scripts</h4>${scripts}</details>`;
+}
+
+function renderGallery() {
+  const grid = document.getElementById("rg-grid");
+  const shown = rgItems.filter(rgMatches);
+  document.getElementById("rg-count").textContent = shown.length === rgItems.length ? "" : `${shown.length} of ${rgItems.length}`;
+  if (!shown.length) { grid.innerHTML = `<div class="rg-empty">No fix matches. Clear the search or pick another platform.</div>`; return; }
+  grid.innerHTML = shown.map(i => {
+    const imp = i.imported;
+    const importLabel = !imp ? "Import" : imp.update_available ? (imp.package_id ? "Update" : "Import again") : imp.playbook_id ? "" : "Add playbook";
+    return `<article class="rg-card" aria-labelledby="rg-n-${escapeHtml(i.id)}">
+      <div class="rg-head"><h3 class="rg-name" id="rg-n-${escapeHtml(i.id)}">${escapeHtml(i.name)}</h3>
+        <span class="rg-risk rg-risk-${escapeHtml(i.risk)}">${escapeHtml(RG_RISK[i.risk] || i.risk)}</span></div>
+      <div class="rg-meta"><span>${escapeHtml(i.category)}</span>
+        ${i.platforms.map(os => `<span class="rg-os">${osLogo(os)}${escapeHtml(osLabel(os))}</span>`).join("")}
+        <span>v${escapeHtml(i.version)}</span></div>
+      <p class="rg-sum">${escapeHtml(i.summary)}</p>
+      ${rgState(i)}
+      ${rgDetails(i)}
+      <div class="rg-actions">
+        ${importLabel ? `<button class="tiny" type="button" data-rg-import="${escapeHtml(i.id)}">${escapeHtml(importLabel)}</button>` : ""}
+        <button class="tiny" type="button" data-rg-run="${escapeHtml(i.id)}">Run…</button>
+      </div></article>`;
+  }).join("");
+  grid.querySelectorAll("[data-rg-import]").forEach(b => b.addEventListener("click", () => openGalleryImport(rgItems.find(i => i.id === b.dataset.rgImport))));
+  grid.querySelectorAll("[data-rg-run]").forEach(b => b.addEventListener("click", () => runFromGallery(rgItems.find(i => i.id === b.dataset.rgRun), b)));
+}
+
+async function rgImport(item, body) {
+  const resp = await fetch(`/api/remediations/${encodeURIComponent(item.id)}/import`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+  if (!resp.ok) throw new Error((await resp.text()).trim() || `HTTP ${resp.status}`);
+  return resp.json();
+}
+
+// An update only publishes the new version to the existing package (the
+// playbook follows it), so it needs no questions.
+async function openGalleryImport(item) {
+  const imp = item.imported;
+  if (imp && imp.package_id && imp.playbook_id) {
+    if (!confirm(`Publish version ${item.version} of ${item.name} to its package? The imported playbook runs it from then on.`)) return;
+    try { await rgImport(item, {}); showToast(`${item.name} updated to version ${item.version}.`, "ok"); }
+    catch (e) { alert(e.message); }
+    loadGallery();
+    return;
+  }
+  const field = p => {
+    const id = `rg-p-${p.name}`;
+    const label = escapeHtml(p.label || p.name) + (p.required ? " (required)" : "");
+    if (p.type === "checkbox") return `<div class="field"><label class="rg-check"><input type="checkbox" id="${escapeHtml(id)}" data-param="${escapeHtml(p.name)}" ${p.default === "false" ? "" : "checked"}> ${label}</label></div>`;
+    if (p.type === "select") return `<div class="field"><label for="${escapeHtml(id)}">${label}</label><select id="${escapeHtml(id)}" data-param="${escapeHtml(p.name)}">${(p.options || []).map(o => `<option${o === p.default ? " selected" : ""}>${escapeHtml(o)}</option>`).join("")}</select></div>`;
+    return `<div class="field"><label for="${escapeHtml(id)}">${label}</label><input id="${escapeHtml(id)}" data-param="${escapeHtml(p.name)}" type="${p.type === "numeric" ? "number" : "text"}" value="${escapeHtml(p.default || "")}"${p.required ? " required" : ""}></div>`;
+  };
+  const onlyOS = item.platforms.length === 1 ? ` It runs only on ${escapeHtml(osLabel(item.platforms[0]))} endpoints.` : "";
+  openModal(`Import ${item.name}`, `<div class="rg-form">
+    <p class="modal-note">Creates an action package and a playbook named <b>${escapeHtml(item.name)}</b>. Nothing runs until somebody runs the playbook.${onlyOS}</p>
+    <div class="field"><label for="rg-group">The playbook targets</label><select id="rg-group">
+      <option value="">Every endpoint (narrowed by your management rights)</option>
+      ${groups.map(g => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)}</option>`).join("")}</select></div>
+    ${(item.parameters || []).map(field).join("")}
+    <div class="panel-actions"><button class="primary" type="button" id="rg-go">Import</button></div>
+    <div class="rg-form-status" id="rg-form-status" role="status"></div></div>`, wrap => {
+    const status = wrap.querySelector("#rg-form-status");
+    const groupSel = wrap.querySelector("#rg-group");
+    if (groups.length) groupSel.value = groups[0].id;
+    wrap.querySelector("#rg-go").addEventListener("click", async e => {
+      const params = {};
+      wrap.querySelectorAll("[data-param]").forEach(el => { params[el.dataset.param] = el.type === "checkbox" ? String(el.checked) : el.value.trim(); });
+      status.className = "rg-form-status"; status.textContent = "Importing…";
+      try {
+        const r = await rgImport(item, { group_id: groupSel.value, params });
+        status.innerHTML = r.playbook_id
+          ? `Imported. <a href="/playbooks?edit=${encodeURIComponent(r.playbook_id)}#playbooks">Open the playbook</a>`
+          : "Imported.";
+        e.target.disabled = true;
+        load();
+        loadGallery();
+      } catch (err) { status.className = "rg-form-status is-error"; status.textContent = err.message; }
+    });
+  });
+}
+
+// Run: make sure the package exists at the gallery's version, then open
+// the deploy window on it. Targets and inputs are chosen there.
+async function runFromGallery(item, btn) {
+  try {
+    await withButtonState(btn, async () => {
+      const r = await rgImport(item, { package_only: true });
+      location.href = `/software?package=${encodeURIComponent(r.package_id)}&deploy=1#actions`;
+    });
+  } catch (e) { alert(e.message); }
+}
 </script>
 </body>
 </html>
