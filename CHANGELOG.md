@@ -8,9 +8,10 @@ rather than a page that can drift from it.
 
 Server and agent: the Self Service category column, Enforce's `u:` rules (Linux Firewall
 policies), Ansible playbook policies, Windows driver, feature-update and Hotpatch handling,
-SaaS Experience measurements, network surveys, setting the next boot for a reimage, and the Debian-family patching fix below need this agent
-release; everything else is server only and works with current agents. No manual migration is
-needed: the server adds its new tables and columns on start.
+SaaS Experience measurements, network surveys, setting the next boot for a reimage, and the
+Debian-family patching fix below need this agent release; everything else is server only and
+works with current agents. No manual migration is needed: the server adds its new tables and
+columns on start.
 
 ### Added
 - **Pick rows in a query result.** Interact results have a checkbox on every row and a

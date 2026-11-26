@@ -259,6 +259,15 @@ var typeDocs = map[string]typeDoc{
 			"SourceVersion": "Source and SourceVersion are the source package a Linux package was built from (dpkg's source:Package and source:Version, apk's origin), when it differs from Name or Version or not. Security advisories for Debian, Ubuntu and Alpine are filed by source package: libssl3t64's are openssl's. Empty from older agents and other platforms; the vulnerability scan then uses Name and Version.",
 		},
 	},
+	"github.com/mustra-dev/mustra/internal/proto.NetBootResult": {
+		Doc: "NetBootResult says how the endpoint was set to boot from the network.",
+		Fields: map[string]string{
+			"Entry":        "Entry is the firmware boot entry chosen, e.g. \"Boot0003 UEFI PXEv4\".",
+			"Instructions": "Instructions, for \"manual\", say what to do at the console.",
+			"Method":       "Method is \"efibootmgr\" (Linux UEFI BootNext), \"bcdedit\" (Windows firmware boot sequence), or \"manual\" when neither applies.",
+			"Restarting":   "Restarting is true when a restart was scheduled.",
+		},
+	},
 	"github.com/mustra-dev/mustra/internal/proto.NetSurveyDevice": {
 		Fields: map[string]string{
 			"BACnetInstance": "BACnetInstance is the device object's instance number; -1 or absent when there is none.",
@@ -2069,6 +2078,22 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/server.recoveryKeyView": {
 		Doc: "recoveryKeyView is an entry of what GET /api/enforce/recovery-keys answers.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.reimageRequest": {
+		Doc: "reimageRequest is the body of POST /api/agents/{id}/reimage.",
+		Fields: map[string]string{
+			"ConfirmHostname": "ConfirmHostname must be the endpoint's hostname, typed.",
+			"MAC":             "MAC is the endpoint's network interface to boot from; it must be one the endpoint reports.",
+			"Restart":         "Restart, default true, restarts the endpoint once its next boot is set. False only sets it, for a restart at a time of somebody's choosing.",
+			"Variables":       "Variables override the image's defaults for this machine. The hostname defaults to the endpoint's.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.reimageResponse": {
+		Doc: "reimageResponse is what POST /api/agents/{id}/reimage answers once the approved request ran.",
+		Fields: map[string]string{
+			"Instructions": "Method is how the endpoint was set to boot from the network: \"efibootmgr\", \"bcdedit\", or \"manual\" when it could not be, with Instructions.",
+			"Method":       "Method is how the endpoint was set to boot from the network: \"efibootmgr\", \"bcdedit\", or \"manual\" when it could not be, with Instructions.",
+		},
 	},
 	"github.com/mustra-dev/mustra/internal/server.remediationImportRequest": {
 		Doc: "remediationImportRequest is the body of POST /api/remediations/{id}/import. Every field is optional.",
