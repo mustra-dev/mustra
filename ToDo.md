@@ -220,6 +220,6 @@ The first slice (#96) is macOS with user-approved enrollment, a per-device ident
 - [ ] Secure Boot: document (or automate) signing iPXE with an enrolled key, or boot shim → GRUB over HTTP for Linux instead of iPXE.
 - [ ] macOS reimage (no supported way to choose a one-time network boot; Apple silicon has none).
 - [ ] BIOS endpoints: the agent cannot choose a one-time network boot there; a temporary boot-order change with automatic restore would be possible on some firmwares.
-- [ ] Tested end to end only with a Debian install in QEMU. Not yet tested: Ubuntu autoinstall end to end, any Windows install, real hardware and firmware boot entries, `bcdedit` on a real Windows endpoint.
+- [ ] Tested end to end only with Debian 12 in QEMU (BIOS, iPXE ROM): install, enrollment, and an approved reimage that fell back to manual network boot. Not yet tested: Ubuntu autoinstall end to end, any Windows install, UEFI (`efibootmgr --bootnext` on a real machine), `bcdedit` on a real Windows endpoint, real hardware, Secure Boot.
 - [ ] Link the new endpoint to the one a reimage replaced (carry over its groups, attributes and history), instead of it enrolling as a new endpoint.
 - [ ] Prune old `provisioning_installs` rows.
