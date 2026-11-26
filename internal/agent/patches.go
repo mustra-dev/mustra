@@ -507,9 +507,34 @@ func applyPatchesLinux(ctx context.Context, nc *gonats.Conn, agentID string, nam
 		}
 		if err == nil && len(names) == 0 && len(kept) > 0 {
 			install := func(pkgs []string) error {
-				return step("installing", func() *exec.Cmd {
+				from := buf.Len()
+				err := step("installing", func() *exec.Cmd {
 					return exec.CommandContext(ctx, "apt-get", append(append([]string{"-y", "install", "--only-upgrade", "--no-remove"}, pkgs...), scopeArgs...)...)
 				})
+				if err == nil || ctx.Err() != nil || !strings.Contains(buf.String()[from:], "remove is disabled") {
+					return err
+				}
+				// A library whose soname changed (libcamera0.7 to
+				// libcamera0.8) ships under a new package name, and apt
+				// must remove the old one to upgrade what uses it. Allow
+				// that removal, and only that: a dry run must show every
+				// package it removes replaced by a new one of the same
+				// library.
+				sim, serr := exec.CommandContext(ctx, "apt-get", append(append([]string{"-s", "install", "--only-upgrade"}, pkgs...), scopeArgs...)...).CombinedOutput()
+				if serr != nil {
+					return err
+				}
+				removed := aptLibraryTransitions(string(sim))
+				if removed == nil {
+					return err
+				}
+				buf.WriteString("\nReplacing old library package(s) " + strings.Join(removed, " ") + " with their new version\n")
+				if err = step("installing", func() *exec.Cmd {
+					return exec.CommandContext(ctx, "apt-get", append(append([]string{"-y", "install", "--only-upgrade"}, pkgs...), scopeArgs...)...)
+				}); err == nil {
+					res.Notes = append(res.Notes, "Removed "+strings.Join(removed, ", ")+", replaced by a newer version of the same library")
+				}
+				return err
 			}
 			from := buf.Len()
 			buf.WriteString("\nInstalling the updates apt upgrade kept back: " + strings.Join(kept, " ") + "\n")
@@ -901,10 +926,18 @@ func parsePatchStep(line string) (stage, detail string, ok bool) {
 //	The following packages have been kept back:
 //	  linux-image-rpi-2712 pve-firewall
 func parseAptKeptBack(out string) []string {
+	return parseAptPackageList(out, "The following packages have been kept back")
+}
+
+// parseAptPackageList lists the package names in the indented block apt
+// prints under a header such as "The following packages will be REMOVED".
+// Architecture qualifiers and the "*" apt adds to purged packages are
+// dropped.
+func parseAptPackageList(out, header string) []string {
 	var kept []string
 	in := false
 	for _, line := range strings.Split(out, "\n") {
-		if strings.HasPrefix(line, "The following packages have been kept back") {
+		if strings.HasPrefix(line, header) {
 			in = true
 			continue
 		}
@@ -914,6 +947,7 @@ func parseAptKeptBack(out string) []string {
 				continue
 			}
 			for _, f := range strings.Fields(line) {
+				f = strings.TrimSuffix(strings.SplitN(f, ":", 2)[0], "*")
 				if !slices.Contains(kept, f) {
 					kept = append(kept, f)
 				}
@@ -921,6 +955,40 @@ func parseAptKeptBack(out string) []string {
 		}
 	}
 	return kept
+}
+
+// aptLibraryTransitions reads a simulated install and returns the
+// packages it removes when every one is a library replaced, in the same
+// transaction, by a new package of the same library under its new soname
+// (libcamera0.7 by libcamera0.8, libssl3 by libssl3t64). Any other
+// removal returns nil, and the install stays refused.
+func aptLibraryTransitions(sim string) []string {
+	removed := parseAptPackageList(sim, "The following packages will be REMOVED")
+	if len(removed) == 0 {
+		return nil
+	}
+	added := parseAptPackageList(sim, "The following NEW packages will be installed")
+	for _, r := range removed {
+		stem := aptLibraryStem(r)
+		if stem == "" || !slices.ContainsFunc(added, func(a string) bool { return a != r && aptLibraryStem(a) == stem }) {
+			return nil
+		}
+	}
+	return removed
+}
+
+// aptLibraryStem is a library package's name without its soname version
+// ("libcamera0.7" -> "libcamera"), or "" for a package that is not a
+// versioned library and so is never removed as part of a transition.
+func aptLibraryStem(name string) string {
+	if !strings.HasPrefix(name, "lib") {
+		return ""
+	}
+	stem := strings.TrimRight(strings.TrimSuffix(name, "t64"), "0123456789.-")
+	if stem == name || len(stem) <= len("lib") || !strings.ContainsAny(name[len(stem):], "0123456789") {
+		return ""
+	}
+	return stem
 }
 
 // aptHeld lists the packages held with apt-mark hold. A failure reads as

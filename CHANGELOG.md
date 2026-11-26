@@ -7,10 +7,10 @@ rather than a page that can drift from it.
 ## Unreleased
 
 Server and agent: the Self Service category column, Enforce's `u:` rules (Linux Firewall
-policies), Ansible playbook policies, Windows driver, feature-update and Hotpatch handling, and
-SaaS Experience measurements need this agent release; everything else is server only and works
-with current agents. No manual migration is needed: the server adds its new tables and columns
-on start.
+policies), Ansible playbook policies, Windows driver, feature-update and Hotpatch handling,
+SaaS Experience measurements, and the Debian-family patching fix below need this agent release;
+everything else is server only and works with current agents. No manual migration is needed:
+the server adds its new tables and columns on start.
 
 ### Added
 - **Pick rows in a query result.** Interact results have a checkbox on every row and a
@@ -217,6 +217,12 @@ on start.
 ### Fixed
 - A token made by another token, for a creator who is not an administrator, could act with
   permissions its parent token had lost. The parent's limit now holds.
+- **Debian/Raspberry Pi patching handles library renames (agent).** When an update moves a
+  library to a new package name (Raspberry Pi OS's `libcamera0.7` → `libcamera0.8`, or
+  Debian's `t64` renames), the packages that use it were kept back and every patch run
+  failed with "Packages need to be removed but remove is disabled". The agent now allows a
+  removal only when a dry run shows each removed library replaced by a newer version of
+  itself in the same install; any other removal is still refused. Needs the new agent.
 
 ## 1.6.2 — 2026-11-19
 
