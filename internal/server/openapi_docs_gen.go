@@ -1870,7 +1870,7 @@ var typeDocs = map[string]typeDoc{
 	"github.com/mustra-dev/mustra/internal/server.runPlaybookRequest": {
 		Doc: "runPlaybookRequest is the optional body of POST /api/playbooks/{id}/run.",
 		Fields: map[string]string{
-			"AgentIDs": "AgentIDs restricts this run to these endpoints, among those the playbook's own targeting reaches. It only narrows: an endpoint the playbook does not target is not added. Omitted, the run reaches every endpoint the playbook targets.",
+			"AgentIDs": "AgentIDs restricts this run to these endpoints, among those the playbook's own targeting reaches, as a fix from a triage item does. It only narrows: an endpoint the playbook does not target is not added, and once the playbook's group is deleted it reaches nothing. Every one must be in inventory; one that is left out (offline, retired, another operating system, or not targeted) is named in the answer. Omitted, the run reaches every endpoint the playbook targets.",
 		},
 	},
 	"github.com/mustra-dev/mustra/internal/server.runPlaybookResponse": {
