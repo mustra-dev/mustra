@@ -226,6 +226,22 @@ func TestSHA512Crypt(t *testing.T) {
 			t.Errorf("sha512Crypt(%q, %q) = %q, want %q", c.pw, c.salt, got, c.want)
 		}
 	}
+	// With an explicit round count: the spec's own vector, and the count
+	// installers get, both checked against glibc's crypt(3).
+	for _, c := range []struct {
+		pw, salt string
+		rounds   int
+		want     string
+	}{
+		{"Hello world!", "saltstringsaltstring", 10000,
+			"$6$rounds=10000$saltstringsaltst$OW1/O6BYHV6BcXZu8QVeXbDWra3Oeqh0sbHbbMCVNSnCM/UrjmM0Dp8vOuZeHBy/YTBmSK6H9qs/y3RnOaw5v."},
+		{"hunter2", "abcdefghABCDEFGH", installerCryptRounds,
+			"$6$rounds=100000$abcdefghABCDEFGH$UBiD2.RUsjOeDpCvjjSfKWc1iOtyvVYgy5ULKUp2fwvq5JwenlaEuOcbbZoTfKHuGe.jKvEMe3OAbCqxHwu6G1"},
+	} {
+		if got := sha512CryptRounds(c.pw, c.salt, c.rounds); got != c.want {
+			t.Errorf("sha512CryptRounds(%q, %q, %d) = %q, want %q", c.pw, c.salt, c.rounds, got, c.want)
+		}
+	}
 	if s := newCryptSalt(); len(s) != 16 || strings.ContainsAny(s, "$:\n") {
 		t.Errorf("bad salt %q", s)
 	}

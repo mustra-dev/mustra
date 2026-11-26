@@ -474,7 +474,7 @@ func (s *Server) renderInstallAnswer(ctx context.Context, cfg provisioningConfig
 		d.MirrorHost, d.MirrorPath = mirrorParts(im.InstallSource)
 		switch {
 		case adminPassword != "":
-			d.AdminPasswordHash = sha512Crypt(adminPassword, newCryptSalt())
+			d.AdminPasswordHash = sha512CryptRounds(adminPassword, newCryptSalt(), installerCryptRounds)
 		case d.SSHKey != "":
 			// No password: the account is reachable by its SSH key only.
 			d.AdminPasswordHash = "!"

@@ -3,8 +3,15 @@ package server
 import (
 	"crypto/rand"
 	"crypto/sha512"
+	"strconv"
 	"strings"
 )
+
+// installerCryptRounds is the SHA-crypt work factor for installer
+// passwords. The hash travels in an answer file, so it is raised well
+// above crypt's default of 5000 to slow offline guessing if one leaks;
+// installers only take crypt(3) formats, and glibc reads rounds= itself.
+const installerCryptRounds = 100000
 
 // sha512Crypt is the "$6$" password hash of glibc's crypt(3) (Ulrich
 // Drepper's SHA-crypt, default 5000 rounds), which Ubuntu's autoinstall
@@ -12,6 +19,14 @@ import (
 // means an operator types a password once, for every family, rather than
 // pre-hashing one for Linux and supplying the plain text for Windows.
 func sha512Crypt(password, salt string) string {
+	return sha512CryptRounds(password, salt, 5000)
+}
+
+// sha512CryptRounds is sha512Crypt with an explicit round count, clamped
+// to the spec's 1000..999999999. A count other than 5000 is written into
+// the hash as "rounds=N$", as the spec requires.
+func sha512CryptRounds(password, salt string, rounds int) string {
+	rounds = max(1000, min(rounds, 999999999))
 	if len(salt) > 16 {
 		salt = salt[:16]
 	}
@@ -51,7 +66,7 @@ func sha512Crypt(password, salt string) string {
 	sb := repeatTo(ds.Sum(nil), len(s))
 
 	c := sumA
-	for i := range 5000 {
+	for i := range rounds {
 		h := sha512.New()
 		if i&1 != 0 {
 			h.Write(p)
@@ -74,7 +89,11 @@ func sha512Crypt(password, salt string) string {
 
 	const itoa64 = "./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 	var out strings.Builder
-	out.WriteString("$6$" + salt + "$")
+	out.WriteString("$6$")
+	if rounds != 5000 {
+		out.WriteString("rounds=" + strconv.Itoa(rounds) + "$")
+	}
+	out.WriteString(salt + "$")
 	enc := func(b2, b1, b0 byte, n int) {
 		w := uint(b2)<<16 | uint(b1)<<8 | uint(b0)
 		for ; n > 0; n-- {
