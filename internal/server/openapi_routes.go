@@ -388,6 +388,12 @@ var routeDocs = map[string]routeDoc{
 	"GET /api/discover":               {Resp: discoverResponse{}, Errors: []int{500}},
 	"PUT /api/discover/devices/{mac}": {Body: updateNetworkDeviceRequest{}, Status: 204, Errors: []int{400, 404, 500}},
 	"POST /api/discover/settings":     {Body: discoverSettingsRequest{}, Status: 204, Errors: []int{400, 500}},
+	// network surveys
+	"GET /api/discover/surveys":           {Resp: listNetSurveysResponse{}, Errors: []int{500}},
+	"POST /api/discover/surveys":          {Body: netSurveyRequest{}, Resp: saveNetSurveyResponse{}, Status: 201, Errors: []int{400, 404, 500}},
+	"PUT /api/discover/surveys/{id}":      {Body: netSurveyRequest{}, Resp: saveNetSurveyResponse{}, Errors: []int{400, 404, 500}},
+	"DELETE /api/discover/surveys/{id}":   {Status: 204, Errors: []int{404, 500}},
+	"POST /api/discover/surveys/{id}/run": {NoBody: true, Resp: runNetSurveyResponse{}, Errors: []int{404, 409, 500, 503}},
 
 	// enforce
 	"POST /api/enforce/compile":                            {Body: enforceCompileRequest{}, Resp: enforceCompileResponse{}, Errors: []int{400}},

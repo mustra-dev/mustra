@@ -810,6 +810,11 @@ type AgentCommand struct {
 	// home directory can outlive any request timeout.
 	Reveal *RevealJob `json:"reveal,omitempty"`
 
+	// NetSurvey carries one run of a network survey for "network_survey"
+	// (netsurvey.go). Answered "started"; the report follows as a
+	// "netsurvey" snapshot on the durable path.
+	NetSurvey *NetSurveyJob `json:"net_survey,omitempty"`
+
 	// Enforce carries the desired-state policy for "run_enforce". Whether
 	// each setting may actually be remediated is decided per setting by the
 	// server, not by the agent — see EnforceSetting.Enforce.

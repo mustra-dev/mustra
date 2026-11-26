@@ -3560,6 +3560,88 @@ var respExamples = map[string]string{
 	}`,
 
 	// discover
+	// One survey, its SNMP secrets shown only as set or not, and its last
+	// run: the endpoint probed 253 addresses with 1061 packets and found
+	// four devices.
+	"GET /api/discover/surveys": `{
+		"surveys": [
+			{
+				"id": "nsv-2b7e9c1a4d6f48e3a0c5b8d2f1e7a9c4",
+				"name": "Plant floor, line 3",
+				"enabled": true,
+				"agent_ids": ["agt-4f2a9c1e7b3d48e6a05c9d2f81b7e3a4"],
+				"agents": [{"agent_id": "agt-4f2a9c1e7b3d48e6a05c9d2f81b7e3a4", "hostname": "line3-hmi", "online": true}],
+				"subnets": ["10.40.7.0/24"],
+				"allow_off_link": false,
+				"protocols": ["snmp", "ipp", "modbus", "enip"],
+				"interval_hours": 24,
+				"packets_per_second": 20,
+				"concurrency": 8,
+				"timeout_ms": 1500,
+				"budget_seconds": 900,
+				"snmp": {
+					"version": "3",
+					"user": "mustra-survey",
+					"security_level": "authPriv",
+					"auth_protocol": "SHA256",
+					"priv_protocol": "AES",
+					"community_set": false,
+					"auth_passphrase_set": true,
+					"priv_passphrase_set": true
+				},
+				"created_by": "alice",
+				"created_at": "2026-10-02T09:12:44Z",
+				"updated_at": "2026-10-02T09:12:44Z",
+				"last_run_at": "2026-10-20T02:00:11Z",
+				"next_run_at": "2026-10-21T02:00:11Z"
+			}
+		],
+		"runs": [
+			{
+				"id": "nsr-8c3e1f7a5b9d42c6a0e4d8b2f6c1a3e5",
+				"survey_id": "nsv-2b7e9c1a4d6f48e3a0c5b8d2f1e7a9c4",
+				"agent_id": "agt-4f2a9c1e7b3d48e6a05c9d2f81b7e3a4",
+				"status": "succeeded",
+				"requested_by": "schedule",
+				"subnets": ["10.40.7.0/24"],
+				"budget_seconds": 900,
+				"started_at": "2026-10-20T02:00:11Z",
+				"finished_at": "2026-10-20T02:01:52Z",
+				"hosts_planned": 253,
+				"probes": 1061,
+				"devices_found": 4,
+				"summary": {"refused": null, "unsupported": null, "errors": null, "truncated": false, "error": "", "discarded": 0},
+				"hostname": "line3-hmi",
+				"survey_name": "Plant floor, line 3"
+			}
+		],
+		"protocols": ["snmp", "ipp", "modbus", "bacnet", "enip", "profinet"],
+		"secrets_available": true
+	}`,
+	// The new survey's ID; an update answers the same way.
+	"POST /api/discover/surveys":     `{"id": "nsv-2b7e9c1a4d6f48e3a0c5b8d2f1e7a9c4"}`,
+	"PUT /api/discover/surveys/{id}": `{"id": "nsv-2b7e9c1a4d6f48e3a0c5b8d2f1e7a9c4"}`,
+	// One run per endpoint, as each first answered: line3-hmi accepted it
+	// and is probing; its report fills in the counts.
+	"POST /api/discover/surveys/{id}/run": `{
+		"runs": [
+			{
+				"id": "nsr-8c3e1f7a5b9d42c6a0e4d8b2f6c1a3e5",
+				"survey_id": "nsv-2b7e9c1a4d6f48e3a0c5b8d2f1e7a9c4",
+				"agent_id": "agt-4f2a9c1e7b3d48e6a05c9d2f81b7e3a4",
+				"status": "running",
+				"requested_by": "alice",
+				"subnets": ["10.40.7.0/24"],
+				"budget_seconds": 900,
+				"started_at": "2026-10-20T08:41:07Z",
+				"hosts_planned": 0,
+				"probes": 0,
+				"devices_found": 0,
+				"hostname": "line3-hmi",
+				"survey_name": "Plant floor, line 3"
+			}
+		]
+	}`,
 	// The union of the endpoints' neighbour tables, unmanaged first: the
 	// lobby printer of the body example, and web-01 as the Proxmox node
 	// it runs on sees it. Names come from reverse DNS. The totals count

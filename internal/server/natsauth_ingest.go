@@ -119,6 +119,8 @@ func normalizeSnapshotData(kind proto.SensorKind, raw json.RawMessage) (json.Raw
 		return normalizeTyped[proto.RevealReport](raw)
 	case proto.SensorSaaS:
 		return normalizeTyped[proto.SaaSReport](raw)
+	case proto.SensorNetSurvey:
+		return normalizeTyped[proto.NetSurveyReport](raw)
 	}
 	return nil, fmt.Errorf("unknown sensor kind %q", kind)
 }

@@ -179,6 +179,18 @@ drill those privileged paths on a disposable endpoint instead:
 Run a drill that stops the agent from a one-off SYSTEM scheduled task, not
 from the agent's own shell, which ends with the agent.
 
+## Network survey simulators
+
+`test/netsurvey/run.sh` runs a real network survey against protocol
+simulators on an isolated (`--internal`) Docker network: net-snmp (v2c and
+v3, with Printer-MIB supplies), a pymodbus server, a bacpypes3 BACnet device,
+cpppo's EtherNet/IP simulator and CUPS's `ippeveprinter`. The survey runs from
+a container on that network, so its probes reach nothing else, and the script
+removes everything it created. `NETSURVEY_SUBNET=10.99.0` picks another /24;
+`NETSURVEY_CAPTURE=1` also refreshes the captured answers in
+`internal/agent/netsurvey/testdata/` that the unit tests decode. There is no
+Profinet simulator.
+
 ## Configuration
 
 The server and agent take flags; every flag also reads an environment

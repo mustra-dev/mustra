@@ -3450,3 +3450,70 @@ CREATE TABLE IF NOT EXISTS mdm_profiles (
     created_by    TEXT NOT NULL DEFAULT '',
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Network surveys (Discover): opt-in, read-only identification probes
+-- (SNMP, IPP, Modbus 43/14, BACnet Who-Is, EtherNet/IP ListIdentity,
+-- Profinet DCP Identify) that chosen endpoints run against subnets they
+-- are on. Off until an operator creates and enables one. The SNMP secrets
+-- are sealed by the credential vault (snmp_secret_enc) and never returned.
+CREATE TABLE IF NOT EXISTS network_surveys (
+    id                  TEXT PRIMARY KEY,
+    name                TEXT NOT NULL,
+    enabled             BOOLEAN NOT NULL DEFAULT false,
+    agent_ids           TEXT[] NOT NULL DEFAULT '{}',
+    subnets             TEXT[] NOT NULL DEFAULT '{}',
+    allow_off_link      BOOLEAN NOT NULL DEFAULT false,
+    protocols           TEXT[] NOT NULL DEFAULT '{}',
+    interval_hours      INTEGER NOT NULL DEFAULT 0, -- 0: run only when asked
+    packets_per_second  INTEGER NOT NULL DEFAULT 20,
+    concurrency         INTEGER NOT NULL DEFAULT 8,
+    timeout_ms          INTEGER NOT NULL DEFAULT 1500,
+    budget_seconds      INTEGER NOT NULL DEFAULT 900,
+    snmp_version        TEXT NOT NULL DEFAULT '',
+    snmp_user           TEXT NOT NULL DEFAULT '',
+    snmp_security_level TEXT NOT NULL DEFAULT '',
+    snmp_auth_protocol  TEXT NOT NULL DEFAULT '',
+    snmp_priv_protocol  TEXT NOT NULL DEFAULT '',
+    snmp_secret_enc     BYTEA,
+    created_by          TEXT NOT NULL DEFAULT '',
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_run_at         TIMESTAMPTZ
+);
+
+-- One endpoint's run of a survey. status: dispatched, running, succeeded,
+-- timed_out (the run's budget ended it, or no report came), cancelled,
+-- failed, refused (no subnet was in scope), no_response (the endpoint did
+-- not answer the command), unsupported (an agent that predates surveys).
+CREATE TABLE IF NOT EXISTS network_survey_runs (
+    id             TEXT PRIMARY KEY,
+    survey_id      TEXT NOT NULL REFERENCES network_surveys(id) ON DELETE CASCADE,
+    agent_id       TEXT NOT NULL,
+    status         TEXT NOT NULL,
+    detail         TEXT NOT NULL DEFAULT '',
+    requested_by   TEXT NOT NULL DEFAULT '',
+    subnets        TEXT[] NOT NULL DEFAULT '{}',
+    budget_seconds INTEGER NOT NULL DEFAULT 900,
+    started_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    finished_at    TIMESTAMPTZ,
+    hosts_planned  INTEGER NOT NULL DEFAULT 0,
+    probes         INTEGER NOT NULL DEFAULT 0,
+    devices_found  INTEGER NOT NULL DEFAULT 0,
+    summary        JSONB NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_network_survey_runs_survey ON network_survey_runs (survey_id, started_at DESC);
+
+-- What surveys found, one row per device: keyed by MAC, or "ip:<addr>"
+-- until a MAC is learned. Discover merges these into its device list.
+CREATE TABLE IF NOT EXISTS network_survey_devices (
+    key         TEXT PRIMARY KEY,
+    mac         TEXT NOT NULL DEFAULT '',
+    ip          TEXT NOT NULL DEFAULT '',
+    device_type TEXT NOT NULL DEFAULT '',
+    device      JSONB NOT NULL DEFAULT '{}',
+    agent_id    TEXT NOT NULL DEFAULT '',
+    survey_id   TEXT NOT NULL DEFAULT '',
+    first_seen  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_seen   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_network_survey_devices_ip ON network_survey_devices (ip);

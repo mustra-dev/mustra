@@ -18,6 +18,7 @@ import (
 // through the shared gate. When a new route reaches the bus, add it here and
 // to endpointActionRoutes.
 var dispatchingRoutes = []string{
+	"POST /api/discover/surveys/{id}/run", "POST /api/discover/surveys", "PUT /api/discover/surveys/{id}",
 	"POST /api/deploy/run", "POST /api/deploy/preview", "POST /api/deploy/test",
 	"POST /api/software/deploy", "POST /api/software-inventory/product/{key}/remove-unused",
 	"POST /api/patches/deploy", "POST /api/agents/{id}/apply-patches",

@@ -101,6 +101,7 @@ type Agent struct {
 	// a person can act on, and the newest is the one that matters.
 	notification activeNotification
 	survey       activeSurvey
+	netSurvey    netSurveyState
 	branding     selfServiceBranding
 	// tray records when the tray helper last asked for the current
 	// notification. Its poll is its heartbeat: nothing else needs to be

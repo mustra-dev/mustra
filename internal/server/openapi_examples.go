@@ -311,6 +311,29 @@ const (
 		"notes": "Licensed per seat; renews in March"
 	}`
 
+	netSurveyExample = `{
+		"name": "Plant floor, line 3",
+		"enabled": false,
+		"agent_ids": ["agt-4f2a9c1e7b3d48e6a05c9d2f81b7e3a4"],
+		"subnets": ["10.40.7.0/24"],
+		"allow_off_link": false,
+		"protocols": ["snmp", "ipp", "modbus", "enip"],
+		"interval_hours": 24,
+		"packets_per_second": 20,
+		"concurrency": 8,
+		"timeout_ms": 1500,
+		"budget_seconds": 900,
+		"snmp": {
+			"version": "3",
+			"user": "mustra-survey",
+			"security_level": "authPriv",
+			"auth_protocol": "SHA256",
+			"auth_passphrase": "<SNMPv3 authentication passphrase>",
+			"priv_protocol": "AES",
+			"priv_passphrase": "<SNMPv3 privacy passphrase>"
+		}
+	}`
+
 	watchlistExample = `{
 		"name": "Web server configuration",
 		"description": "nginx and IIS configuration on the web tier",
@@ -572,6 +595,10 @@ var bodyExamples = map[string]string{
 
 	// discover
 	"PUT /api/discover/devices/{mac}": `{"label": "Lobby printer", "ignored": false}`,
+	// A survey saved disabled, so the example sends nothing until someone
+	// enables it: one endpoint, the subnet it sits on, read-only protocols.
+	"POST /api/discover/surveys":     netSurveyExample,
+	"PUT /api/discover/surveys/{id}": netSurveyExample,
 
 	// enforce
 	"POST /api/enforce/compile": `{

@@ -90,6 +90,9 @@ func (s *Server) endpointActionRoutes() map[string]actionSpec {
 		"POST /api/surveys/{id}/send":            {Module: "deploy", Resolve: bodyAgentsOrFleet([]string{"agent_ids"}, []string{"group_id"}, false)},
 		"POST /api/schedules/{id}/run":           {Module: "deploy", Resolve: resolveScheduledActionRun},
 		"POST /api/catalog/requests/{id}/decide": {Module: "deploy", Resolve: resolveCatalogDecision},
+		// A network survey's run puts probes on the network from each of
+		// its endpoints.
+		"POST /api/discover/surveys/{id}/run": {Module: "deploy", Resolve: resolveNetSurveyRun},
 
 		// --- definitions the server runs later, unattended ----------------
 		// Saving one is checked against what it targets now; no approval
@@ -132,6 +135,10 @@ func (s *Server) endpointActionRoutes() map[string]actionSpec {
 		// job; each package then goes through POST /api/software/deploy's
 		// own checks, as the requester.
 		"POST /api/device-replacements": {Module: "deploy", Resolve: resolveDeviceReplacement},
+		// A survey names its endpoints explicitly (never a group, so a
+		// deleted group cannot widen it) and runs on them unattended.
+		"POST /api/discover/surveys":     {Module: "deploy", Resolve: definition(resolveNetSurveySave)},
+		"PUT /api/discover/surveys/{id}": {Module: "deploy", Resolve: definition(resolveNetSurveySave)},
 	}
 }
 

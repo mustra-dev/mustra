@@ -765,6 +765,12 @@ func (a *Agent) handleCommand(ctx context.Context, data []byte, intervalChans ma
 		job := *cmd.Reveal
 		go a.runRevealScan(ctx, job)
 		return proto.AgentCommandResult{OK: true, Output: "scan started"}
+	case "network_survey":
+		// Acknowledged, not awaited, like reveal_scan: a survey of a /22
+		// at a gentle rate takes minutes.
+		return a.startNetSurvey(ctx, cmd.NetSurvey)
+	case "cancel_network_survey":
+		return a.cancelNetSurvey(cmd.ActionID)
 	case "run_compliance":
 		if len(cmd.Checks) == 0 {
 			return proto.AgentCommandResult{OK: false, Error: "no checks supplied"}
