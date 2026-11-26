@@ -135,6 +135,7 @@ func (s *Server) endpointActionRoutes() map[string]actionSpec {
 		// job; each package then goes through POST /api/software/deploy's
 		// own checks, as the requester.
 		"POST /api/device-replacements": {Module: "deploy", Resolve: resolveDeviceReplacement},
+
 		// A survey names its endpoints explicitly (never a group, so a
 		// deleted group cannot widen it) and runs on them unattended.
 		"POST /api/discover/surveys":     {Module: "deploy", Resolve: definition(resolveNetSurveySave)},

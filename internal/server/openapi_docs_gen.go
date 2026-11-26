@@ -258,6 +258,34 @@ var typeDocs = map[string]typeDoc{
 			"SourceVersion": "Source and SourceVersion are the source package a Linux package was built from (dpkg's source:Package and source:Version, apk's origin), when it differs from Name or Version or not. Security advisories for Debian, Ubuntu and Alpine are filed by source package: libssl3t64's are openssl's. Empty from older agents and other platforms; the vulnerability scan then uses Name and Version.",
 		},
 	},
+	"github.com/mustra-dev/mustra/internal/proto.NetSurveyDevice": {
+		Fields: map[string]string{
+			"BACnetInstance": "BACnetInstance is the device object's instance number; -1 or absent when there is none.",
+			"DeviceRole":     "Industrial identity: what the device says it is.\n\nProfinet: io-device, io-controller…",
+			"DeviceType":     "Industrial identity: what the device says it is.\n\nas the protocol names it",
+			"DeviceTypeCode": "Industrial identity: what the device says it is.",
+			"ObjectID":       "SNMP system group.",
+			"PrinterReasons": "Printers (Printer-MIB, IPP).",
+			"PrinterState":   "Printers (Printer-MIB, IPP).",
+			"ProductCode":    "Industrial identity: what the device says it is.",
+			"Services":       "Services is sysServices: bit 1 (2) a bridge/switch, bit 2 (4) a router, bit 6 (64) an application host. 0 when not reported.",
+			"Supplies":       "Printers (Printer-MIB, IPP).",
+			"UptimeSeconds":  "SNMP system group.",
+			"VendorID":       "Industrial identity: what the device says it is.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/proto.NetSurveyInterface": {
+		Doc: "NetSurveyInterface is one ifTable row.",
+		Fields: map[string]string{
+			"Status": "up | down | testing | unknown …",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/proto.NetSurveySupply": {
+		Doc: "NetSurveySupply is one printer supply (toner, drum, waste…).",
+		Fields: map[string]string{
+			"Percent": "Percent is 0-100, or -1 when the device does not say how much is left (Printer-MIB \"unknown\" or \"some remaining\").",
+		},
+	},
 	"github.com/mustra-dev/mustra/internal/proto.PackageFileRef": {
 		Doc: "PackageFileRef is one payload the endpoint should fetch before running a package's command.\n\nThe URL carries a per-dispatch token rather than the file being on an open path: these are installers, often licensed. SHA256 is checked after download, because a file that silently truncated is worse than one that failed to arrive — the command would run against it anyway.",
 	},
@@ -2149,6 +2177,9 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/server.runHuntResponse": {
 		Doc: "runHuntResponse is what POST /api/hunt/run answers.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.runNetSurveyResponse": {
+		Doc: "runNetSurveyResponse answers POST /api/discover/surveys/{id}/run: the runs it started, one per endpoint, as each endpoint first answered.",
 	},
 	"github.com/mustra-dev/mustra/internal/server.runPlaybookRequest": {
 		Doc: "runPlaybookRequest is the optional body of POST /api/playbooks/{id}/run.",
