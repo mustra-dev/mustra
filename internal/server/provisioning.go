@@ -593,7 +593,10 @@ func enrollCommands(base, token, site string) (unix, windows string) {
 		q = "?site=" + site
 	}
 	auth := "Authorization: Bearer " + token
-	unix = "curl -fsSL -H " + shQuote(auth) + " " + shQuote(base+"/install.sh"+q) + " | bash"
+	// Downloaded to a file first: in "curl | bash" a failed download is an
+	// empty script, which bash runs successfully, so a retry loop around
+	// it would stop at the first failure and call it done.
+	unix = `f=$(mktemp) && curl -fsSL -H ` + shQuote(auth) + " " + shQuote(base+"/install.sh"+q) + ` -o "$f" && bash "$f"; s=$?; rm -f "$f"; [ "$s" -eq 0 ]`
 	windows = "irm -UseBasicParsing -Headers @{Authorization=" + psQuoteString("Bearer "+token) + "} " +
 		psQuoteString(base+"/install.ps1"+q) + " | iex"
 	return unix, windows

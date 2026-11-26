@@ -377,3 +377,18 @@ func TestChainScript(t *testing.T) {
 		t.Fatal("a bad boot URL must give the local-boot script")
 	}
 }
+
+// The enrollment command fails when its download does: a retry loop
+// around "curl | bash" would take a failed download for success.
+func TestEnrollCommandFailsWhenTheDownloadFails(t *testing.T) {
+	unix, win := enrollCommands("https://console.example.com", "mte_abc", "lab")
+	if strings.Contains(unix, "| bash") || !strings.Contains(unix, `-o "$f" && bash "$f"`) || !strings.HasSuffix(unix, `[ "$s" -eq 0 ]`) {
+		t.Fatalf("unix enrollment command %q", unix)
+	}
+	if !strings.Contains(unix, "'https://console.example.com/install.sh?site=lab'") || !strings.Contains(win, "'https://console.example.com/install.ps1?site=lab'") {
+		t.Fatalf("commands do not name the install scripts: %q %q", unix, win)
+	}
+	if !strings.Contains(firstbootScript(unix), "until "+unix+"; do") {
+		t.Fatal("the first-boot script does not retry the command")
+	}
+}
