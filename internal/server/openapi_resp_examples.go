@@ -5702,11 +5702,12 @@ var respExamples = map[string]string{
 				"last_used_at": "2026-10-20T08:00:03Z",
 				"revoked": false,
 				"created_by_id": "usr-2e6a0c4f8b1d47e3a9c5f1b7d3e0a8c6",
-				"approval_exempt": false
+				"approval_exempt": false,
+				"mcp_only": false
 			}
 		]
 	}`,
-	"PUT /api/admin/tokens/{id}": `{"id": "tok-6e2a8c4f0b1d47e9a3c5b7d9f1e3a0c2", "name": "SIEM session transcript export", "prefix": "mstr_q7Xc2LpA", "permissions": ["sessions.audit", "alerts.triage"], "created_at": "2026-09-01T11:30:00Z", "created_by": "jdoe", "expires_at": "2026-11-30T11:30:00Z", "last_used_at": "2026-10-20T08:00:03Z", "revoked": false, "created_by_id": "usr-2e6a0c4f8b1d47e3a9c5f1b7d3e0a8c6", "approval_exempt": false}`,
+	"PUT /api/admin/tokens/{id}": `{"id": "tok-6e2a8c4f0b1d47e9a3c5b7d9f1e3a0c2", "name": "SIEM session transcript export", "prefix": "mstr_q7Xc2LpA", "permissions": ["sessions.audit", "alerts.triage"], "created_at": "2026-09-01T11:30:00Z", "created_by": "jdoe", "expires_at": "2026-11-30T11:30:00Z", "last_used_at": "2026-10-20T08:00:03Z", "revoked": false, "created_by_id": "usr-2e6a0c4f8b1d47e3a9c5f1b7d3e0a8c6", "approval_exempt": false, "mcp_only": false}`,
 	"POST /api/admin/tokens":     `{"id": "tok-6e2a8c4f0b1d47e9a3c5b7d9f1e3a0c2", "note": "Copy this now — it isn't stored and can't be shown again.", "token": "mstr_<token, shown once>"}`,
 
 	// update-check

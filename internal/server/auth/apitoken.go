@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -62,62 +63,98 @@ func (a *Auth) authenticateToken(ctx context.Context, token string) (*store.User
 		if !VerifyPassword(c.Hash, token) {
 			continue
 		}
-		// A token acts within its creator's reach, re-read on every use: a
-		// creator who is deactivated, deleted or loses a permission takes
-		// the token's share of it with them. A token whose creator cannot
-		// be resolved (one minted before tokens recorded their creator, by
-		// an account since deleted) is refused rather than left
-		// unbounded.
-		if c.CreatedByID == "" {
-			a.logger.Warn("api token refused: it records no creator; recreate it", "token", c.Name)
+		user, grant, ok := a.grantToken(ctx, c)
+		if !ok {
 			return nil, tokenGrant{}
-		}
-		creator, err := a.store.GetUserByID(ctx, c.CreatedByID)
-		if err != nil || creator == nil || !creator.Active {
-			a.logger.Warn("api token refused: its creator no longer exists or is inactive", "token", c.Name)
-			return nil, tokenGrant{}
-		}
-		perms := c.Permissions
-		// A token made by a token lives and is bounded by its parent:
-		// revoking, deleting or letting a leaked token expire takes the
-		// tokens it made with it, and narrowing it narrows them.
-		if c.ParentTokenID != "" {
-			var ok bool
-			if perms, ok = a.boundByParents(ctx, c.ParentTokenID, perms); !ok {
-				a.logger.Warn("api token refused: a token that created it is revoked, expired or gone", "token", c.Name)
-				return nil, tokenGrant{}
-			}
-		}
-		if !creator.IsAdmin {
-			held, err := a.store.EffectivePermissions(ctx, creator.ID)
-			if err != nil {
-				a.logger.Error("api token creator permissions lookup failed", "token", c.Name, "error", err)
-				return nil, tokenGrant{}
-			}
-			perms = make([]string, 0, len(c.Permissions))
-			for _, p := range c.Permissions {
-				if held[p] {
-					perms = append(perms, p)
-				}
-			}
 		}
 		// Best-effort: a failed "last used" write must not fail the request.
 		if err := a.store.TouchAPIToken(ctx, c.ID); err != nil {
 			a.logger.Warn("recording api token use failed", "token", c.Name, "error", err)
 		}
-		info := &TokenInfo{ID: c.ID, Name: c.Name, CreatorID: creator.ID, CreatorUsername: creator.Username,
-			CreatorAdmin: creator.IsAdmin, ApprovalExempt: c.ApprovalExempt && creator.IsAdmin}
-		return &store.User{
-			ID:          APITokenUserID,
-			Username:    "token:" + c.Name,
-			DisplayName: c.Name,
-			Source:      "api-token",
-			Active:      true,
-			// Never IsAdmin: a token's reach is exactly the permission set
-			// it was created with, even if its creator was an admin.
-		}, withTokenInfo(perms, info)
+		return user, grant
 	}
 	return nil, tokenGrant{}
+}
+
+// grantToken decides what a live token may do right now: within its
+// creator's reach, re-read on every use (a creator who is deactivated,
+// deleted or loses a permission takes the token's share of it with them),
+// and within every token up the chain that made it. A token whose creator
+// cannot be resolved (one minted before tokens recorded their creator, by
+// an account since deleted) is refused rather than left unbounded.
+func (a *Auth) grantToken(ctx context.Context, c store.APITokenCandidate) (*store.User, tokenGrant, bool) {
+	if c.CreatedByID == "" {
+		a.logger.Warn("api token refused: it records no creator; recreate it", "token", c.Name)
+		return nil, tokenGrant{}, false
+	}
+	creator, err := a.store.GetUserByID(ctx, c.CreatedByID)
+	if err != nil || creator == nil || !creator.Active {
+		a.logger.Warn("api token refused: its creator no longer exists or is inactive", "token", c.Name)
+		return nil, tokenGrant{}, false
+	}
+	perms := c.Permissions
+	// A token made by a token lives and is bounded by its parent:
+	// revoking, deleting or letting a leaked token expire takes the
+	// tokens it made with it, and narrowing it narrows them.
+	if c.ParentTokenID != "" {
+		var ok bool
+		if perms, ok = a.boundByParents(ctx, c.ParentTokenID, perms); !ok {
+			a.logger.Warn("api token refused: a token that created it is revoked, expired or gone", "token", c.Name)
+			return nil, tokenGrant{}, false
+		}
+	}
+	if !creator.IsAdmin {
+		held, err := a.store.EffectivePermissions(ctx, creator.ID)
+		if err != nil {
+			a.logger.Error("api token creator permissions lookup failed", "token", c.Name, "error", err)
+			return nil, tokenGrant{}, false
+		}
+		// Intersected with what the parents left, not with the token's
+		// own list: a parent's narrowing must survive this step.
+		bounded := make([]string, 0, len(perms))
+		for _, p := range perms {
+			if held[p] {
+				bounded = append(bounded, p)
+			}
+		}
+		perms = bounded
+	}
+	info := &TokenInfo{ID: c.ID, Name: c.Name, CreatorID: creator.ID, CreatorUsername: creator.Username,
+		CreatorAdmin: creator.IsAdmin, ApprovalExempt: c.ApprovalExempt && creator.IsAdmin, MCPOnly: c.MCPOnly}
+	return &store.User{
+		ID:          APITokenUserID,
+		Username:    "token:" + c.Name,
+		DisplayName: c.Name,
+		Source:      "api-token",
+		Active:      true,
+		// Never IsAdmin: a token's reach is exactly the permission set
+		// it was created with, even if its creator was an admin.
+	}, withTokenInfo(perms, info), true
+}
+
+// ErrTokenNotLive is TokenContext's answer for a token that is revoked,
+// expired, gone, or whose creator or parent no longer lets it act.
+var ErrTokenNotLive = errors.New("the API token is revoked, expired or no longer allowed to act")
+
+// TokenContext is ctx acting as the API token tokenID, exactly as a
+// request presenting it would: the same synthetic user, the same bounded
+// permissions, and only while the token is live. It is how work a token
+// asked for and somebody else approved later runs as that token rather
+// than as whoever approved it.
+func (a *Auth) TokenContext(ctx context.Context, tokenID string) (context.Context, error) {
+	t, err := a.store.GetAPIToken(ctx, tokenID)
+	if err != nil {
+		return nil, err
+	}
+	if t == nil || t.Revoked || (t.ExpiresAt != nil && !t.ExpiresAt.After(time.Now())) {
+		return nil, ErrTokenNotLive
+	}
+	user, grant, ok := a.grantToken(ctx, store.APITokenCandidate{ID: t.ID, Name: t.Name, Permissions: t.Permissions,
+		CreatedByID: t.CreatedByID, ApprovalExempt: t.ApprovalExempt, ParentTokenID: t.ParentTokenID, MCPOnly: t.MCPOnly})
+	if !ok {
+		return nil, ErrTokenNotLive
+	}
+	return WithToken(withUser(ctx, user), grant.perms, grant.info), nil
 }
 
 // TokenInfo is what an authenticated API-token request knows about the
@@ -130,7 +167,12 @@ type TokenInfo struct {
 	CreatorUsername string
 	CreatorAdmin    bool
 	ApprovalExempt  bool
+	// MCPOnly: the token may reach only the MCP endpoint (MCPPath).
+	MCPOnly bool
 }
+
+// MCPPath is the one route an MCP-only token may call.
+const MCPPath = "/api/mcp"
 
 type tokenInfoKey struct{}
 

@@ -49,6 +49,13 @@ func (a *Auth) RequireAuth(next http.Handler) http.Handler {
 				http.Error(w, "invalid or expired API token", http.StatusUnauthorized)
 				return
 			}
+			// An MCP-only token is for an AI client: it reaches the MCP
+			// endpoint and nothing else, so its permissions decide which
+			// tools it is offered and never open the rest of the API.
+			if grant.info != nil && grant.info.MCPOnly && r.URL.Path != MCPPath {
+				http.Error(w, "this API token is limited to the MCP endpoint ("+MCPPath+")", http.StatusForbidden)
+				return
+			}
 			ctx := WithToken(withUser(r.Context(), user), grant.perms, grant.info)
 			next.ServeHTTP(w, r.WithContext(ctx))
 			return

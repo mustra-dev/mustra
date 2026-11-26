@@ -37,15 +37,6 @@ Start the agent with `--no-container-update-checks`, or set `MUSTRA_NO_CONTAINER
 
 ## Connect an AI agent
 
-mustra has a read-only MCP endpoint, so an AI agent can ask what has updates outstanding and act with its own tools. mustra itself changes nothing.
+An AI agent can ask mustra which containers have updates outstanding, read their release notes, and see pending OS updates beside them, over mustra's MCP endpoint. See [Connect an AI client](ai-clients.md) to set one up.
 
-1. Create an API token with only **See the fleet** (`fleet.read`). See [Automate with the API](api.md).
-2. Add the endpoint to your agent as a remote MCP server, using Streamable HTTP. For example, in Claude Code:
-
-   ```
-   claude mcp add --transport http mustra https://mustra.example.com/api/mcp --header "Authorization: Bearer $MUSTRA_TOKEN"
-   ```
-
-3. Ask it something like "which containers have updates outstanding?"
-
-It has three read-only tools. `list_containers` filters by update status, hostname or endpoint, and shows each container's compose file. `list_container_changes` returns the release notes between the running version and the newer one, for images that name their GitHub repository. `list_pending_updates` returns each endpoint's pending operating system and package updates, so an agent sees containers and OS packages together. None of them applies anything.
+The container tools only read. `list_containers` filters by update status, hostname or endpoint, and shows each container's compose file. `list_container_changes` returns the release notes between the running version and the newer one, for images that name their GitHub repository. `list_pending_updates` returns each endpoint's pending operating system and package updates. mustra does not pull images or recreate containers for the agent.

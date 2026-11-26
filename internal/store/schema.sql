@@ -2016,6 +2016,13 @@ CREATE TABLE IF NOT EXISTS approval_requests (
     outcome      TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_approval_requests_state ON approval_requests (state, requested_at DESC);
+-- Who asked, beyond a username. requester_id is the person behind the
+-- request (a token's creator for a token), so nobody approves what they
+-- asked for through a token or a second account they act as; token_id
+-- names the API token that asked, so approving replays it as that token,
+-- with that token's permissions, and only while it is still live.
+ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS requester_id TEXT NOT NULL DEFAULT '';
+ALTER TABLE approval_requests ADD COLUMN IF NOT EXISTS token_id TEXT NOT NULL DEFAULT '';
 
 -- Jump Gate on Direct Connect (0.61.0): just-in-time, just-enough endpoint
 -- access.
@@ -2268,6 +2275,10 @@ ALTER TABLE api_tokens ADD COLUMN IF NOT EXISTS approval_exempt BOOLEAN NOT NULL
 -- works only while every token up that chain is live: revoking a leaked
 -- token takes the tokens it made with it.
 ALTER TABLE api_tokens ADD COLUMN IF NOT EXISTS parent_token_id TEXT NOT NULL DEFAULT '';
+-- An MCP-only token reaches /api/mcp and nothing else: its permissions
+-- decide which tools it sees, and an action tool only files an approval
+-- request, so it cannot run anything without a second person.
+ALTER TABLE api_tokens ADD COLUMN IF NOT EXISTS mcp_only BOOLEAN NOT NULL DEFAULT false;
 UPDATE api_tokens t SET created_by_id = u.id
 FROM users u
 WHERE t.created_by_id = '' AND t.created_by <> '' AND u.username = t.created_by;

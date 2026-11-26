@@ -34,17 +34,22 @@ type APIToken struct {
 	// This one works only while that one (and its own parent, and so on)
 	// is live, and never with more permissions than it.
 	ParentTokenID string `json:"parent_token_id,omitempty"`
+	// MCPOnly confines the token to the MCP endpoint (/api/mcp). Its
+	// permissions still decide which tools it sees, but it cannot call
+	// the rest of the API, so one holding deploy.manage can file action
+	// requests for somebody to approve and cannot deploy anything itself.
+	MCPOnly bool `json:"mcp_only"`
 }
 
 // apiTokenColumns deliberately omits token_hash: no code path outside
 // VerifyAPIToken has any business reading it.
-const apiTokenColumns = `id, name, prefix, permissions, created_at, created_by, expires_at, last_used_at, revoked, created_by_id, approval_exempt, parent_token_id`
+const apiTokenColumns = `id, name, prefix, permissions, created_at, created_by, expires_at, last_used_at, revoked, created_by_id, approval_exempt, parent_token_id, mcp_only`
 
 func (s *Store) CreateAPIToken(ctx context.Context, t APIToken, tokenHash string) error {
 	const q = `
-INSERT INTO api_tokens (id, name, prefix, token_hash, permissions, created_by, expires_at, created_by_id, approval_exempt, parent_token_id)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
-	if _, err := s.pool.Exec(ctx, q, t.ID, t.Name, t.Prefix, tokenHash, t.Permissions, t.CreatedBy, t.ExpiresAt, t.CreatedByID, t.ApprovalExempt, t.ParentTokenID); err != nil {
+INSERT INTO api_tokens (id, name, prefix, token_hash, permissions, created_by, expires_at, created_by_id, approval_exempt, parent_token_id, mcp_only)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
+	if _, err := s.pool.Exec(ctx, q, t.ID, t.Name, t.Prefix, tokenHash, t.Permissions, t.CreatedBy, t.ExpiresAt, t.CreatedByID, t.ApprovalExempt, t.ParentTokenID, t.MCPOnly); err != nil {
 		return fmt.Errorf("create api token: %w", err)
 	}
 	return nil
@@ -60,7 +65,7 @@ func (s *Store) ListAPITokens(ctx context.Context) ([]APIToken, error) {
 	for rows.Next() {
 		var t APIToken
 		if err := rows.Scan(&t.ID, &t.Name, &t.Prefix, &t.Permissions, &t.CreatedAt,
-			&t.CreatedBy, &t.ExpiresAt, &t.LastUsedAt, &t.Revoked, &t.CreatedByID, &t.ApprovalExempt, &t.ParentTokenID); err != nil {
+			&t.CreatedBy, &t.ExpiresAt, &t.LastUsedAt, &t.Revoked, &t.CreatedByID, &t.ApprovalExempt, &t.ParentTokenID, &t.MCPOnly); err != nil {
 			return nil, fmt.Errorf("scan api token: %w", err)
 		}
 		out = append(out, t)
@@ -79,6 +84,7 @@ type APITokenCandidate struct {
 	CreatedByID    string
 	ApprovalExempt bool
 	ParentTokenID  string
+	MCPOnly        bool
 }
 
 // CandidatesForPrefix returns live (unrevoked, unexpired) tokens whose
@@ -86,7 +92,7 @@ type APITokenCandidate struct {
 // compare or two rather than one per token in the table.
 func (s *Store) CandidatesForPrefix(ctx context.Context, prefix string) ([]APITokenCandidate, error) {
 	const q = `
-SELECT id, name, token_hash, permissions, created_by_id, approval_exempt, parent_token_id FROM api_tokens
+SELECT id, name, token_hash, permissions, created_by_id, approval_exempt, parent_token_id, mcp_only FROM api_tokens
 WHERE prefix = $1 AND NOT revoked AND (expires_at IS NULL OR expires_at > now())`
 	rows, err := s.pool.Query(ctx, q, prefix)
 	if err != nil {
@@ -96,7 +102,7 @@ WHERE prefix = $1 AND NOT revoked AND (expires_at IS NULL OR expires_at > now())
 	var out []APITokenCandidate
 	for rows.Next() {
 		var c APITokenCandidate
-		if err := rows.Scan(&c.ID, &c.Name, &c.Hash, &c.Permissions, &c.CreatedByID, &c.ApprovalExempt, &c.ParentTokenID); err != nil {
+		if err := rows.Scan(&c.ID, &c.Name, &c.Hash, &c.Permissions, &c.CreatedByID, &c.ApprovalExempt, &c.ParentTokenID, &c.MCPOnly); err != nil {
 			return nil, fmt.Errorf("scan api token candidate: %w", err)
 		}
 		out = append(out, c)
@@ -125,7 +131,7 @@ func (s *Store) GetAPIToken(ctx context.Context, id string) (*APIToken, error) {
 	var t APIToken
 	err := s.pool.QueryRow(ctx, `SELECT `+apiTokenColumns+` FROM api_tokens WHERE id = $1`, id).Scan(
 		&t.ID, &t.Name, &t.Prefix, &t.Permissions, &t.CreatedAt,
-		&t.CreatedBy, &t.ExpiresAt, &t.LastUsedAt, &t.Revoked, &t.CreatedByID, &t.ApprovalExempt, &t.ParentTokenID)
+		&t.CreatedBy, &t.ExpiresAt, &t.LastUsedAt, &t.Revoked, &t.CreatedByID, &t.ApprovalExempt, &t.ParentTokenID, &t.MCPOnly)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
@@ -139,9 +145,9 @@ func (s *Store) GetAPIToken(ctx context.Context, id string) (*APIToken, error) {
 // its hash and prefix, its expiry and its creator are untouched, so the
 // scripts holding the token keep working. A revoked token is not changed.
 // It reports whether a token was updated.
-func (s *Store) UpdateAPIToken(ctx context.Context, id, name string, permissions []string, approvalExempt bool) (bool, error) {
-	tag, err := s.pool.Exec(ctx, `UPDATE api_tokens SET name = $2, permissions = $3, approval_exempt = $4
-WHERE id = $1 AND NOT revoked`, id, name, permissions, approvalExempt)
+func (s *Store) UpdateAPIToken(ctx context.Context, id, name string, permissions []string, approvalExempt, mcpOnly bool) (bool, error) {
+	tag, err := s.pool.Exec(ctx, `UPDATE api_tokens SET name = $2, permissions = $3, approval_exempt = $4, mcp_only = $5
+WHERE id = $1 AND NOT revoked`, id, name, permissions, approvalExempt, mcpOnly)
 	if err != nil {
 		return false, fmt.Errorf("update api token: %w", err)
 	}

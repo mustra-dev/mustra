@@ -161,6 +161,14 @@ func playbookTargetDesc(pb store.Playbook) string {
 // background. It returns as soon as the run exists, because a playbook that
 // waits for a reboot is not something to hold an HTTP request open for.
 func (s *Server) launchPlaybook(ctx context.Context, pb store.Playbook, who string) (string, int, error) {
+	return s.launchPlaybookOn(ctx, pb, who, nil)
+}
+
+// launchPlaybookOn is launchPlaybook restricted to the endpoints in only,
+// among those the playbook targets; nil means all of them. It narrows and
+// never widens, so a restriction naming nothing the playbook reaches
+// starts nothing.
+func (s *Server) launchPlaybookOn(ctx context.Context, pb store.Playbook, who string, only map[string]bool) (string, int, error) {
 	var steps []playbookStep
 	if err := json.Unmarshal(pb.Steps, &steps); err != nil || len(steps) == 0 {
 		return "", 0, fmt.Errorf("this playbook has no usable steps")
@@ -172,6 +180,17 @@ func (s *Server) launchPlaybook(ctx context.Context, pb store.Playbook, who stri
 	targets, err := s.playbookTargets(ctx, pb)
 	if err != nil {
 		return "", 0, err
+	}
+	targetDesc := playbookTargetDesc(pb)
+	if only != nil {
+		kept := targets[:0:0]
+		for _, a := range targets {
+			if only[a.AgentID] {
+				kept = append(kept, a)
+			}
+		}
+		targets = kept
+		targetDesc += fmt.Sprintf(" · %d selected endpoint(s)", len(targets))
 	}
 	if len(targets) == 0 {
 		return "", 0, fmt.Errorf("no online endpoint matches this playbook's targeting")
@@ -189,7 +208,7 @@ func (s *Server) launchPlaybook(ctx context.Context, pb store.Playbook, who stri
 	runID := idgen.New("pbr-")
 	if err := s.store.StartPlaybookRun(ctx, store.PlaybookRun{
 		ID: runID, PlaybookID: pb.ID, Name: pb.Name, Steps: pb.Steps,
-		TargetDesc: playbookTargetDesc(pb), AgentCount: len(targets), TriggeredBy: who,
+		TargetDesc: targetDesc, AgentCount: len(targets), TriggeredBy: who,
 	}); err != nil {
 		s.runs.release("playbook:" + pb.ID)
 		return "", 0, err
@@ -200,7 +219,7 @@ func (s *Server) launchPlaybook(ctx context.Context, pb store.Playbook, who stri
 	// machines without appearing where people look for what touched them.
 	if err := s.store.RecordPatchJobRun(ctx, store.PatchJobRun{
 		ID: runID, ScheduleName: "Playbook: " + pb.Name,
-		TargetDesc: playbookTargetDesc(pb), AgentCount: len(targets), TriggeredBy: who,
+		TargetDesc: targetDesc, AgentCount: len(targets), TriggeredBy: who,
 	}); err != nil {
 		s.logger.Warn("playbook: could not record the deployment row", "playbook", pb.Name, "error", err)
 	}

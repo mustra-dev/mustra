@@ -106,7 +106,13 @@ func (s *Server) handleApproveInfo(w http.ResponseWriter, r *http.Request) {
 				{"File", mc.CertPath}, {"Expires", fmtWhen(mc.ExpiresAt)}}}
 	}
 	info.Kind, info.ID = kind, id
-	if info.RequestedBy != "" && info.RequestedBy == u.Username {
+	own := info.RequestedBy != "" && info.RequestedBy == u.Username
+	if kind == "approval" {
+		if a, err := s.store.GetApprovalRequest(ctx, id); err == nil && a != nil {
+			own = ownApproval(ctx, *a)
+		}
+	}
+	if own {
 		info.Facts = append(info.Facts, [2]string{"Note", "you made this request; somebody else has to decide it"})
 	}
 	writeJSONResponse(w, info)

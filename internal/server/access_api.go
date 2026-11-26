@@ -372,7 +372,7 @@ func (s *Server) handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 	u := auth.CurrentUser(r.Context())
 	// The point of an approval is a second person. Approving your own
 	// request would make the policy a speed bump with a log entry.
-	if req.RequestedBy == u.Username {
+	if ownApproval(r.Context(), *req) {
 		http.Error(w, "you asked for this one; somebody else has to approve it", http.StatusForbidden)
 		return
 	}

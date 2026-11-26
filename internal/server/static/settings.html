@@ -64,6 +64,15 @@
   .int-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; padding: 3px 0; }
   .int-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border-strong, #555); flex: 0 0 auto; }
   .int-dot.on { background: var(--ok); }
+  /* Connect an AI client: the endpoint and a config snippet per client. */
+  .ai-endpoint { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+  .ai-endpoint code { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 10px; font-size: 12.5px; overflow-wrap: anywhere; }
+  .ai-snippet-head { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 8px; }
+  .ai-snippet-head .seg { flex-wrap: wrap; }
+  .ai-snippet-head .seg button { padding: 4px 10px; font-size: 12px; }
+  .ai-snippet pre { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px 12px; margin: 0;
+    overflow-x: auto; font-family: var(--mono); font-size: 12px; line-height: 1.5; max-height: 360px; }
+  .ai-snippet-note { font-size: var(--fs-meta); color: var(--text-muted); margin: 0 0 8px; line-height: 1.5; }
 </style>
 </head>
 <body>
@@ -725,10 +734,29 @@
         <span class="checklist-title" id="token-perms-title">Permissions</span>
         <span class="checklist-sub">What this token may change. Tick nothing for a read-only token.</span>
         <div id="token-perms" aria-labelledby="token-perms-title"></div>
+        <label class="pa-opt"><input type="checkbox" id="token-mcp-only"><span><b>MCP only</b><span class="pa-hint">For an AI client: the token reaches the MCP endpoint and nothing else. Its permissions decide which tools the client is offered.</span></span></label>
         <div class="save-row">
           <button class="primary" id="token-create">Create token</button>
           <span class="save-status" id="token-status"></span>
         </div>
+      </div>
+
+      <div class="panel settings-section u-maxw-none" id="ai-connect">
+        <h2>Connect an AI client</h2>
+        <p class="hint">
+          GitHub Copilot, Claude, ChatGPT and other MCP clients can read this fleet and ask for changes to it.
+          Give each client its own <b>MCP only</b> token above. With <b>See the fleet</b> alone it can only read.
+          Add <b>Deploy software and run actions</b> or <b>Manage patches</b> and it can also ask to run a playbook,
+          deploy a catalog package or apply patches. It never does these itself: each one waits under
+          <a href="/access#approvals">Access → Approvals</a> until somebody else approves it.
+        </p>
+        <div class="ai-endpoint"><code class="mono" id="mcp-url"></code><button class="tiny" type="button" id="mcp-url-copy">Copy</button></div>
+        <div class="ai-snippet-head">
+          <div class="seg" role="radiogroup" aria-label="AI client" id="mcp-clients"></div>
+          <button class="tiny" type="button" id="mcp-snippet-copy">Copy</button>
+        </div>
+        <p class="ai-snippet-note" id="mcp-client-note"></p>
+        <div class="ai-snippet"><pre><code id="mcp-snippet"></code></pre></div>
       </div>
     </div>
 
@@ -1278,7 +1306,7 @@ function renderTokens(tokens) {
       <tr>
         <td>${escapeHtml(t.name)}</td>
         <td><code class="mono">${escapeHtml(t.prefix)}…</code></td>
-        <td><div class="chip-row">${(t.permissions || []).map(p => `<span class="chip">${escapeHtml(p)}</span>`).join("")}</div></td>
+        <td><div class="chip-row">${t.mcp_only ? '<span class="chip builtin">MCP only</span>' : ""}${(t.permissions || []).map(p => `<span class="chip">${escapeHtml(p)}</span>`).join("")}</div></td>
         <td data-sort="${escapeHtml(t.created_at)}">${fmtAgo(t.created_at)}<div class="u-fs-meta u-c-text-muted">${escapeHtml(t.created_by || "")}</div></td>
         <td data-sort="${escapeHtml(t.last_used_at || "")}">${t.last_used_at ? fmtAgo(t.last_used_at) : "never"}</td>
         <td>${escapeHtml(t.expires_at ? fmtDate(t.expires_at) : "never")}</td>
@@ -1317,6 +1345,7 @@ function editToken(t) {
     <div class="field"><label for="te-name">Name</label><input id="te-name" value="${escapeHtml(t.name)}"></div>
     <div id="te-perms"></div>
     <label class="pa-opt"><input type="checkbox" id="te-exempt"${t.approval_exempt ? " checked" : ""}><span><b>Approval-exempt</b><span class="pa-hint">May run operations an approval policy covers without waiting for approval. Administrators only.</span></span></label>
+    <label class="pa-opt"><input type="checkbox" id="te-mcp"${t.mcp_only ? " checked" : ""}><span><b>MCP only</b><span class="pa-hint">Reaches the MCP endpoint and nothing else, for an AI client.</span></span></label>
     <div class="modal-actions u-d-flex u-gap-8 u-mt-16 u-ai-center">
       <button class="primary" id="te-save" type="button">Save</button><button class="tiny" id="te-cancel" type="button">Cancel</button>
       <span class="muted" id="te-status"></span></div>`, wrap => {
@@ -1333,7 +1362,7 @@ function editToken(t) {
       status.textContent = "saving…";
       const resp = await fetch(`/api/admin/tokens/${encodeURIComponent(t.id)}`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, permissions: perms, approval_exempt: wrap.querySelector("#te-exempt").checked }),
+        body: JSON.stringify({ name, permissions: perms, approval_exempt: wrap.querySelector("#te-exempt").checked, mcp_only: wrap.querySelector("#te-mcp").checked }),
       });
       if (!resp.ok) { status.textContent = (await resp.text()).trim(); return; }
       wrap.remove();
@@ -1350,7 +1379,8 @@ document.getElementById("token-create").addEventListener("click", async () => {
   if (!name) { status.textContent = "name is required"; return; }
   if (perms.length === 0) { status.textContent = "pick at least one permission"; return; }
 
-  const body = { name, permissions: perms, expires_days: parseInt(document.getElementById("token-expires").value, 10) || 0 };
+  const body = { name, permissions: perms, expires_days: parseInt(document.getElementById("token-expires").value, 10) || 0,
+    mcp_only: document.getElementById("token-mcp-only").checked };
   status.textContent = "creating…";
   const resp = await fetch("/api/admin/tokens", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
@@ -1381,9 +1411,81 @@ document.getElementById("token-create").addEventListener("click", async () => {
 
   document.getElementById("token-name").value = "";
   document.getElementById("token-expires").value = "";
+  document.getElementById("token-mcp-only").checked = false;
   tokenPermList.setValues([]);
   loadTokens();
 });
+
+// --- Connect an AI client ---
+//
+// The endpoint and a ready-to-paste configuration for each common client.
+// The token is never written into a snippet: each reads it from where that
+// client keeps secrets (a prompt, an environment variable), or says where
+// to paste it.
+
+const mcpURL = location.origin + "/api/mcp";
+const mcpClients = [
+  { id: "vscode", label: "VS Code / Copilot",
+    note: "Save as .vscode/mcp.json in a workspace, or run “MCP: Open User Configuration”. VS Code asks for the token the first time and keeps it in its secret storage.",
+    code: () => JSON.stringify({
+      inputs: [{ type: "promptString", id: "mustra-token", description: "mustra API token (MCP only)", password: true }],
+      servers: { mustra: { type: "http", url: mcpURL, headers: { Authorization: "Bearer ${input:mustra-token}" } } },
+    }, null, 2) },
+  { id: "claude-code", label: "Claude Code",
+    note: "Run once in a terminal, with the token in MUSTRA_TOKEN. Add --scope user to use it in every project.",
+    code: () => `claude mcp add --transport http mustra ${/* safe-html: a snippet set with textContent */ mcpURL} \\\n  --header "Authorization: Bearer $MUSTRA_TOKEN"` },
+  { id: "claude-desktop", label: "Claude Desktop",
+    note: "Add to claude_desktop_config.json (Settings → Developer → Edit Config) and restart Claude. The mcp-remote bridge runs with Node.js; replace the placeholder with the token.",
+    code: () => JSON.stringify({ mcpServers: { mustra: {
+      command: "npx", args: ["-y", "mcp-remote", mcpURL, "--header", "Authorization:${MUSTRA_AUTH}"],
+      env: { MUSTRA_AUTH: "Bearer <your MCP-only token>" } } } }, null, 2) },
+  { id: "openai", label: "ChatGPT / OpenAI",
+    note: "A remote MCP tool for the OpenAI Responses API and Agents SDK. OpenAI connects from its own servers, so this console must be reachable from the internet over HTTPS. Keep require_approval on, so every tool call is shown first.",
+    code: () => JSON.stringify({ tools: [{ type: "mcp", server_label: "mustra", server_url: mcpURL,
+      headers: { Authorization: "Bearer <your MCP-only token>" }, require_approval: "always" }] }, null, 2) },
+  { id: "generic", label: "Other clients",
+    note: "Any client that speaks MCP over Streamable HTTP: POST JSON-RPC to the endpoint with the token as a bearer token. Answers are JSON; there is no event stream and no session.",
+    code: () => `URL:    ${/* safe-html: a snippet set with textContent */ mcpURL}\nHeader: Authorization: Bearer <your MCP-only token>\n\ncurl -s ${/* safe-html: a snippet set with textContent */ mcpURL} \\\n  -H "Authorization: Bearer $MUSTRA_TOKEN" -H "Content-Type: application/json" \\\n  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'` },
+];
+let mcpClient = mcpClients[0].id;
+
+function renderMCPConnect() {
+  document.getElementById("mcp-url").textContent = mcpURL;
+  const seg = document.getElementById("mcp-clients");
+  seg.innerHTML = mcpClients.map(c =>
+    `<button type="button" role="radio" data-client="${escapeHtml(c.id)}" aria-checked="${c.id === mcpClient ? "true" : "false"}">${escapeHtml(c.label)}</button>`).join("");
+  const c = mcpClients.find(x => x.id === mcpClient);
+  document.getElementById("mcp-client-note").textContent = c.note;
+  document.getElementById("mcp-snippet").textContent = c.code();
+}
+
+document.getElementById("mcp-clients").addEventListener("click", e => {
+  const b = e.target.closest("[data-client]");
+  if (!b) return;
+  mcpClient = b.dataset.client;
+  renderMCPConnect();
+  document.querySelector(`#mcp-clients [data-client="${CSS.escape(mcpClient)}"]`).focus();
+});
+document.getElementById("mcp-clients").addEventListener("keydown", e => {
+  if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+  const i = mcpClients.findIndex(c => c.id === mcpClient);
+  mcpClient = mcpClients[(i + (e.key === "ArrowRight" ? 1 : mcpClients.length - 1)) % mcpClients.length].id;
+  renderMCPConnect();
+  document.querySelector(`#mcp-clients [data-client="${CSS.escape(mcpClient)}"]`).focus();
+  e.preventDefault();
+});
+function copyButton(id, text) {
+  document.getElementById(id).addEventListener("click", () => {
+    navigator.clipboard.writeText(text()).then(() => {
+      const b = document.getElementById(id);
+      b.textContent = "Copied";
+      setTimeout(() => { b.textContent = "Copy"; }, 1500);
+    });
+  });
+}
+copyButton("mcp-url-copy", () => mcpURL);
+copyButton("mcp-snippet-copy", () => mcpClients.find(x => x.id === mcpClient).code());
+renderMCPConnect();
 
 // --- About: build identity, fleet agent versions, updates, changelog ---
 

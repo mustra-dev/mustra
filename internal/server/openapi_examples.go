@@ -776,6 +776,8 @@ var bodyExamples = map[string]string{
 	// playbooks
 	"POST /api/playbooks":     playbookExample,
 	"PUT /api/playbooks/{id}": playbookExample,
+	// One endpoint among those the playbook targets; it never adds one.
+	"POST /api/playbooks/{id}/run": `{"agent_ids": ["agt-4f2a9c1e7b3d48e6a05c9d2f81b7e3a4"]}`,
 
 	// query
 	"POST /api/query": `{"kind": "services", "agent_id": "agt-4f2a9c1e7b3d48e6a05c9d2f81b7e3a4"}`,
@@ -878,8 +880,8 @@ var bodyExamples = map[string]string{
 	"PUT /api/surveys/{id}":       surveyExample,
 
 	// tokens
-	"POST /api/admin/tokens":     `{"name": "SIEM session transcript export", "permissions": ["sessions.audit"], "expires_days": 90}`,
-	"PUT /api/admin/tokens/{id}": `{"name": "SIEM session transcript export", "permissions": ["sessions.audit", "alerts.triage"], "approval_exempt": false}`,
+	"POST /api/admin/tokens":     `{"name": "Copilot in VS Code (read-only)", "permissions": ["fleet.read"], "expires_days": 90, "mcp_only": true}`,
+	"PUT /api/admin/tokens/{id}": `{"name": "SIEM session transcript export", "permissions": ["sessions.audit", "alerts.triage"], "approval_exempt": false, "mcp_only": false}`,
 
 	// tracked-products
 	"POST /api/tracked-products":     trackedProductExample,

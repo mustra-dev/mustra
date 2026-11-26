@@ -539,7 +539,7 @@ var routeDocs = map[string]routeDoc{
 	"GET /api/playbooks/{id}":      {Resp: playbookResponse{}, Errors: []int{404}},
 	"PUT /api/playbooks/{id}":      {Body: playbookRequest{}, Resp: playbookResponse{}, Errors: []int{400, 500}},
 	"DELETE /api/playbooks/{id}":   {Resp: deletePlaybookResponse{}, Errors: []int{404, 500}},
-	"POST /api/playbooks/{id}/run": {NoBody: true, Resp: runPlaybookResponse{}, Also: []int{202}, Errors: []int{400, 403, 404, 500}},
+	"POST /api/playbooks/{id}/run": {Body: runPlaybookRequest{}, BodyOptional: true, Resp: runPlaybookResponse{}, Also: []int{202}, Errors: []int{400, 403, 404, 500}},
 
 	// preferences
 	"GET /api/preferences": {Resp: store.UserPreferences{}, Errors: []int{401, 500}},

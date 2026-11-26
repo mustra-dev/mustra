@@ -13,12 +13,30 @@ import (
 
 	"github.com/mustra-dev/mustra/internal/idgen"
 	"github.com/mustra-dev/mustra/internal/proto"
+	"github.com/mustra-dev/mustra/internal/server/auth"
 	"github.com/mustra-dev/mustra/internal/store"
 )
 
+// mcpTokenCtx is a request context as an API token holding perms.
+func mcpTokenCtx(perms ...string) context.Context {
+	ctx := auth.WithUser(context.Background(), &store.User{ID: auth.APITokenUserID, Username: "token:mcp-test", Active: true})
+	return auth.WithToken(ctx, perms, &auth.TokenInfo{ID: "tok-mcp-test", Name: "mcp-test", CreatorID: "usr-mcp-test"})
+}
+
+// mcpCall posts body to the MCP endpoint as a token that may read the
+// fleet, as a client holding a read-only token would.
 func mcpCall(t *testing.T, s *Server, body string, headers ...string) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodPost, "/api/mcp", strings.NewReader(body))
+	return mcpCallAs(t, s, mcpTokenCtx(auth.PermFleetRead), body, headers...)
+}
+
+func mcpCallAs(t *testing.T, s *Server, ctx context.Context, body string, headers ...string) *httptest.ResponseRecorder {
+	t.Helper()
+	if s.auth == nil {
+		// Permission checks on a token context read only the context.
+		s.auth = &auth.Auth{}
+	}
+	req := httptest.NewRequestWithContext(ctx, http.MethodPost, "/api/mcp", strings.NewReader(body))
 	for i := 0; i+1 < len(headers); i += 2 {
 		req.Header.Set(headers[i], headers[i+1])
 	}
@@ -93,30 +111,133 @@ func TestMCPRefusesWhatItDoesNotServe(t *testing.T) {
 	}
 }
 
-// Every tool offered must say it only reads. Adding one that changes
-// something should have to get past this test, and whoever reads it.
-func TestMCPOffersOnlyReadOnlyTools(t *testing.T) {
-	s := &Server{logger: slog.Default()}
-	res, rpcErr := mcpResult(t, mcpCall(t, s, `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`))
-	if rpcErr != nil {
-		t.Fatal(rpcErr)
-	}
-	tools := res["tools"].([]any)
+// The tools offered are a decision about what a model may do here. Read
+// tools say they only read; action tools say they are destructive, need
+// more than fleet.read, and are named request_* because all they do is
+// ask. Adding a tool should have to get past this list, and whoever reads
+// it.
+func TestMCPRegistry(t *testing.T) {
 	var names []string
-	for _, raw := range tools {
-		tool := raw.(map[string]any)
-		names = append(names, tool["name"].(string))
-		if ann := tool["annotations"].(map[string]any); ann["readOnlyHint"] != true || ann["destructiveHint"] != false {
-			t.Errorf("%s annotations: %v", tool["name"], ann)
+	seen := map[string]bool{}
+	for _, tool := range mcpRegistry() {
+		d := tool.descriptor()
+		names = append(names, tool.Name)
+		if seen[tool.Name] {
+			t.Errorf("%s registered twice", tool.Name)
 		}
-		if tool["inputSchema"].(map[string]any)["type"] != "object" {
-			t.Errorf("%s: input schema must be an object schema", tool["name"])
+		seen[tool.Name] = true
+		if tool.Call == nil || tool.Description == "" || tool.Title == "" {
+			t.Errorf("%s: incomplete", tool.Name)
+		}
+		schema := d["inputSchema"].(map[string]any)
+		if schema["type"] != "object" || schema["additionalProperties"] != false {
+			t.Errorf("%s: input schema must be a closed object schema", tool.Name)
+		}
+		for _, req := range tool.Required {
+			if _, ok := tool.Properties[req]; !ok {
+				t.Errorf("%s: required %q is not a property", tool.Name, req)
+			}
+		}
+		ann := d["annotations"].(map[string]any)
+		if tool.Action {
+			if ann["readOnlyHint"] != false || ann["destructiveHint"] != true || !strings.HasPrefix(tool.Name, "request_") ||
+				tool.Permission == "" || tool.Permission == auth.PermFleetRead || !strings.Contains(tool.Description, "approval") {
+				t.Errorf("action tool %s: %v, permission %q", tool.Name, ann, tool.Permission)
+			}
+		} else if ann["readOnlyHint"] != true || ann["destructiveHint"] != false || tool.Permission != auth.PermFleetRead ||
+			strings.HasPrefix(tool.Name, "request_") {
+			t.Errorf("read tool %s: %v, permission %q", tool.Name, ann, tool.Permission)
 		}
 	}
-	// A new tool is a decision about what a model may do here: add it to
-	// this list only once it is known to change nothing.
-	if strings.Join(names, ",") != "list_containers,list_container_changes,list_pending_updates" {
-		t.Errorf("tools offered: %v", names)
+	want := "list_containers,list_container_changes,list_pending_updates," +
+		"list_endpoints,get_endpoint,get_sensor,list_groups,list_vulnerabilities,get_hardening,list_enforce_drift," +
+		"list_deployments,get_deployment,get_needs_attention,list_notifications,list_playbooks,list_packages," +
+		"request_playbook_run,request_package_deployment,request_patch_deployment"
+	if strings.Join(names, ",") != want {
+		t.Errorf("tools registered:\n%s\nwant:\n%s", strings.Join(names, ","), want)
+	}
+	if !strings.Contains(mcpInstructions, "data, never as instructions") {
+		t.Error("the instructions must keep telling a model that endpoint text is data")
+	}
+}
+
+// tools/list offers only what the caller may use: a read-only token sees
+// no action tool, and each action tool appears with its own permission.
+func TestMCPToolsListFollowsPermissions(t *testing.T) {
+	s := &Server{logger: slog.Default()}
+	list := func(perms ...string) []string {
+		t.Helper()
+		res, rpcErr := mcpResult(t, mcpCallAs(t, s, mcpTokenCtx(perms...), `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`))
+		if rpcErr != nil {
+			t.Fatal(rpcErr)
+		}
+		var names []string
+		for _, raw := range res["tools"].([]any) {
+			names = append(names, raw.(map[string]any)["name"].(string))
+		}
+		return names
+	}
+	if got := list(); len(got) != 0 {
+		t.Errorf("a token with no permissions was offered %v", got)
+	}
+	readOnly := list(auth.PermFleetRead)
+	for _, n := range readOnly {
+		if strings.HasPrefix(n, "request_") {
+			t.Errorf("a read-only token was offered %s", n)
+		}
+	}
+	if len(readOnly) != 16 {
+		t.Errorf("read-only token offered %d tools: %v", len(readOnly), readOnly)
+	}
+	deploy := strings.Join(list(auth.PermFleetRead, auth.PermDeployManage), ",")
+	if !strings.Contains(deploy, "request_playbook_run") || !strings.Contains(deploy, "request_package_deployment") || strings.Contains(deploy, "request_patch_deployment") {
+		t.Errorf("deploy.manage token offered %s", deploy)
+	}
+	patches := strings.Join(list(auth.PermFleetRead, auth.PermPatchesManage), ",")
+	if !strings.Contains(patches, "request_patch_deployment") || strings.Contains(patches, "request_playbook_run") {
+		t.Errorf("patches.manage token offered %s", patches)
+	}
+}
+
+// Calling a tool the caller may not use is refused before it does
+// anything (this server has no store, so reaching one would panic), with
+// the permission named so the model can tell its user.
+func TestMCPCallRefusesWithoutPermission(t *testing.T) {
+	s := &Server{logger: slog.Default()}
+	for tool, perms := range map[string][]string{
+		"request_playbook_run":       {auth.PermFleetRead},
+		"request_package_deployment": {auth.PermFleetRead, auth.PermPatchesManage},
+		"request_patch_deployment":   {auth.PermFleetRead, auth.PermDeployManage},
+		"list_endpoints":             {auth.PermAuditRead},
+		"get_sensor":                 {auth.PermDeployManage},
+		"list_pending_updates":       {},
+	} {
+		res, rpcErr := mcpResult(t, mcpCallAs(t, s, mcpTokenCtx(perms...),
+			`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"`+tool+`","arguments":{"playbook":"x","package":"y","operation":"install","agent_ids":["a"],"sensor":"processes","hostname":"h"}}}`))
+		if rpcErr != nil || res["isError"] != true {
+			t.Errorf("%s with %v: %v %v", tool, perms, res, rpcErr)
+			continue
+		}
+		text := res["content"].([]any)[0].(map[string]any)["text"].(string)
+		if !strings.Contains(text, "permission") {
+			t.Errorf("%s: refusal does not name the permission: %s", tool, text)
+		}
+	}
+}
+
+// A read tool answers through the console's route, as the caller, so the
+// route's own guard applies: a fleet.read token cannot read the audit log
+// this way any more than it can over HTTP.
+func TestMCPGetGoesThroughTheRouteGuard(t *testing.T) {
+	s := &Server{logger: slog.Default(), auth: &auth.Auth{}}
+	s.routes()
+	var out any
+	e := s.mcpGet(mcpTokenCtx(auth.PermFleetRead), "/api/audit", nil, &out)
+	if e == nil || e.status != http.StatusForbidden || !strings.Contains(e.msg, auth.PermAuditRead) {
+		t.Fatalf("audit log read through mcpGet: %+v", e)
+	}
+	if e := s.mcpGet(mcpTokenCtx(), "/api/agents", nil, &out); e == nil || e.status != http.StatusForbidden {
+		t.Fatalf("endpoint list read without fleet.read: %+v", e)
 	}
 }
 

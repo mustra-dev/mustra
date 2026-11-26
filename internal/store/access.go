@@ -220,15 +220,22 @@ type ApprovalRequest struct {
 	DecidedAt    *time.Time `json:"decided_at,omitempty"`
 	DecisionNote string     `json:"decision_note,omitempty"`
 	Outcome      string     `json:"outcome,omitempty"`
+	// RequesterID is the person behind the request: the user, or the
+	// creator of the API token that asked. Empty on requests made before
+	// it was recorded.
+	RequesterID string `json:"requester_id,omitempty"`
+	// TokenID is the API token that asked, when one did; approving
+	// replays the request as that token.
+	TokenID string `json:"token_id,omitempty"`
 }
 
 const approvalRequestColumns = `id, policy_id, policy_name, module, summary, method, path, body, agent_ids, device_count,
-	requested_by, requested_at, expires_at, state, decided_by, decided_at, decision_note, outcome`
+	requested_by, requested_at, expires_at, state, decided_by, decided_at, decision_note, outcome, requester_id, token_id`
 
 func scanApprovalRequest(row interface{ Scan(...any) error }) (ApprovalRequest, error) {
 	var a ApprovalRequest
 	err := row.Scan(&a.ID, &a.PolicyID, &a.PolicyName, &a.Module, &a.Summary, &a.Method, &a.Path, &a.Body, &a.AgentIDs, &a.DeviceCount,
-		&a.RequestedBy, &a.RequestedAt, &a.ExpiresAt, &a.State, &a.DecidedBy, &a.DecidedAt, &a.DecisionNote, &a.Outcome)
+		&a.RequestedBy, &a.RequestedAt, &a.ExpiresAt, &a.State, &a.DecidedBy, &a.DecidedAt, &a.DecisionNote, &a.Outcome, &a.RequesterID, &a.TokenID)
 	if a.AgentIDs == nil {
 		a.AgentIDs = []string{}
 	}
@@ -240,9 +247,10 @@ func (s *Store) CreateApprovalRequest(ctx context.Context, a ApprovalRequest) er
 		a.AgentIDs = []string{}
 	}
 	_, err := s.pool.Exec(ctx, `INSERT INTO approval_requests (id, policy_id, policy_name, module, summary, method, path, body,
-		agent_ids, device_count, requested_by, requested_at, expires_at, state)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,now(),$12,'pending')`,
-		a.ID, a.PolicyID, a.PolicyName, a.Module, a.Summary, a.Method, a.Path, a.Body, a.AgentIDs, a.DeviceCount, a.RequestedBy, a.ExpiresAt)
+		agent_ids, device_count, requested_by, requested_at, expires_at, state, requester_id, token_id)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,now(),$12,'pending',$13,$14)`,
+		a.ID, a.PolicyID, a.PolicyName, a.Module, a.Summary, a.Method, a.Path, a.Body, a.AgentIDs, a.DeviceCount, a.RequestedBy, a.ExpiresAt,
+		a.RequesterID, a.TokenID)
 	if err != nil {
 		return fmt.Errorf("create approval request: %w", err)
 	}

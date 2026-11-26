@@ -656,6 +656,7 @@ func (s *Server) requireApproval(w http.ResponseWriter, r *http.Request, module,
 		Summary: summary, Method: r.Method, Path: r.URL.Path, Body: parked,
 		AgentIDs: agentIDs, DeviceCount: len(agentIDs), RequestedBy: u.Username, ExpiresAt: &expires,
 	}
+	req.RequesterID, req.TokenID = approvalRequester(r.Context())
 	if err := s.store.CreateApprovalRequest(r.Context(), req); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return true
@@ -673,6 +674,31 @@ func (s *Server) requireApproval(w http.ResponseWriter, r *http.Request, module,
 	return true
 }
 
+// approvalRequester is who is asking, for an approval request: the person
+// behind it (a token's creator for a token) and the token, if one asked.
+func approvalRequester(ctx context.Context) (requesterID, tokenID string) {
+	principal, _, _ := accessPrincipal(ctx)
+	if t, ok := auth.Token(ctx); ok {
+		return principal, t.ID
+	}
+	return principal, ""
+}
+
+// ownApproval reports whether the caller is the one who asked for req, by
+// username or by the person behind it: approving through your own API
+// token, or your token's request yourself, is still approving your own.
+func ownApproval(ctx context.Context, req store.ApprovalRequest) bool {
+	u := auth.CurrentUser(ctx)
+	if u != nil && req.RequestedBy == u.Username {
+		return true
+	}
+	if t, ok := auth.Token(ctx); ok && req.TokenID != "" && t.ID == req.TokenID {
+		return true
+	}
+	principal, _, ok := accessPrincipal(ctx)
+	return ok && req.RequesterID != "" && principal == req.RequesterID
+}
+
 // runApproved replays a decided request under the identity of whoever
 // asked for it, and records what happened.
 func (s *Server) runApproved(ctx context.Context, req store.ApprovalRequest) {
@@ -686,17 +712,31 @@ func (s *Server) runApproved(ctx context.Context, req store.ApprovalRequest) {
 		_ = s.store.SetApprovalOutcome(ctx, req.ID, "failed", "no handler for "+parked.Handler)
 		return
 	}
-	requester, err := s.store.GetUserByUsername(ctx, req.RequestedBy)
-	if err != nil || requester == nil {
-		_ = s.store.SetApprovalOutcome(ctx, req.ID, "failed", "the requester no longer exists")
-		return
-	}
-	// A disabled account's authority lapses, as it does for its API tokens
-	// and its stored work (endpointActionPrincipal): approval does not
-	// revive it.
-	if !requester.Active {
-		_ = s.store.SetApprovalOutcome(ctx, req.ID, "failed", "the requester's account is disabled")
-		return
+	var asRequester context.Context
+	if req.TokenID != "" {
+		// An API token asked (an AI client through MCP): the request runs
+		// as that token, with what it may do now, and not at all once it
+		// is revoked or its creator's authority has lapsed.
+		tctx, err := s.auth.TokenContext(ctx, req.TokenID)
+		if err != nil {
+			_ = s.store.SetApprovalOutcome(ctx, req.ID, "failed", "the API token that asked is no longer live: "+err.Error())
+			return
+		}
+		asRequester = tctx
+	} else {
+		requester, err := s.store.GetUserByUsername(ctx, req.RequestedBy)
+		if err != nil || requester == nil {
+			_ = s.store.SetApprovalOutcome(ctx, req.ID, "failed", "the requester no longer exists")
+			return
+		}
+		// A disabled account's authority lapses, as it does for its API tokens
+		// and its stored work (endpointActionPrincipal): approval does not
+		// revive it.
+		if !requester.Active {
+			_ = s.store.SetApprovalOutcome(ctx, req.ID, "failed", "the requester's account is disabled")
+			return
+		}
+		asRequester = auth.WithUser(ctx, requester)
 	}
 	hr, err := http.NewRequest(req.Method, req.Path, strings.NewReader(string(parked.Body)))
 	if err != nil {
@@ -707,7 +747,7 @@ func (s *Server) runApproved(ctx context.Context, req store.ApprovalRequest) {
 	for k, v := range parked.PathValues {
 		hr.SetPathValue(k, v)
 	}
-	hr = hr.WithContext(withApproval(auth.WithUser(ctx, requester), req.ID))
+	hr = hr.WithContext(withApproval(asRequester, req.ID))
 	rec := &captureWriter{header: http.Header{}}
 	h(rec, hr)
 	outcome := strings.TrimSpace(rec.body.String())

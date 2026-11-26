@@ -6,6 +6,35 @@ rather than a page that can drift from it.
 
 ## Unreleased
 
+Server only; agents are unchanged.
+
+### Added
+- **The fleet over MCP, with changes that wait for approval.** The MCP endpoint at
+  `/api/mcp` now answers about endpoints and their facts, cached sensor answers,
+  vulnerabilities, hardening and compliance, Enforce drift, recent deployments and each
+  device's outcome (failed, timed out and no response kept apart), notifications, the Guide
+  queue, playbooks and catalog packages. Each tool answers through the console's own route,
+  as the caller, so a token sees what that token could see in the console. Three new tools,
+  `request_playbook_run`, `request_package_deployment` and `request_patch_deployment`, never
+  act: each files an approval request attributed to the token, and somebody else approves it
+  under Access → Approvals. A client is offered only the tools its token's permissions allow.
+- **MCP-only API tokens.** A token marked MCP only works on `/api/mcp` and nowhere else, so
+  an AI client can hold `deploy.manage` to ask for a deployment without being able to run one.
+- **Connect an AI client.** Administration → API Tokens shows the MCP endpoint and a
+  configuration to copy for VS Code and GitHub Copilot, Claude Code, Claude Desktop,
+  ChatGPT and the OpenAI API, and other Streamable HTTP clients. A new Help guide covers it.
+- **Run a playbook on some of its endpoints.** `POST /api/playbooks/{id}/run` takes an
+  optional `agent_ids` list that narrows the run to those of the playbook's targets.
+
+### Changed
+- An approval request records the person behind it and, when a token asked, the token. The
+  requester cannot approve it through any of their tokens either, and approving a token's
+  request replays it as that token, only while the token is live.
+
+### Fixed
+- A token made by another token, for a creator who is not an administrator, could act with
+  permissions its parent token had lost. The parent's limit now holds.
+
 ## 1.6.2 — 2026-11-19
 
 Server 1.6.2, agent 1.6.2. Update the server and agents: both carry the Go security fix,
