@@ -23,6 +23,15 @@ Server only; agents are unchanged.
 - **Connect an AI client.** Administration → API Tokens shows the MCP endpoint and a
   configuration to copy for VS Code and GitHub Copilot, Claude Code, Claude Desktop,
   ChatGPT and the OpenAI API, and other Streamable HTTP clients. A new Help guide covers it.
+- **An assistant in the console, with your own model.** Administration → AI connects
+  Anthropic, OpenAI, Azure OpenAI, Google Gemini or any OpenAI-compatible server (Ollama,
+  LM Studio, vLLM, OpenRouter), with the API key encrypted by the credential vault and never
+  shown again, and a Test connection button. The new Assistant page answers questions with
+  the MCP tools, run as the signed-in user, and lists each tool call; what it asks to change
+  waits for approval. It is off until an administrator adds a connection and turns it on,
+  can be limited to self-hosted connections, and needs the new `ai.use` permission. Every
+  tool call is audited. Endpoint data the tools read is sent to the chosen provider, which
+  Settings and PRIVACY.md say.
 - **Run a playbook on some of its endpoints.** `POST /api/playbooks/{id}/run` takes an
   optional `agent_ids` list that narrows the run to those of the playbook's targets.
 

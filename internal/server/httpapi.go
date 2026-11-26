@@ -477,6 +477,17 @@ func (s *Server) routes() http.Handler {
 	// A POST only because MCP is JSON-RPC: every tool it offers reads.
 	protected.HandleFunc("POST /api/mcp", s.handleMCP)
 	protected.HandleFunc("GET /api/mcp", s.handleMCPNoStream)
+	// The console assistant (ai_api.go): configured with settings.manage,
+	// used with ai.use, and its tools still need their own permissions.
+	protected.Handle("GET /api/ai/settings", perm(auth.PermSettingsManage, hf(s.handleGetAISettings)))
+	protected.Handle("PUT /api/ai/settings", perm(auth.PermSettingsManage, hf(s.handlePutAISettings)))
+	protected.Handle("POST /api/ai/connections", perm(auth.PermSettingsManage, hf(s.handleSaveAIConnection)))
+	protected.Handle("PUT /api/ai/connections/{id}", perm(auth.PermSettingsManage, hf(s.handleSaveAIConnection)))
+	protected.Handle("DELETE /api/ai/connections/{id}", perm(auth.PermSettingsManage, hf(s.handleDeleteAIConnection)))
+	protected.Handle("POST /api/ai/connections/{id}/test", perm(auth.PermSettingsManage, hf(s.handleTestAIConnection)))
+	protected.Handle("GET /api/ai/status", perm(auth.PermAIUse, hf(s.handleAIStatus)))
+	protected.Handle("POST /api/ai/chat", perm(auth.PermAIUse, hf(s.handleAIChat)))
+	protected.Handle("GET /assistant", perm(auth.PermAIUse, staticPageHandler("static/assistant.html")))
 	protected.Handle("GET /containers", staticPageHandler("static/containers.html"))
 	protected.HandleFunc("GET /api/backup-status", s.handleBackups)
 	protected.HandleFunc("GET /api/entra/devices", s.handleEntraDevices)
