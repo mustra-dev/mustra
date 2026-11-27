@@ -565,6 +565,26 @@ var bodyExamples = map[string]string{
 			"check_tamper_protection": true
 		}
 	}`,
+	// A new report-mode policy for one group, from one CIS check; the
+	// fix runs only once somebody switches the policy to enforce.
+	"POST /api/enforce/from-checks": `{
+		"name": "CIS Debian 12 on web servers",
+		"description": "Failing CIS checks, held from Comply",
+		"group_id": "cgrp-1c8e4a2f6b9d43e7a5c0f2b8d6e4a1c3",
+		"checks": [
+			{
+				"benchmark_id": "imported-cis-debian-12",
+				"check_id": "35600",
+				"remediate_linux": "sed -i 's/^\\s*#\\?\\s*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config && systemctl reload ssh"
+			}
+		]
+	}`,
+	"POST /api/enforce/from-checks/preview": `{
+		"checks": [
+			{"benchmark_id": "imported-cis-debian-12", "check_id": "35600"},
+			{"benchmark_id": "imported-cis-debian-12", "check_id": "35500"}
+		]
+	}`,
 	"POST /api/enforce/policies": `{
 		"name": "Time sync on web servers",
 		"description": "chronyd keeps the clock right on every web server",

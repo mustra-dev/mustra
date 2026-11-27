@@ -82,7 +82,6 @@ Open work, kept here so it can be picked up. Add to it when deferring something,
 
 - [ ] Wazuh's CIS content has rules that can never pass as written (Debian "shadowed passwords" inverted, `ucredit … compare < 0` with a `(\d+)` capture, `ENCRYPT_METHOD` SHA512 *and* YESCRYPT). Consider reporting upstream, or a per-policy rule override in Mustra so a bad rule can be corrected rather than excepted.
 - [ ] Exceptions by check title cover every benchmark sharing the title; add optional per-benchmark scoping if two benchmarks ever share a title with different meaning.
-- [ ] Enforce has no import from a benchmark: the CIS Linux baseline policy was built by a script that copies each check's rules and adds a fix. A "create Enforce setting from this check" action would make that repeatable in the console.
 - [ ] Run the Linux Firewall Enforce policy on real firewalld, ufw and nftables hosts (Debian, Ubuntu, a RHEL family release): its checks and fixes are tested against stubs that answer like the real tools, not against the tools themselves.
 - [ ] Linux Firewall holds firewalld's default zone only; interfaces bound to another zone, and rules the policy does not list, are left alone. Consider an option to cover every active zone and to remove unlisted allowances.
 - [ ] Windows account policy (password length, lockout) and advanced audit subcategories can only come from Group Policy; a typed Enforce kind for `auditpol`/`secedit` would let Mustra hold them on workgroup machines.

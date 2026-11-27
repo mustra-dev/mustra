@@ -75,11 +75,27 @@ agents.
   `unknown: <reason>`, which makes the rule unknown instead of failed. **Needs agent
   upgrade:** older agents read `u:` rules — and so Linux Firewall policies — as unknown,
   and change nothing.
+- **Create an Enforce setting from a hardening check.** Under Comply → Findings, a check (or one
+  endpoint's failure) has **create Enforce setting**. Several checks, such as every failing check of one
+  benchmark, can be added at once to a new policy or to an existing one in report mode. The setting's
+  test is the check's own rules, copied unchanged and named after the check, and it keeps the benchmark
+  and check ID. Rules the endpoint engine cannot read are named in the dialog, with the reason, and kept.
+  Where they decide, the setting reports `unknown` and it takes no fix. You write the fix. The benchmark's
+  remediation text is offered only as `#` comments, and nothing is generated from it. Making a setting
+  from a check that already has one links to it rather than copying it. This needs `deploy.manage`, like
+  any Enforce setting. New routes: `POST /api/enforce/from-checks/preview` and
+  `POST /api/enforce/from-checks`. Server only.
+- A link to `/enforce#<policy id>`, as Enforce notifications already give, opens that policy.
 
 ### Changed
 - An approval request records the person behind it and, when a token asked, the token. The
   requester cannot approve it through any of their tokens either, and approving a token's
   request replays it as that token, only while the token is live.
+- An Enforce fix made only of blank and `#` comment lines is treated as no fix: it is not sent to
+  the endpoint, and an enforcing policy needs a real command. Before, it ran as a no-op, failed the
+  re-check, and counted towards giving up.
+- `GET /api/compliance/results` counts checks per benchmark and check, and names the benchmark
+  (`policy_id`) on each.
 
 ### Fixed
 - A token made by another token, for a creator who is not an administrator, could act with

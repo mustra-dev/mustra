@@ -110,7 +110,10 @@ func (s *Server) endpointActionRoutes() map[string]actionSpec {
 		"DELETE /api/patches/schedules/{id}":       {Module: "patches", Resolve: definition(resolvePatchSchedule)},
 		"POST /api/enforce/policies":               {Module: "enforce", Resolve: definition(bodyAgentsOrFleet(nil, []string{"group_id"}, false))},
 		"PUT /api/enforce/policies/{id}":           {Module: "enforce", Resolve: definition(bodyAgentsOrFleet(nil, []string{"group_id"}, false))},
-		"POST /api/reveal/rules":                   {Module: "reveal", Resolve: definition(bodyAgentsOrFleet(nil, []string{"group_ids"}, false))},
+		// Settings made from benchmark checks are saved into a policy the
+		// server then runs unattended: the chosen one, or a new one.
+		"POST /api/enforce/from-checks": {Module: "enforce", Resolve: definition(resolveEnforceFromChecks)},
+		"POST /api/reveal/rules":        {Module: "reveal", Resolve: definition(bodyAgentsOrFleet(nil, []string{"group_ids"}, false))},
 		// A rule set writes its groups onto its rules, so saving one
 		// targets exactly as saving a rule does; no groups means the fleet.
 		"POST /api/reveal/rule-sets":     {Module: "reveal", Resolve: definition(bodyAgentsOrFleet(nil, []string{"group_ids"}, false))},

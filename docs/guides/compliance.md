@@ -46,3 +46,14 @@ Some failures are deliberate, such as a kiosk that must auto-login.
 ## Fix failures automatically
 
 Comply reports; it changes nothing. To put a setting right and keep it right, create an **Enforce** policy. See [Enforce settings](enforce.md).
+
+You can start one from a check. This needs **Deploy software and run actions** (`deploy.manage`), as writing an Enforce setting does:
+
+1. Under **Findings**, choose **create Enforce setting** on a check, or on one endpoint's failure. To do several at once, tick them (or filter the Check column by a benchmark's name and choose **Select the failing checks shown**), then **Add to Enforce**.
+2. Choose where it goes: a new policy, which starts in report mode, or an existing policy that is still in report mode.
+3. Write the **Fix**. The benchmark's remediation text is copied in as `#` comments. Comments run nothing, so a fix with only comments reports drift and never "fixes" anything.
+4. Choose **Create setting**, then open the policy in Enforce, run it, and read the results before you switch it to enforce.
+
+The setting's test is the check's own rules, unchanged. If the engine cannot read some of them on that platform (a registry rule on Linux, a regular expression Go cannot compile), the dialog names each one and says why. They are kept, not dropped. Where they decide the result the setting reports *unknown*, never compliant, and it can't have a fix: the re-check after a fix could never confirm it.
+
+Making a setting from a check that already has one links to that setting rather than copying it. The exception is adding the check to a different existing policy on purpose.

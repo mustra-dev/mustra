@@ -270,6 +270,11 @@ async function load() {
   renderFilters();
   renderResults();
   renderGroupOptions();
+  // A link to one policy (/enforce#<policy id>, as notifications and
+  // Comply's "Create Enforce setting" give) opens it in the editor.
+  let want = "";
+  try { want = decodeURIComponent(window.location.hash.slice(1)); } catch (e) { /* not a policy id */ }
+  if (want.startsWith("enf-") && policies.some(p => p.id === want)) editPolicy(want);
 }
 
 function renderTiles() {
@@ -470,6 +475,7 @@ function renderSettings() {
     <div class="setting-card">
       <div class="setting-card-head">
         <b>Setting ${i + 1}</b>
+        ${s.benchmark ? `<span class="u-fs-meta u-c-text-muted">from ${escapeHtml(s.benchmark.policy_name || s.benchmark.policy_id)} · check ${escapeHtml(s.benchmark.check_id)}</span>` : ""}
         <span class="spacer"></span>
         ${canManage ? `<button class="tiny danger" data-rm="${i}">Remove</button>` : ""}
       </div>

@@ -1079,6 +1079,33 @@ somebody tidied up a group is exactly the surprise this must never spring.
 implement it. A deleted group widened a policy from 1 endpoint to 37 in
 testing, which is how it was found.)
 
+#### From a hardening check
+
+A benchmark check already says what must be true, in the dialect Enforce runs,
+so Comply can turn one into a setting (**create Enforce setting** on a check,
+or on several at once). The setting's test is the check's rules, copied
+verbatim with its condition, named after the check, and it keeps the benchmark
+and check ID. Rewriting the rules would make the setting and the check
+disagree about the same machine. The translation adds a warning, not a
+rewrite. It names each rule the endpoint engine cannot read on that platform:
+a registry rule outside Windows, a matcher it does not speak, a regular
+expression Go cannot compile. Those rules are kept, because dropping one would
+check less than the benchmark does and pass where it fails. Where they decide,
+the setting reports `unknown` and never compliant. Such a setting also takes
+no fix, because the re-check that decides `remediated` cannot read them.
+
+The fix is the operator's. A benchmark's remediation is prose for a person,
+and turning it into a command that runs as root on every targeted machine is
+not something to guess at. It is offered only as `#` comment lines, and a fix
+made only of comments counts as no fix: it is not sent, so it can neither run
+nor burn an attempt. The settings land in report mode: in a new policy, or in
+an existing custom policy that is still in report mode. Asking again for a
+check that already has a setting links to that setting rather than copying
+it. The exception is adding the check to a different chosen policy, which is
+how to hold it in a second scope on purpose. Creating these takes
+`deploy.manage`, the same as writing a setting by hand. The same translation
+is behind `POST /api/enforce/from-checks`, for anything scripted.
+
 #### Typed policies, posture, and recovery keys
 
 Five policy types come with their own editor — **Windows Firewall**,
@@ -1784,6 +1811,8 @@ reads "every line matches". `d:<dir> -> r:<name> -> <matcher>` looks in the
 files under the directory whose names match (three levels, at most 2,000
 files); `d:<dir>/*` is the directory. Windows registry values are compared
 whole. Anything the engine does not understand is `unknown`, never a pass.
+A check can be held in place, not only reported: Comply makes an Enforce
+setting from it with the same rules (see [Enforce](#from-a-hardening-check)).
 
 ## Compliance by control — NIST and other frameworks
 
