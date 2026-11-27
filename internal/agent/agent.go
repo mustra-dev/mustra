@@ -106,6 +106,8 @@ type Agent struct {
 	// notification. Its poll is its heartbeat: nothing else needs to be
 	// registered, and if it stops, this goes stale on its own.
 	tray lastSeen
+	// saas is SaaS experience monitoring's state (saas.go).
+	saas *saasMonitor
 	// trayReported keeps a failure to start the helper to one log line
 	// rather than one every thirty seconds.
 	trayReported lastSeen
@@ -179,7 +181,7 @@ func New(cfg Config) *Agent {
 		cfg.SensorInterval = 15 * time.Minute
 	}
 	defaultCommunityApps.logger = cfg.Logger
-	a := &Agent{cfg: cfg, logger: cfg.Logger, noRemoteCode: detectNoRemoteCode(), containers: newContainerCollector(!cfg.NoContainerUpdateChecks, cfg.Logger)}
+	a := &Agent{cfg: cfg, logger: cfg.Logger, noRemoteCode: detectNoRemoteCode(), containers: newContainerCollector(!cfg.NoContainerUpdateChecks, cfg.Logger), saas: newSaaSMonitor()}
 	if a.noRemoteCode {
 		a.logger.Info("inventory-and-patching mode: this endpoint refuses code from the server")
 		noRemoteCodeActive.Store(true)
@@ -403,6 +405,9 @@ func (a *Agent) Run(ctx context.Context) error {
 	goRun(func() { a.pub.runFlushLoop(ctx, 5*time.Second) })
 	goRun(func() { a.heartbeatLoop(ctx) })
 	goRun(func() { a.telemetryLoop(ctx) })
+	// SaaS experience monitoring: the app library for the browser
+	// extension, its native messaging host, and its aggregates (saas.go).
+	goRun(func() { a.saasLoop(ctx) })
 	goRun(func() { a.factsLoop(ctx) })
 	goRun(func() {
 		a.runSensorLoop(ctx, proto.SensorProcesses, a.cfg.SensorInterval, intervalChans[proto.SensorProcesses], func(ctx context.Context) (any, error) {

@@ -348,6 +348,13 @@ var typeDocs = map[string]typeDoc{
 			"Type":   "os | data",
 		},
 	},
+	"github.com/mustra-dev/mustra/internal/saasmon.Result": {
+		Doc: "Result is a scored Totals.",
+		Fields: map[string]string{
+			"Band":  "Band is good, fair, poor, or no_data.",
+			"Score": "Score is 0-100; nil when there were fewer than MinNavigations loads.",
+		},
+	},
 	"github.com/mustra-dev/mustra/internal/server.BackupManifest": {
 		Doc: "BackupManifest describes an archive well enough to refuse a bad one before any of it is applied.",
 		Fields: map[string]string{
@@ -2003,6 +2010,66 @@ var typeDocs = map[string]typeDoc{
 	"github.com/mustra-dev/mustra/internal/server.runScheduledActionNowResponse": {
 		Doc: "runScheduledActionNowResponse is what POST /api/schedules/{id}/run answers.",
 	},
+	"github.com/mustra-dev/mustra/internal/server.saasAppEndpointsResponse": {
+		Doc: "saasAppEndpointsResponse is what GET /api/saas/apps/{id}/endpoints answers.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.saasAppRequest": {
+		Doc: "saasAppRequest is the body of POST /api/saas/apps and PUT /api/saas/apps/{id}.",
+		Fields: map[string]string{
+			"Domains": "Domains belong to the app with their subdomains: slack.com covers app.slack.com. Each may belong to only one app.",
+			"ID":      "ID is chosen on creation (lower-case letters, digits, - and _), or derived from the name when empty; it cannot change.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.saasAppScore": {
+		Doc: "saasAppScore is an app's row in the overview.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.saasAppsResponse": {
+		Doc: "saasAppsResponse is what GET /api/saas/apps answers.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.saasEndpointScore": {
+		Doc: "saasEndpointScore is one endpoint's row in an app's drill-down.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.saasOverviewResponse": {
+		Doc: "saasOverviewResponse is what GET /api/saas/overview answers.",
+		Fields: map[string]string{
+			"Apps":      "Apps, worst score first; apps without enough data last.",
+			"Endpoints": "Endpoints is how many endpoints reported in the period.",
+			"Fleet":     "Fleet is every app's page loads together.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.saasPolicies": {
+		Doc: "saasPolicies are ready-to-use force-install policies for the extension.",
+		Fields: map[string]string{
+			"LinuxJSON":         "LinuxJSON is a managed policy file for /etc/opt/chrome/policies/managed, /etc/chromium/policies/managed and /etc/opt/edge/policies/managed.",
+			"MacOSMobileconfig": "MacOSMobileconfig is a configuration profile for an MDM to install.",
+			"WindowsReg":        "WindowsReg is a .reg file for Chrome and Edge.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.saasSettings": {
+		Doc: "saasSettings is GET/PUT /api/saas/settings's configuration.",
+		Fields: map[string]string{
+			"Enabled":       "Enabled turns monitoring on for every endpoint whose browser has the extension.",
+			"ExtensionID":   "ExtensionID is the extension's ID when it is not the uploaded package's: one packed and hosted elsewhere. An uploaded package's ID wins.",
+			"RetentionDays": "RetentionDays is how long five-minute aggregates are kept, 1-365; default 30.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.saasSettingsResponse": {
+		Doc: "saasSettingsResponse is what GET and PUT /api/saas/settings answer.",
+		Fields: map[string]string{
+			"CanManage":            "CanManage says whether this viewer may change any of it.",
+			"EffectiveExtensionID": "EffectiveExtensionID is the ID agents admit: the package's, else the configured one.",
+			"Endpoints":            "Endpoints is how many endpoints have reported within retention.",
+			"Extension":            "Extension is the uploaded package, null when none is.",
+			"Policies":             "Policies are filled when both the ID and the update URL are known.",
+			"UpdateURL":            "UpdateURL is the update manifest browsers are pointed at; empty until the console's public URL is set.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.saasTrendPoint": {
+		Doc: "saasTrendPoint is one bucket of an app's trend.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.saasTrendResponse": {
+		Doc: "saasTrendResponse is what GET /api/saas/apps/{id}/trend answers.",
+	},
 	"github.com/mustra-dev/mustra/internal/server.saveAIConnectionRequest": {
 		Doc: "saveAIConnectionRequest is the body of POST /api/ai/connections and PUT /api/ai/connections/{id}.",
 		Fields: map[string]string{
@@ -3117,6 +3184,15 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/store.RootTrust": {
 		Doc: "RootTrust is one endpoint's state for one pushed root certificate.",
+	},
+	"github.com/mustra-dev/mustra/internal/store.SaaSApp": {
+		Doc: "SaaSApp is one app of the library.",
+		Fields: map[string]string{
+			"Builtin": "Builtin marks an app the server seeded; it can be edited and deleted like any other.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/store.SaaSExtension": {
+		Doc: "SaaSExtension describes the uploaded extension package.",
 	},
 	"github.com/mustra-dev/mustra/internal/store.ScheduledAction": {
 		Doc: "A scheduled action runs a package on a cadence.\n\nDeliberately a schedule over a package rather than over a raw command: the package already carries per-OS commands, applicability, a timeout, an expiry and its parameters. A schedule that took a command string instead would be a second, worse way to define the same thing — and the one nobody audits.",

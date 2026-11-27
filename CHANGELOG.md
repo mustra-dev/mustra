@@ -7,8 +7,10 @@ rather than a page that can drift from it.
 ## Unreleased
 
 Server and agent: the Self Service category column, Enforce's `u:` rules (Linux Firewall
-policies), Ansible playbook policies, and Windows driver, feature-update and Hotpatch handling
-need this agent release; everything else is server only and works with current agents. No manual migration is needed: the server adds its new tables and columns on start.
+policies), Ansible playbook policies, Windows driver, feature-update and Hotpatch handling, and
+SaaS Experience measurements need this agent release; everything else is server only and works
+with current agents. No manual migration is needed: the server adds its new tables and columns
+on start.
 
 ### Added
 - **Pick rows in a query result.** Interact results have a checkbox on every row and a
@@ -187,6 +189,20 @@ need this agent release; everything else is server only and works with current a
   feature updates as ordinary patches and installing them as before, and an older server
   keeps sending runs that the new agent will not use to install a driver or a Windows
   upgrade. No database migration (the opt-ins live in each list's rules).
+- **SaaS Experience: how web apps perform in people's browsers.** A new page scores each app
+  in an app library (Microsoft 365, Teams, Google Workspace, Salesforce, Slack, Zoom, Jira and
+  Confluence, GitHub, ServiceNow and Workday to start with, all editable) from 0 to 100 by time
+  to first byte, load time, error rate and script errors, ranks them worst first, and drills
+  into each app's trend and endpoints. The numbers come from a new Manifest V3 extension for
+  Chrome, Edge and Chromium (`extension/saas-monitor`) that measures only the library's domains,
+  never incognito windows, and sends only per-app five-minute aggregates: never a page's address,
+  title or content. It reaches mustra through the agent, which now acts as the extension's native
+  messaging host and publishes the aggregates as the new `saas_experience` sensor. Off until
+  turned on under SaaS Experience → Setup, which also takes the extension package
+  (`go run ./cmd/saas-extension-pack`, with a key you keep), serves it with an update manifest,
+  and shows force-install policies for Windows, Linux and macOS. Data is kept 30 days by default.
+  Needs the new server and the new agent on each endpoint to be measured; older agents are not
+  affected and report nothing.
 
 ### Changed
 - An approval request records the person behind it and, when a token asked, the token. The

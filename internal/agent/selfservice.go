@@ -196,6 +196,9 @@ func (a *Agent) runSelfService(ctx context.Context, addr string) {
 		writeLocalJSON(w, map[string]any{"ok": reply.OK, "message": reply.Message, "error": reply.Error})
 	})
 
+	// The browser extension's way in, through the native messaging host.
+	a.saasRoutes(mux)
+
 	srv := &http.Server{Addr: addr, Handler: newSelfServiceGuard(addr, token, mux), ReadHeaderTimeout: 5 * time.Second}
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {

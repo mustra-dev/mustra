@@ -2310,3 +2310,81 @@ in each of five states for every unit, usually the largest family on a Linux
 host. Sending it **for failed units only** keeps the `failed` series alone: one per
 unit, and `node_systemd_unit_state{state="failed"} == 1` still finds them, but
 rules that read the other states stop matching.
+
+## SaaS experience — how web apps perform where people use them
+
+SaaS Experience answers "is this app slow, or is it slow here": how the web
+apps in an administrator's **app library** load and fail in the browsers of
+the people using them. It is off until turned on under SaaS Experience →
+Setup.
+
+**What measures.** A Manifest V3 browser extension for Chrome, Edge and
+Chromium (`extension/saas-monitor`), force-installed by policy. On the pages
+of library apps only, it reads each top-level page load's Navigation Timing
+(time to first byte, DOMContentLoaded, load), counts uncaught script errors,
+and counts main-frame and XHR/fetch responses by status class with the
+observe-only webRequest API. It aggregates in the browser per app, browser
+and five-minute window into timing histograms over fixed buckets and
+counters. Only the app's ID and the library domain that matched leave the
+browser: never a path, query, title, content or form data. Sites outside the
+library are not measured, and incognito windows never are (the extension is
+`not_allowed` there).
+
+**How it travels.** Over Chrome native messaging to the agent binary, which
+the browser starts as the signed-in user and which recognises the
+`chrome-extension://` argument as host mode. The host checks the framing
+(4-byte length, size cap), decodes strictly (any field outside the protocol
+refuses the message) and validates it against the library, then posts it to
+the running agent's loopback Self Service listener with that listener's
+per-launch token. The agent checks it again, merges it with what is pending,
+and every five minutes publishes the batch as the `saas_experience` sensor on
+its durable outbox (`beacon.agent.<id>.sensor.saas_experience`, an existing
+subject and permission). The server checks each aggregate against the current
+library and retention, and adds the batch to `saas_samples` exactly once by
+its batch ID, so a redelivery after a lost ack does not double-count.
+
+**The agent's part.** Every five minutes the agent asks the server
+(`saas_config` on its Self Service request subject) whether monitoring is on,
+for the library, and for the extension ID. While on, it registers the native
+messaging host for Chrome, Edge and Chromium (HKLM registry keys on Windows,
+`NativeMessagingHosts` manifests on macOS and Linux) admitting only that one
+extension, and writes the listener's address beside its binary for host mode.
+When off, or when a server too old to answer says nothing, it removes them and
+discards what was pending. FreeBSD has no host.
+
+**Distribution.** The operator packs the extension with a key of their own
+(`cmd/saas-extension-pack`); the key decides the extension ID and never
+leaves their machine. The server takes the uploaded `.crx` only after
+checking its signatures, and serves it with an update manifest at
+`/saas-extension/update.xml` (unauthenticated: a browser installing a policy
+has no session). Setup shows `ExtensionInstallForcelist` policies for
+Windows, Linux and macOS with the real ID and URL. Chrome and Edge honour a
+force-install from outside their stores only on domain-joined or
+MDM-managed Windows, on macOS only from an MDM profile, and anywhere on
+Linux. Store publishing is not done.
+
+**The score.** From the period's summed histograms and counters, never an
+average of other scores:
+
+    score = 100 × (0.30·ramp(p75 TTFB,  800 ms, 1800 ms)
+                 + 0.30·ramp(p75 load, 3000 ms, 8000 ms)
+                 + 0.30·ramp(error rate, 1 %, 10 %)
+                 + 0.10·ramp(JS errors per page load, 1, 5))
+
+where `ramp(v, good, poor)` is 1 at or below good, 0 at or above poor, and
+linear between. The error rate is main-frame 5xx and failed loads plus
+XHR/fetch 5xx and failures, over page loads plus requests; 4xx is shown but
+not scored. Percentiles interpolate inside a histogram bucket, and every
+threshold is a bucket bound, so good-or-not is exact. Under five page loads
+there is no score. 85 and above is good, 60 to 84 fair, below 60 poor. The
+fleet score is every page load in the fleet together, so a machine with two
+loads weighs as much as its two loads.
+
+**Retention and permissions.** Five-minute rows are kept 30 days by default
+(1-365). Scores, trends and drill-downs need fleet.read; the library, the
+switch and the package need settings.manage, and each change is audited.
+Deleting an app deletes what was measured of it.
+
+**Limits.** Only full page loads are timed, not single-page-app route
+changes. Requests count toward the app whose page made them. Only Chromium
+browsers. The host needs the Self Service listener.

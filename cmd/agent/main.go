@@ -26,6 +26,14 @@ import (
 var version = "dev"
 
 func main() {
+	// Started by Chrome, Edge or Chromium as the SaaS monitoring extension's
+	// native messaging host: the browser passes the extension's origin as
+	// the only argument that matters and cannot pass flags, so this is
+	// decided before flag parsing, and nothing else of the agent starts.
+	if agent.IsNativeHostInvocation(os.Args[1:]) {
+		os.Exit(agent.RunNativeHost(os.Args[1:], os.Stdin, os.Stdout))
+	}
+
 	var (
 		natsURL         = flag.String("nats-url", envOr("MUSTRA_NATS_URL", "nats://127.0.0.1:4222"), "NATS server URL")
 		site            = flag.String("site", envOr("MUSTRA_SITE", "default"), "site label for this agent")

@@ -189,6 +189,22 @@ var routeDocs = map[string]routeDoc{
 	// cert-authorities
 	"POST /api/admin/cert-authorities": {Body: saveCertAuthoritiesRequest{}, Resp: listManagedCertsResponse{}, Errors: []int{400, 403, 500}},
 
+	// saas
+	"GET /api/saas/settings": {Resp: saasSettingsResponse{}, Errors: []int{500}},
+	"PUT /api/saas/settings": {Body: saasSettings{}, Resp: saasSettingsResponse{}, Errors: []int{400, 500}},
+	"POST /api/saas/extension": {Raw: "application/x-chrome-extension",
+		Query: []queryParam{flag("replace_id", "accept a package whose extension ID differs from the current one's")},
+		Resp:  store.SaaSExtension{}, Errors: []int{400, 409, 413, 500}},
+	"DELETE /api/saas/extension":        {Status: 204, Errors: []int{500}},
+	"GET /api/saas/apps":                {Resp: saasAppsResponse{}, Errors: []int{500}},
+	"POST /api/saas/apps":               {Body: saasAppRequest{}, Resp: store.SaaSApp{}, Status: 201, Errors: []int{400, 409, 500}},
+	"PUT /api/saas/apps/{id}":           {Body: saasAppRequest{}, Resp: store.SaaSApp{}, Errors: []int{400, 404, 500}},
+	"DELETE /api/saas/apps/{id}":        {Status: 204, Errors: []int{404, 500}},
+	"GET /api/saas/overview":            {Query: []queryParam{{Name: "hours", Type: "integer", Desc: "the period, ending now: 1 to 8760 hours; default 24"}}, Resp: saasOverviewResponse{}, Errors: []int{400, 500}},
+	"GET /api/saas/apps/{id}/endpoints": {Query: []queryParam{{Name: "hours", Type: "integer", Desc: "the period, ending now: 1 to 8760 hours; default 24"}}, Resp: saasAppEndpointsResponse{}, Errors: []int{400, 404, 500}},
+	"GET /api/saas/apps/{id}/trend": {Query: []queryParam{{Name: "hours", Type: "integer", Desc: "the period, ending now: 1 to 8760 hours; default 24"},
+		{Name: "agent_id", Desc: "only this endpoint"}}, Resp: saasTrendResponse{}, Errors: []int{400, 404, 500}},
+
 	// containers
 	"GET /api/containers": {Query: []queryParam{{Name: "agent_id", Desc: "only this endpoint"}, {Name: "update", Enum: []string{proto.ContainerUpdateAvailable, proto.ContainerUpToDate, proto.ContainerNotChecked, proto.ContainerCheckFailed}, Desc: "only containers with this update status"}}, Resp: containersResponse{}, Errors: []int{400, 500}},
 

@@ -376,6 +376,24 @@ func sensorCatalog() []sensorDoc {
 			Cost:     "Hashing cost scales with the watched set, which is why it is bounded.",
 			Caveat:   "Periodic, so it reports that something changed between two collections, not the moment it changed or how many times.",
 		},
+		{
+			Kind:    string(proto.SensorSaaS),
+			Name:    "SaaS experience",
+			Summary: "How the web apps in the SaaS library perform in this endpoint's Chrome or Edge: page timings, HTTP errors and script errors, per app per five minutes.",
+			Answers: "Is Salesforce slow for everyone or only on these laptops; which app's pages fail most; did the experience change after a network or proxy change. Feeds the SaaS Experience page's scores.",
+			Returns: "app, browser, window_start, navigations, ttfb_p75_ms, load_p75_ms, errors, js_errors (the cached last batch; the full histograms go to SaaS Experience)",
+			Mechanism: []sensorMechanism{
+				{OS: "all", How: "Not collected by the agent. A Manifest V3 browser extension (extension/saas-monitor), force-installed by policy, reads the Navigation Timing entry of each top-level page load on an allow-listed app's domain (TTFB, DOMContentLoaded, load), counts uncaught errors and unhandled rejections on those pages, and counts main-frame and XHR/fetch responses by status class with the webRequest API, without blocking or reading bodies. It aggregates per app per five minutes in the browser and hands the aggregates to the agent through Chrome native messaging: the browser starts this agent binary as the signed-in user, which passes them to the running agent over its loopback Self Service listener. The agent publishes them on its durable outbox."},
+				{OS: "windows", How: "The native messaging host is registered under HKLM\\SOFTWARE\\Google\\Chrome, Microsoft\\Edge and Chromium\\NativeMessagingHosts, with its manifest beside the agent binary."},
+				{OS: "darwin", How: "The host manifest is written to /Library/Google/Chrome, /Library/Microsoft/Edge and /Library/Application Support/Chromium NativeMessagingHosts."},
+				{OS: "linux", How: "The host manifest is written to /etc/opt/chrome, /etc/chromium and /etc/opt/edge native-messaging-hosts."},
+				{OS: "freebsd", How: "Not supported: the agent registers no native messaging host there, so nothing is reported."},
+			},
+			Interval: "every five minutes while the browser runs and an allow-listed app is used; nothing is sent otherwise",
+			Timeout:  "10 seconds per hand-off from the browser to the agent",
+			Cost:     "Negligible on the endpoint: a timing read per page load and a counter per request in the browser, one short-lived host process every five minutes. Off by default; turned on under SaaS Experience → Setup.",
+			Caveat:   "Only Chrome, Edge and Chromium with the extension installed, and only apps whose domains are in the library: everything else, and every incognito window, is ignored. Only the app's ID and the library domain that matched leave the browser, never a URL path, query, page title, content or form data. Timings are of full page loads; single-page-app route changes are not timed. Force-installing an extension not from a store is honoured on Windows only for domain-joined or MDM-managed machines, and on macOS only from an MDM profile; Linux has no such restriction. Needs the Self Service listener (--self-service-addr), which the host reaches the agent through.",
+		},
 	}
 	for i := range docs {
 		docs[i].Sources = sensorSourceFiles(docs[i].Kind)
@@ -424,6 +442,8 @@ func sensorSourceFiles(kind string) []string {
 		return []string{"backups.go"}
 	case proto.SensorContainers:
 		return []string{"containers.go", "container_updates.go"}
+	case proto.SensorSaaS:
+		return []string{"saas.go", "saas_host.go"}
 	case proto.SensorSecurityPosture:
 		return []string{"posture.go", "posture_windows.go", "posture_linux.go", "posture_darwin.go"}
 	}

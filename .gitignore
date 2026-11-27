@@ -51,3 +51,8 @@ __pycache__/
 
 # The release to pull (deploy/version.env.example); the operator's own.
 deploy/version.env
+
+# SaaS monitoring extension: packed output, and the signing key wherever
+# it is kept (also covered by *.pem above). Never commit either.
+extension/saas-monitor/dist/
+*.crx

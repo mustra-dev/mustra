@@ -167,3 +167,15 @@ Open work, kept here so it can be picked up. Add to it when deferring something,
 - [ ] Open anomalies on the endpoint page, and in the triage queue once it exists (link by `/anomalies?id=`).
 - [ ] Per-metric tuning (band width, sustain time) in settings; the defaults are fixed in internal/anomaly today.
 - [ ] Use Telemetry's node_exporter series as a source where it is turned on (load, network, pressure stall), without making anomaly detection depend on it.
+
+## SaaS Experience
+
+- [ ] Publish the extension to the Chrome Web Store and Edge Add-ons, so it can be force-installed on Windows and macOS machines that are not domain-joined or MDM-managed.
+- [ ] An Enforce policy kind that sets `ExtensionInstallForcelist` (registry on Windows, managed policy file on Linux) instead of copying the policy from Setup.
+- [ ] Limit monitoring to computer groups (with the GroupDeleted behaviour: a deleted group must not turn it on fleet-wide); today it is on for every endpoint or none.
+- [ ] Time single-page-app route changes (soft navigations), not only full page loads.
+- [ ] Hourly rollups for long periods: a 30-day overview of a large fleet sums every five-minute row.
+- [ ] Editable score thresholds and weights per app.
+- [ ] Alerts and Guide items when an app's score falls, fleet-wide or for a site.
+- [ ] Firefox and Safari.
+- [ ] Run the extension and the native host on real Windows and macOS desktops with Chrome and Edge installed by policy; tested so far in headless Chromium on Linux with a stand-in agent listener.

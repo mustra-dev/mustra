@@ -77,6 +77,11 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /install.ps1", s.handleInstallPs1)
 	mux.HandleFunc("GET /ca.crt", s.handleCACert)
 	mux.HandleFunc("GET /install/full-disk-access.mobileconfig", s.handleFullDiskAccessProfile)
+	// The SaaS monitoring extension's update manifest and package, for
+	// browsers that force-install it by policy: a browser has no session.
+	// Both are the operator's own signed package, nothing secret.
+	mux.HandleFunc("GET "+saasUpdatePath, s.handleSaaSUpdateManifest)
+	mux.HandleFunc("GET "+saasCRXPath, s.handleSaaSCRX)
 
 	// Everything else requires a session.
 	protected := s.newRouteTable()
@@ -517,6 +522,22 @@ func (s *Server) routes() http.Handler {
 	protected.Handle("POST /api/ai/chat", perm(auth.PermAIUse, hf(s.handleAIChat)))
 	protected.Handle("GET /assistant", perm(auth.PermAIUse, staticPageHandler("static/assistant.html")))
 	protected.Handle("GET /containers", staticPageHandler("static/containers.html"))
+	// SaaS experience monitoring (saas_api.go). Scores are fleet telemetry,
+	// read with fleet.read; the library, the switch and the extension
+	// package change what every endpoint's browser measures, so they take
+	// settings.manage.
+	protected.Handle("GET /saas", staticPageHandler("static/saas.html"))
+	protected.HandleFunc("GET /api/saas/settings", s.handleGetSaaSSettings)
+	protected.Handle("PUT /api/saas/settings", perm(auth.PermSettingsManage, hf(s.handlePutSaaSSettings)))
+	protected.Handle("POST /api/saas/extension", perm(auth.PermSettingsManage, hf(s.handleUploadSaaSExtension)))
+	protected.Handle("DELETE /api/saas/extension", perm(auth.PermSettingsManage, hf(s.handleDeleteSaaSExtension)))
+	protected.HandleFunc("GET /api/saas/apps", s.handleListSaaSApps)
+	protected.Handle("POST /api/saas/apps", perm(auth.PermSettingsManage, hf(s.handleCreateSaaSApp)))
+	protected.Handle("PUT /api/saas/apps/{id}", perm(auth.PermSettingsManage, hf(s.handleUpdateSaaSApp)))
+	protected.Handle("DELETE /api/saas/apps/{id}", perm(auth.PermSettingsManage, hf(s.handleDeleteSaaSApp)))
+	protected.HandleFunc("GET /api/saas/overview", s.handleSaaSOverview)
+	protected.HandleFunc("GET /api/saas/apps/{id}/endpoints", s.handleSaaSAppEndpoints)
+	protected.HandleFunc("GET /api/saas/apps/{id}/trend", s.handleSaaSAppTrend)
 	protected.HandleFunc("GET /api/backup-status", s.handleBackups)
 	protected.HandleFunc("GET /api/entra/devices", s.handleEntraDevices)
 	protected.Handle("GET /api/admin/entra", perm(auth.PermSettingsManage, hf(s.handleEntraConfig)))

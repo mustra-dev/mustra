@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SaaS Experience — mustra</title>
+<link rel="icon" href="/static/brand/favicon.ico" sizes="any">
+<link rel="icon" href="/static/brand/app-icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/brand/app-icon-256.png">
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/theme.js"></script>
+<style>
+  .hint { font-size: 12px; color: var(--text-muted); margin: -6px 0 12px; line-height: 1.55; }
+  .sub { font-size: var(--fs-meta); color: var(--text-muted); }
+  .num { font-variant-numeric: tabular-nums; text-align: right; }
+  th.num { text-align: right; }
+  .score { font-variant-numeric: tabular-nums; font-weight: 700; }
+  .b { font-size: var(--fs-meta); padding: 2px 8px; border-radius: 999px; font-weight: 700; white-space: nowrap; }
+  .b.good { background: var(--ok-bg); color: var(--ok); }
+  .b.fair { background: color-mix(in srgb, var(--viz-warning) 20%, transparent); color: var(--warn); }
+  .b.poor { background: var(--off-bg); color: var(--off); }
+  .b.no_data { background: var(--surface-2); color: var(--text-muted); }
+  .stat-tile-value.good { color: var(--ok); }
+  .stat-tile-value.fair { color: var(--warn); }
+  .stat-tile-value.poor { color: var(--off); }
+  .saas-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 0 0 12px; }
+  .saas-toolbar select { padding: 4px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border-input);
+    background: var(--input-bg); color: var(--text); font: inherit; font-size: var(--fs-small); }
+  .saas-off { margin: 0 0 12px; }
+  button.linklike { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer; text-align: left; }
+  button.linklike:hover { text-decoration: underline; }
+  button.linklike:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  tr.selected td { background: var(--row-hover); }
+  .trend { width: 100%; height: 180px; display: block; }
+  .trend .grid { stroke: var(--border); stroke-width: 1; }
+  .trend .band-good { stroke: var(--ok); stroke-width: 1; stroke-dasharray: 3 3; opacity: .6; }
+  .trend .band-fair { stroke: var(--warn); stroke-width: 1; stroke-dasharray: 3 3; opacity: .6; }
+  .trend .line { stroke: var(--viz-series); stroke-width: 2; fill: none; }
+  .trend .dot { fill: var(--viz-series); }
+  .trend text { fill: var(--text-muted); font-size: 11px; font-family: var(--font); }
+  .app-domains { display: block; white-space: normal; max-width: 280px; overflow-wrap: anywhere; }
+  .domains { font-family: var(--mono); font-size: var(--fs-meta); overflow-wrap: anywhere; }
+  .policy { font-family: var(--mono); font-size: var(--fs-meta); white-space: pre; overflow-x: auto; max-height: 260px;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; margin: 4px 0 12px; }
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: var(--fs-small); margin: 0 0 12px; }
+  .kv dt { color: var(--text-muted); }
+  .kv dd { margin: 0; overflow-wrap: anywhere; }
+  .app-form textarea { width: 100%; min-height: 90px; font-family: var(--mono); font-size: var(--fs-small); }
+  .policy-head { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .policy-head h3 { font-size: 13px; margin: 0; }
+</style>
+</head>
+<body>
+  <div class="app-shell">
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+    <aside class="sidebar-rail" id="sidebar-rail"></aside>
+    <aside class="sidebar-flyout" id="sidebar-flyout"></aside>
+    <aside class="module-subnav" id="module-subnav"></aside>
+    <main>
+      <div id="saas-page-head"></div>
+      <div class="scope-note warn saas-off" id="saas-off" hidden></div>
+
+      <div class="module-section" id="section-overview" hidden>
+        <div class="saas-toolbar">
+          <label for="saas-period" class="sub">Period</label>
+          <select id="saas-period">
+            <option value="24">Last 24 hours</option>
+            <option value="168">Last 7 days</option>
+            <option value="720">Last 30 days</option>
+          </select>
+          <span class="scan-status" id="saas-status"></span>
+        </div>
+        <div class="stat-tiles" id="saas-tiles"></div>
+        <div class="panel">
+          <div class="panel-header"><h2>Apps, worst experience first</h2></div>
+          <p class="hint">
+            Each score is 0–100 from every page load of the app in the period: 30% time to first byte (p75, good at
+            800 ms, poor at 1.8 s), 30% load time (p75, good at 3 s, poor at 8 s), 30% error rate (5xx and failed
+            loads and requests, good at 1%, poor at 10%) and 10% JavaScript errors per page load (good at 1, poor at
+            5). Fewer than 5 page loads is no score, not a good one. Pick an app for its trend and its endpoints.
+          </p>
+          <div class="table-scroll">
+            <table class="table-compact">
+              <thead><tr><th>App</th><th class="num">Score</th><th>Band</th><th class="num">TTFB p75</th><th class="num">Load p75</th>
+                <th class="num">Error rate</th><th class="num">4xx</th><th class="num">JS errors / load</th><th class="num">Page loads</th><th class="num">Endpoints</th></tr></thead>
+              <tbody id="saas-apps-body"><tr><td class="empty" colspan="10">loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="panel" id="saas-detail" hidden>
+          <div class="panel-header"><h2 id="saas-detail-title">App</h2><span class="scan-status" id="saas-detail-status"></span></div>
+          <div id="saas-trend"></div>
+          <div class="table-scroll">
+            <table class="table-compact">
+              <thead><tr><th>Endpoint</th><th class="num">Score</th><th>Band</th><th class="num">TTFB p75</th><th class="num">Load p75</th>
+                <th class="num">Error rate</th><th class="num">JS errors / load</th><th class="num">Page loads</th><th>Extension</th><th>Last report</th></tr></thead>
+              <tbody id="saas-endpoints-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="module-section" id="section-apps" hidden>
+        <div class="panel">
+          <div class="panel-header"><h2>App library</h2><span class="spacer"></span><button class="primary" id="saas-add-app" hidden>Add an app</button></div>
+          <p class="hint">
+            The extension measures only these apps, matched by domain: a domain covers its subdomains, so
+            <code>slack.com</code> includes <code>app.slack.com</code>. Every other site, and every incognito window,
+            is ignored. Only an app's ID and the library domain that matched leave the browser — never a page's
+            path, query, title or content. A domain can belong to one app.
+          </p>
+          <div class="table-scroll">
+            <table class="table-compact">
+              <thead><tr><th>App</th><th>Domains</th><th>ID</th><th></th></tr></thead>
+              <tbody id="saas-library-body"><tr><td class="empty" colspan="4">loading…</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="module-section" id="section-setup" hidden>
+        <div class="panel">
+          <div class="panel-header"><h2>Monitoring</h2></div>
+          <p class="hint">
+            Off by default. While on, every agent registers the extension's native messaging host for Chrome, Edge and
+            Chromium and hands the extension the app library; the extension still has to be installed in the browser
+            (below). Turning it off removes the host registration and discards what was waiting to be sent.
+            Endpoints need an agent with SaaS monitoring and the Self Service listener enabled.
+          </p>
+          <div class="form-grid">
+            <div class="field"><label><input type="checkbox" id="saas-enabled"> Measure the apps in the library</label></div>
+            <div class="field"><label for="saas-retention">Keep five-minute data for (days)</label>
+              <input type="number" id="saas-retention" min="1" max="365"></div>
+            <div class="field"><label for="saas-extid">Extension ID (only for a package hosted elsewhere)</label>
+              <input id="saas-extid" placeholder="32 letters a–p" maxlength="32" autocomplete="off"></div>
+          </div>
+          <div class="panel-actions"><button class="primary" id="saas-save">Save</button><span class="sub" id="saas-save-status"></span></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header"><h2>Extension package</h2></div>
+          <p class="hint">
+            Pack the extension with a key you keep (the key decides the extension ID; never upload it), then upload the
+            <code>.crx</code> here. mustra checks its signatures and serves it, with an update manifest, to browsers that
+            force-install it. Upload each new version packed with the same key.
+          </p>
+          <dl class="kv" id="saas-ext-info"></dl>
+          <div class="field"><label for="saas-crx">Upload a packed extension (.crx)</label><input type="file" id="saas-crx" accept=".crx"></div>
+          <div class="panel-actions"><button class="danger" id="saas-ext-delete" hidden>Remove the package</button><span class="sub" id="saas-upload-status"></span></div>
+          <div class="policy-head"><h3>Packing it</h3></div>
+          <pre class="policy" id="saas-pack-cmd"></pre>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header"><h2>Force-install policy</h2></div>
+          <p class="hint">
+            Browsers install the extension from these <code>ExtensionInstallForcelist</code> policies. Chrome and Edge honour
+            a force-install from outside their stores only on Windows machines joined to a domain or managed by an MDM, and
+            on macOS only from a profile an MDM installs; Linux has no such restriction. Where a forcelist already exists,
+            add this entry to it rather than replacing it.
+          </p>
+          <div id="saas-policies"><p class="sub">Upload a package (or give an extension ID) and set the console's public URL to see the policies.</p></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+<script src="/static/app.js"></script>
+<script>
+let canManage = false;
+let settingsView = null;
+let selectedApp = new URLSearchParams(location.search).get("app") || "";
+const periodSel = document.getElementById("saas-period");
+
+document.addEventListener("mustra:user", () => {
+  renderPageHead("saas-page-head", "/saas", { title: "SaaS Experience" });
+  initModuleSections([
+    { hash: "overview", label: "Overview" },
+    { hash: "apps", label: "App Library" },
+    { hash: "setup", label: "Setup" },
+  ]);
+  loadSettings().then(() => { loadOverview(); loadLibrary(); });
+});
+periodSel.addEventListener("change", () => { loadOverview(); if (selectedApp) loadDetail(selectedApp); });
+
+const fmtMs = v => v == null ? "—" : v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 0 : 1) + " s" : Math.round(v) + " ms";
+const fmtPct = v => (v * 100).toFixed(v < 0.1 ? 1 : 0) + "%";
+const fmtN = v => Number(v || 0).toLocaleString();
+const bandLabel = { good: "Good", fair: "Fair", poor: "Poor", no_data: "Not enough data" };
+const bandPill = b => `<span class="b ${escapeHtml(b)}">${escapeHtml(bandLabel[b] || b)}</span>`;
+const scoreCell = r => `<td class="num score" data-sort="${escapeHtml(r.score == null ? -1 : r.score)}">${escapeHtml(r.score == null ? "—" : r.score)}</td>`;
+
+async function getJSON(url) {
+  const r = await fetch(url);
+  if (r.status === 401) { window.location.href = "/login"; return null; }
+  if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
+  return r.json();
+}
+
+async function loadSettings() {
+  try { settingsView = await getJSON("/api/saas/settings"); } catch (e) { showToast("Could not load SaaS settings: " + e.message, "error"); return; }
+  if (!settingsView) return;
+  canManage = !!settingsView.can_manage;
+  const off = document.getElementById("saas-off");
+  if (!settingsView.settings.enabled) {
+    off.hidden = false;
+    off.textContent = "SaaS monitoring is off: endpoints measure nothing until it is turned on under Setup.";
+  } else if (!settingsView.effective_extension_id) {
+    off.hidden = false;
+    off.textContent = "SaaS monitoring is on, but no extension is known yet: upload a packed extension under Setup, or agents cannot register the native messaging host.";
+  } else {
+    off.hidden = true;
+  }
+  renderSetup();
+}
+
+async function loadOverview() {
+  let d;
+  try { d = await getJSON("/api/saas/overview?hours=" + encodeURIComponent(periodSel.value)); } catch (e) {
+    document.getElementById("saas-apps-body").innerHTML = `<tr><td class="empty" colspan="10">could not load: ${escapeHtml(e.message)}</td></tr>`;
+    return;
+  }
+  if (!d) return;
+  const f = d.fleet || {};
+  document.getElementById("saas-tiles").innerHTML = [
+    { label: "Fleet score", value: f.score == null ? "—" : f.score, cls: f.band },
+    { label: "Page loads", value: fmtN(f.navigations) },
+    { label: "TTFB p75", value: fmtMs(f.ttfb_p75_ms) },
+    { label: "Load p75", value: fmtMs(f.load_p75_ms) },
+    { label: "Error rate", value: f.navigations || f.requests ? fmtPct(f.error_rate || 0) : "—" },
+    { label: "Endpoints reporting", value: fmtN(d.endpoints) },
+  ].map(t => `<div class="stat-tile"><div class="stat-tile-label">${escapeHtml(t.label)}</div>
+      <div class="stat-tile-value ${escapeHtml(t.cls || "")}">${escapeHtml(t.value)}</div></div>`).join("");
+  document.getElementById("saas-status").textContent = `${fmtTime(d.since)} – ${fmtTime(d.until)}`;
+  const apps = d.apps || [];
+  const body = document.getElementById("saas-apps-body");
+  if (!apps.length) {
+    body.innerHTML = '<tr><td class="empty" colspan="10">the app library is empty: add apps under App Library</td></tr>';
+    return;
+  }
+  body.innerHTML = apps.map(a => `<tr data-app="${escapeHtml(a.app_id)}"${a.app_id === selectedApp ? ' class="selected"' : ""}>
+      <td><button class="linklike" data-pick="${escapeHtml(a.app_id)}">${escapeHtml(a.name)}</button><span class="sub app-domains">${escapeHtml((a.domains || []).join(", "))}</span></td>
+      ${scoreCell(a)}
+      <td>${bandPill(a.band)}</td>
+      <td class="num" data-sort="${escapeHtml(a.ttfb_p75_ms ?? -1)}">${escapeHtml(fmtMs(a.ttfb_p75_ms))}</td>
+      <td class="num" data-sort="${escapeHtml(a.load_p75_ms ?? -1)}">${escapeHtml(fmtMs(a.load_p75_ms))}</td>
+      <td class="num" data-sort="${escapeHtml(a.error_rate)}">${escapeHtml(a.navigations || a.requests ? fmtPct(a.error_rate) : "—")}</td>
+      <td class="num" data-sort="${escapeHtml(a.nav_4xx + a.req_4xx)}">${escapeHtml(fmtN(a.nav_4xx + a.req_4xx))}</td>
+      <td class="num" data-sort="${escapeHtml(a.js_errors_per_navigation)}">${escapeHtml(a.navigations ? a.js_errors_per_navigation.toFixed(2) : "—")}</td>
+      <td class="num" data-sort="${escapeHtml(a.navigations)}">${escapeHtml(fmtN(a.navigations))}</td>
+      <td class="num" data-sort="${escapeHtml(a.endpoints)}">${escapeHtml(fmtN(a.endpoints))}</td>
+    </tr>`).join("");
+  body.querySelectorAll("[data-pick]").forEach(b => b.addEventListener("click", () => pickApp(b.dataset.pick)));
+  const dt = initDataTable(body.closest("table"), { storageKey: "saas-apps" });
+  if (dt) dt.refresh();
+  if (selectedApp && apps.some(a => a.app_id === selectedApp)) loadDetail(selectedApp);
+}
+
+function pickApp(id) {
+  selectedApp = id;
+  const u = new URL(location.href);
+  u.searchParams.set("app", id);
+  history.replaceState(null, "", u.pathname + u.search + u.hash);
+  document.querySelectorAll("#saas-apps-body tr").forEach(tr => tr.classList.toggle("selected", tr.dataset.app === id));
+  loadDetail(id);
+}
+
+async function loadDetail(id) {
+  const panel = document.getElementById("saas-detail");
+  panel.hidden = false;
+  const hours = encodeURIComponent(periodSel.value);
+  let eps, trend;
+  try {
+    [eps, trend] = await Promise.all([
+      getJSON(`/api/saas/apps/${encodeURIComponent(id)}/endpoints?hours=${hours}`),
+      getJSON(`/api/saas/apps/${encodeURIComponent(id)}/trend?hours=${hours}`),
+    ]);
+  } catch (e) {
+    document.getElementById("saas-endpoints-body").innerHTML = `<tr><td class="empty" colspan="10">could not load: ${escapeHtml(e.message)}</td></tr>`;
+    return;
+  }
+  if (!eps || !trend) return;
+  document.getElementById("saas-detail-title").textContent = eps.app.name;
+  const f = eps.fleet || {};
+  document.getElementById("saas-detail-status").textContent = f.score == null ? "not enough data for a score" : `score ${f.score}`;
+  renderTrend(trend);
+  const rows = eps.endpoints || [];
+  const body = document.getElementById("saas-endpoints-body");
+  body.innerHTML = rows.map(e => `<tr>
+      <td><a href="/endpoint/${encodeURIComponent(e.agent_id)}">${escapeHtml(e.hostname || e.agent_id)}</a><div class="sub">${escapeHtml(osLabel(e.os))}</div></td>
+      ${scoreCell(e)}
+      <td>${bandPill(e.band)}</td>
+      <td class="num" data-sort="${escapeHtml(e.ttfb_p75_ms ?? -1)}">${escapeHtml(fmtMs(e.ttfb_p75_ms))}</td>
+      <td class="num" data-sort="${escapeHtml(e.load_p75_ms ?? -1)}">${escapeHtml(fmtMs(e.load_p75_ms))}</td>
+      <td class="num" data-sort="${escapeHtml(e.error_rate)}">${escapeHtml(e.navigations || e.requests ? fmtPct(e.error_rate) : "—")}</td>
+      <td class="num" data-sort="${escapeHtml(e.js_errors_per_navigation)}">${escapeHtml(e.navigations ? e.js_errors_per_navigation.toFixed(2) : "—")}</td>
+      <td class="num" data-sort="${escapeHtml(e.navigations)}">${escapeHtml(fmtN(e.navigations))}</td>
+      <td>${escapeHtml(e.extension_version || "—")}</td>
+      <td data-sort="${escapeHtml(e.last_report_at || "")}">${e.last_report_at ? escapeHtml(fmtAgo(e.last_report_at)) : "—"}</td>
+    </tr>`).join("") || '<tr><td class="empty" colspan="10">no endpoint reported this app in the period</td></tr>';
+  const dt = initDataTable(body.closest("table"), { storageKey: "saas-endpoints" });
+  if (dt) dt.refresh();
+}
+
+// The score over the period as one line on a 0-100 scale, with the band
+// boundaries marked; a bucket without enough page loads is a gap, not a 0.
+function renderTrend(t) {
+  const host = document.getElementById("saas-trend");
+  const pts = (t.points || []);
+  if (!pts.some(p => p.score != null)) { host.innerHTML = '<p class="sub">No trend yet: no period of this app had enough page loads for a score.</p>'; return; }
+  const W = 800, H = 180, L = 34, R = 8, T = 8, B = 22;
+  const t0 = new Date(t.since).getTime(), t1 = new Date(t.until).getTime();
+  const x = ms => L + (W - L - R) * (ms - t0) / Math.max(1, t1 - t0);
+  const y = v => T + (H - T - B) * (1 - v / 100);
+  let path = "", dots = "", pen = false;
+  for (const p of pts) {
+    if (p.score == null) { pen = false; continue; }
+    const px = x(new Date(p.at).getTime() + t.bucket_seconds * 500), py = y(p.score);
+    path += (pen ? " L" : " M") + px.toFixed(1) + " " + py.toFixed(1);
+    dots += `<circle class="dot" cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="2"><title>${escapeHtml(fmtTime(p.at))}: ${escapeHtml(p.score)} (${escapeHtml(fmtN(p.navigations))} page loads)</title></circle>`;
+    pen = true;
+  }
+  const grid = [0, 50, 100].map(v => `<line class="grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"></line><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${escapeHtml(v)}</text>`).join("");
+  host.innerHTML = `<svg class="trend" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Score over the period">
+    ${grid}
+    <line class="band-good" x1="${L}" x2="${W - R}" y1="${y(85)}" y2="${y(85)}"></line>
+    <line class="band-fair" x1="${L}" x2="${W - R}" y1="${y(60)}" y2="${y(60)}"></line>
+    <path class="line" d="${path.trim()}"></path>${dots}
+    <text x="${L}" y="${H - 6}">${escapeHtml(fmtTime(t.since))}</text>
+    <text x="${W - R}" y="${H - 6}" text-anchor="end">${escapeHtml(fmtTime(t.until))}</text>
+  </svg>`;
+}
+
+// --- library ----------------------------------------------------------------
+let library = [];
+async function loadLibrary() {
+  let d;
+  try { d = await getJSON("/api/saas/apps"); } catch (e) {
+    document.getElementById("saas-library-body").innerHTML = `<tr><td class="empty" colspan="4">could not load: ${escapeHtml(e.message)}</td></tr>`;
+    return;
+  }
+  if (!d) return;
+  library = d.apps || [];
+  const add = document.getElementById("saas-add-app");
+  add.hidden = !canManage;
+  const body = document.getElementById("saas-library-body");
+  body.innerHTML = library.map(a => `<tr>
+      <td>${escapeHtml(a.name)}${a.builtin ? ' <span class="sub">default</span>' : ""}</td>
+      <td class="domains">${escapeHtml(a.domains.join(", "))}</td>
+      <td class="sub">${escapeHtml(a.id)}</td>
+      <td>${canManage ? `<button class="tiny" data-edit="${escapeHtml(a.id)}">Edit</button> <button class="tiny danger" data-del="${escapeHtml(a.id)}">Delete</button>` : ""}</td>
+    </tr>`).join("") || '<tr><td class="empty" colspan="4">no apps: nothing is measured</td></tr>';
+  body.querySelectorAll("[data-edit]").forEach(b => b.addEventListener("click", () => editApp(library.find(a => a.id === b.dataset.edit))));
+  body.querySelectorAll("[data-del]").forEach(b => b.addEventListener("click", () => deleteApp(library.find(a => a.id === b.dataset.del))));
+}
+document.getElementById("saas-add-app").addEventListener("click", () => editApp(null));
+
+function editApp(app) {
+  openModal(app ? "Edit " + app.name : "Add an app", `
+    <form class="app-form" id="saas-app-form">
+      <div class="field"><label for="app-name">Name</label><input id="app-name" required maxlength="100" value="${escapeHtml(app ? app.name : "")}"></div>
+      ${app ? "" : `<div class="field"><label for="app-id">ID (optional; from the name when empty)</label><input id="app-id" maxlength="64" pattern="[a-z0-9][a-z0-9_-]*"></div>`}
+      <div class="field"><label for="app-domains">Domains, one per line (subdomains included)</label><textarea id="app-domains" required>${escapeHtml(app ? app.domains.join("\n") : "")}</textarea></div>
+      <p class="sub" id="app-error" role="alert"></p>
+      <div class="panel-actions"><button class="primary" type="submit">Save</button></div>
+    </form>`, wrap => {
+    wrap.querySelector("#saas-app-form").addEventListener("submit", async ev => {
+      ev.preventDefault();
+      const body = { name: wrap.querySelector("#app-name").value,
+        domains: wrap.querySelector("#app-domains").value.split(/[\s,]+/).filter(Boolean) };
+      if (!app) body.id = wrap.querySelector("#app-id").value.trim();
+      const r = await fetch(app ? "/api/saas/apps/" + encodeURIComponent(app.id) : "/api/saas/apps", {
+        method: app ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!r.ok) { wrap.querySelector("#app-error").textContent = (await r.text()).trim(); return; }
+      wrap.remove();
+      showToast(app ? "App saved" : "App added", "ok");
+      loadLibrary(); loadOverview();
+    });
+  });
+}
+
+async function deleteApp(app) {
+  if (!app || !confirm(`Delete ${app.name}? It stops being measured, and what was measured of it is deleted.`)) return;
+  const r = await fetch("/api/saas/apps/" + encodeURIComponent(app.id), { method: "DELETE" });
+  if (!r.ok) { showToast((await r.text()).trim(), "error"); return; }
+  showToast(app.name + " deleted", "ok");
+  loadLibrary(); loadOverview();
+}
+
+// --- setup ------------------------------------------------------------------
+function renderSetup() {
+  const v = settingsView;
+  const s = v.settings;
+  const en = document.getElementById("saas-enabled"), ret = document.getElementById("saas-retention"), ext = document.getElementById("saas-extid");
+  en.checked = !!s.enabled; ret.value = s.retention_days; ext.value = s.extension_id || "";
+  for (const el of [en, ret, ext, document.getElementById("saas-save"), document.getElementById("saas-crx")]) el.disabled = !canManage;
+  const e = v.extension;
+  document.getElementById("saas-ext-info").innerHTML = e ? [
+    ["Extension", e.name + " " + e.version], ["Extension ID", e.extension_id], ["SHA-256", e.sha256],
+    ["Uploaded", fmtTime(e.uploaded_at) + (e.uploaded_by ? " by " + e.uploaded_by : "")],
+    ["Update URL", v.update_url || "— " + (v.public_url_error || "")], ["Endpoints reporting", fmtN(v.endpoints)],
+  ].map(([k, val]) => `<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(val)}</dd>`).join("")
+    : `<dt>Package</dt><dd>none uploaded</dd><dt>Update URL</dt><dd>${escapeHtml(v.update_url || "— " + (v.public_url_error || ""))}</dd>`;
+  document.getElementById("saas-ext-delete").hidden = !(canManage && e);
+  const upd = v.update_url || "https://<console>/saas-extension/update.xml";
+  document.getElementById("saas-pack-cmd").textContent =
+    "# once: a key of your own, kept off the server and out of git\n" +
+    "go run ./cmd/saas-extension-pack -genkey saas-monitor.pem\n\n" +
+    "# each version: pack, then upload dist/mustra-saas-monitor-<version>.crx above\n" +
+    `go run ./cmd/saas-extension-pack -key saas-monitor.pem -update-url ${upd} -out dist extension/saas-monitor`;
+  const pol = document.getElementById("saas-policies");
+  if (!v.policies) return;
+  const blocks = [
+    ["Windows: Chrome and Edge (.reg, value 100)", v.policies.windows_reg, "mustra-saas-forcelist.reg"],
+    ["Linux: /etc/opt/chrome/policies/managed/mustra-saas.json (and /etc/chromium, /etc/opt/edge)", v.policies.linux_json, "mustra-saas.json"],
+    ["macOS: configuration profile for your MDM", v.policies.macos_mobileconfig, "mustra-saas.mobileconfig"],
+  ];
+  pol.innerHTML = blocks.map(([title, text, file], i) => `<div class="policy-head"><h3>${escapeHtml(title)}</h3><span class="spacer"></span>
+      <button class="tiny" data-copy="${i}">Copy</button><button class="tiny" data-dl="${i}" data-file="${escapeHtml(file)}">Download</button></div>
+      <pre class="policy">${escapeHtml(text)}</pre>`).join("");
+  pol.querySelectorAll("[data-copy]").forEach(b => b.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(blocks[Number(b.dataset.copy)][1]); showToast("Copied", "ok"); } catch { showToast("Copy failed", "error"); }
+  }));
+  pol.querySelectorAll("[data-dl]").forEach(b => b.addEventListener("click", () => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([blocks[Number(b.dataset.dl)][1]], { type: "application/octet-stream" }));
+    a.download = b.dataset.file;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }));
+}
+
+document.getElementById("saas-save").addEventListener("click", async () => {
+  const status = document.getElementById("saas-save-status");
+  status.textContent = "";
+  const r = await fetch("/api/saas/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+    enabled: document.getElementById("saas-enabled").checked,
+    retention_days: Number(document.getElementById("saas-retention").value) || 30,
+    extension_id: document.getElementById("saas-extid").value.trim(),
+  }) });
+  if (!r.ok) { status.textContent = (await r.text()).trim(); return; }
+  showToast("SaaS monitoring saved: agents pick it up within five minutes", "ok");
+  await loadSettings();
+  loadOverview();
+});
+
+document.getElementById("saas-crx").addEventListener("change", async ev => {
+  const file = ev.target.files[0];
+  if (!file) return;
+  const status = document.getElementById("saas-upload-status");
+  status.textContent = "Checking…";
+  const send = replace => fetch("/api/saas/extension" + (replace ? "?replace_id=1" : ""), {
+    method: "POST", headers: { "Content-Type": "application/x-chrome-extension" }, body: file });
+  let r = await send(false);
+  if (r.status === 409) {
+    const msg = (await r.text()).trim();
+    if (!confirm(msg + "\n\nSwitch to the new extension ID? Browsers will install it as a different extension.")) { status.textContent = "Not uploaded."; ev.target.value = ""; return; }
+    r = await send(true);
+  }
+  ev.target.value = "";
+  if (!r.ok) { status.textContent = (await r.text()).trim(); return; }
+  status.textContent = "";
+  showToast("Extension package uploaded", "ok");
+  loadSettings();
+});
+
+document.getElementById("saas-ext-delete").addEventListener("click", async () => {
+  if (!confirm("Remove the extension package? Browsers stop receiving updates; installed copies keep running.")) return;
+  const r = await fetch("/api/saas/extension", { method: "DELETE" });
+  if (!r.ok) { showToast((await r.text()).trim(), "error"); return; }
+  loadSettings();
+});
+</script>
+</body>
+</html>

@@ -71,6 +71,9 @@ func (s *Server) handleSelfService(ctx context.Context, agentID string, req prot
 	case "telemetry_config":
 		cfg := s.telemetryConfigFor(ctx, agentID)
 		return proto.SelfServiceReply{OK: true, Telemetry: &cfg}
+	case "saas_config":
+		cfg := s.saasConfigFor(ctx)
+		return proto.SelfServiceReply{OK: true, SaaS: &cfg}
 	default:
 		return proto.SelfServiceReply{Error: "unknown action: " + req.Action}
 	}
