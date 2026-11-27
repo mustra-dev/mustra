@@ -94,6 +94,7 @@ var knownSensors = map[string]bool{
 	"local_admins":     true,
 	"security_posture": true,
 	"directory":        true,
+	"hotpatch":         true,
 }
 
 // FieldSpec describes one selectable field for the rule builder UI, so the
@@ -165,6 +166,9 @@ func Fields() []FieldSpec {
 		{Field: "security_posture.antivirus_signature_age_hours", Label: "Antimalware signature age (hours)", Kind: "number", Ops: numberOps},
 		{Field: "security_posture.antivirus_tamper_protected", Label: "Antimalware tamper protection", Kind: "bool", Ops: boolOps},
 		{Field: "security_posture.app_control_mode", Label: "Application control mode", Kind: "string", Ops: stringOps, Hint: "enforce, audit, off, mixed"},
+		{Field: "hotpatch.enrolled", Label: "Hotpatch enrolled", Kind: "bool", Ops: boolOps, Hint: "Windows only"},
+		{Field: "hotpatch.eligible", Label: "Hotpatch eligible", Kind: "bool", Ops: boolOps, Hint: "Windows only"},
+		{Field: "hotpatch.vbs", Label: "Virtualization-based security", Kind: "string", Ops: stringOps, Hint: "off, enabled, running, unknown"},
 		{Field: "users.user", Label: "Logged-in user", Kind: "string", Ops: stringOps},
 		{Field: "users.count", Label: "Logged-in user count", Kind: "number", Ops: numberOps},
 

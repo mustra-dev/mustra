@@ -49,6 +49,24 @@ type patchAgentSummary struct {
 	// CheckFailingSince is when the failures began.
 	CheckError        string `json:"check_error,omitempty"`
 	CheckFailingSince string `json:"check_failing_since,omitempty"`
+	// Drivers, FeatureUpdates and Hotpatches count the pending Windows
+	// driver updates, feature updates and hotpatches among PatchCount.
+	// Zero from agents that do not classify Windows updates.
+	Drivers        int `json:"drivers,omitempty"`
+	FeatureUpdates int `json:"feature_updates,omitempty"`
+	Hotpatches     int `json:"hotpatches,omitempty"`
+	// Hotpatch is the endpoint's hotpatch standing (the hotpatch sensor);
+	// absent for non-Windows endpoints and older agents.
+	Hotpatch *patchHotpatchState `json:"hotpatch,omitempty"`
+}
+
+// patchHotpatchState is the part of the hotpatch sensor the Patches page
+// shows: whether the endpoint is enrolled, whether it could be, and why not.
+type patchHotpatchState struct {
+	Enrolled bool     `json:"enrolled"`
+	Eligible bool     `json:"eligible"`
+	VBS      string   `json:"vbs"`
+	Reasons  []string `json:"reasons,omitempty"`
 }
 
 type patchAffectedAgent struct {
@@ -69,11 +87,24 @@ type patchGroupEntry struct {
 	NewVersion string `json:"new_version,omitempty"`
 	Superseded bool   `json:"superseded,omitempty"`
 	// RestartRequired: installing it restarts the machine (macOS says so).
-	RestartRequired bool                 `json:"restart_required,omitempty"`
-	FirstSeen       string               `json:"first_seen,omitempty"`
-	AgeDays         int                  `json:"age_days"`
-	AffectedCount   int                  `json:"affected_count"`
-	AffectedAgents  []patchAffectedAgent `json:"affected_agents"`
+	RestartRequired bool `json:"restart_required,omitempty"`
+	// Category is "driver" or "feature" for a Windows driver or feature
+	// update, empty for an ordinary update. Neither kind is installed
+	// unless a patch list opts in.
+	Category string `json:"category,omitempty"`
+	// Driver describes a driver update: device class, manufacturer,
+	// provider, model and driver date.
+	Driver *proto.DriverUpdate `json:"driver,omitempty"`
+	// TargetProduct and TargetVersion are where a feature update takes
+	// Windows ("Windows 11", "25H2").
+	TargetProduct string `json:"target_product,omitempty"`
+	TargetVersion string `json:"target_version,omitempty"`
+	// Hotpatch: installs and takes effect without a restart.
+	Hotpatch       bool                 `json:"hotpatch,omitempty"`
+	FirstSeen      string               `json:"first_seen,omitempty"`
+	AgeDays        int                  `json:"age_days"`
+	AffectedCount  int                  `json:"affected_count"`
+	AffectedAgents []patchAffectedAgent `json:"affected_agents"`
 }
 
 type patchesSummaryResponse struct {
@@ -99,6 +130,7 @@ func (s *Server) handlePatchesSummary(w http.ResponseWriter, r *http.Request) {
 	seen, _ := s.store.ListPatchObservations(r.Context())
 	open, _ := s.store.OpenPatchJobs(r.Context())
 	statuses := s.patchStatuses(r.Context())
+	hotpatch := s.hotpatchStates(r.Context())
 	now := time.Now()
 
 	for _, row := range rows {
@@ -115,6 +147,17 @@ func (s *Server) handlePatchesSummary(w http.ResponseWriter, r *http.Request) {
 			Distro:         row.Platform,
 		})
 		agents[len(agents)-1].Platform, agents[len(agents)-1].PlatformVersion = row.Platform, row.PlatformVersion
+		agents[len(agents)-1].Hotpatch = hotpatch[row.AgentID]
+		for _, p := range patches {
+			switch {
+			case p.Category == proto.PatchCategoryDriver:
+				agents[len(agents)-1].Drivers++
+			case p.Category == proto.PatchCategoryFeature:
+				agents[len(agents)-1].FeatureUpdates++
+			case p.Hotpatch:
+				agents[len(agents)-1].Hotpatches++
+			}
+		}
 		// A status older than the list it would describe is history: a
 		// later check worked even if its status never arrived.
 		if st, ok := statuses[row.AgentID]; ok && !st.OK && !st.CheckedAt.Before(row.CollectedAt) {
@@ -125,7 +168,8 @@ func (s *Server) handlePatchesSummary(w http.ResponseWriter, r *http.Request) {
 			k := groupKey{os: row.OS, name: p.Name, version: p.NewVersion}
 			g, ok := groups[k]
 			if !ok {
-				g = &patchGroupEntry{OS: row.OS, Name: p.Name, Severity: p.Severity, NewVersion: p.NewVersion}
+				g = &patchGroupEntry{OS: row.OS, Name: p.Name, Severity: p.Severity, NewVersion: p.NewVersion,
+					Category: p.Category, Driver: p.Driver, TargetProduct: p.TargetProduct, TargetVersion: p.TargetVersion, Hotpatch: p.Hotpatch}
 				if o, ok := seen[store.PatchObservationKey{OS: row.OS, Name: p.Name, NewVersion: p.NewVersion}]; ok {
 					g.FirstSeen = o.FirstSeen.UTC().Format(time.RFC3339)
 					g.AgeDays = int(now.Sub(o.FirstSeen).Hours() / 24)
@@ -152,7 +196,7 @@ func (s *Server) handlePatchesSummary(w http.ResponseWriter, r *http.Request) {
 		if st.OK {
 			continue
 		}
-		a := patchAgentSummary{AgentID: id, Hostname: st.row.Hostname, OS: st.row.OS, Site: st.row.Site,
+		a := patchAgentSummary{AgentID: id, Hostname: st.row.Hostname, OS: st.row.OS, Site: st.row.Site, Hotpatch: hotpatch[id],
 			Patching: open[id].Status, PatchingSince: openSince(open[id]),
 			ApplyElsewhere: patchUnsupportedReason(store.AgentRecord{Platform: st.row.Platform}),
 			Platform:       st.row.Platform, PlatformVersion: st.row.PlatformVersion, Distro: st.row.Platform}
@@ -706,4 +750,23 @@ func (s *Server) deployPatchesAsRollout(w http.ResponseWriter, ctx context.Conte
 		}
 	}
 	writeJSONResponse(w, resp)
+}
+
+// hotpatchStates reads every endpoint's hotpatch sensor. A failure leaves
+// the column empty rather than failing the page.
+func (s *Server) hotpatchStates(ctx context.Context) map[string]*patchHotpatchState {
+	out := map[string]*patchHotpatchState{}
+	rows, err := s.store.ListSensorDataForSensor(ctx, string(proto.SensorHotpatch))
+	if err != nil {
+		s.logger.Warn("reading hotpatch sensor failed", "error", err)
+		return out
+	}
+	for _, row := range rows {
+		var st []proto.HotpatchStatus
+		if json.Unmarshal(row.Data, &st) != nil || len(st) == 0 {
+			continue
+		}
+		out[row.AgentID] = &patchHotpatchState{Enrolled: st[0].Enrolled, Eligible: st[0].Eligible, VBS: st[0].VBS, Reasons: st[0].Reasons}
+	}
+	return out
 }

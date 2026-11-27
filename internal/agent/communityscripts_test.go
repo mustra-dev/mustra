@@ -181,7 +181,7 @@ func TestLiveCommunityApply(t *testing.T) {
 	defaultCommunityApps.logger = slog.Default()
 	before := defaultCommunityApps.pending(context.Background())
 	t.Logf("before: %+v", before)
-	res, err := applyPatches(context.Background(), nil, "", []string{name}, false, func(stage, detail string, n int) { t.Logf("progress: %s %s", stage, detail) })
+	res, err := applyPatches(context.Background(), nil, "", []string{name}, patchApplyOptions{}, func(stage, detail string, n int) { t.Logf("progress: %s %s", stage, detail) })
 	tail := res.Output
 	if len(tail) > 3000 {
 		tail = tail[len(tail)-3000:]

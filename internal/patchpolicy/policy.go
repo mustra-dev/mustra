@@ -13,6 +13,15 @@
 // unrestricted (everything pending is allowed), while an endpoint no block
 // list covers simply has nothing blocked. A fleet with no lists at all
 // therefore behaves exactly as before lists existed.
+//
+// Windows driver updates and feature updates (a new Windows version) are
+// the exception to "unrestricted": neither is ever allowed unless a patch
+// list covering the endpoint opts in, drivers with Rules.Drivers and a
+// feature update with Rules.FeatureTargetVersion naming its exact target.
+// A hold (Rules.FeatureHoldVersion) on any list covering the endpoint
+// blocks every feature update past that version, whatever else admits it.
+// Only agents that classify Windows updates report either kind, so for
+// every other endpoint nothing here changes.
 package patchpolicy
 
 import (
@@ -33,7 +42,26 @@ type Rules struct {
 	// ring-zero rule. Age is measured from first observation anywhere in
 	// the fleet, the closest thing to a release date every OS can give.
 	MinAgeDays int `json:"min_age_days,omitempty"`
+	// Drivers, on a patch list, also admits the Windows driver updates its
+	// other rules match. Without a list that sets it, driver updates are
+	// never installed.
+	Drivers bool `json:"drivers,omitempty"`
+	// FeatureTargetVersion, on a patch list, admits the Windows feature
+	// update to exactly this version ("24H2") when its other rules match.
+	// Without it no feature update is ever installed.
+	FeatureTargetVersion string `json:"feature_target_version,omitempty"`
+	// FeatureHoldVersion holds Windows at this version ("23H2"): on any
+	// list covering an endpoint, patch list or block list, it blocks
+	// every feature update to a newer version, and one whose version is
+	// unknown, even when another list names it as a target.
+	FeatureHoldVersion string `json:"feature_hold_version,omitempty"`
 }
+
+// The Patch.Category values, as agents report them (proto.PatchInfo).
+const (
+	CategoryDriver  = "driver"
+	CategoryFeature = "feature"
+)
 
 // List is a patch list (Kind "allow") or a block list (Kind "block").
 type List struct {
@@ -53,6 +81,10 @@ type Patch struct {
 	OS         string
 	FirstSeen  time.Time // zero when unknown; treated as brand new
 	Superseded bool
+	// Category is "", CategoryDriver or CategoryFeature; TargetVersion is
+	// a feature update's target ("24H2").
+	Category      string
+	TargetVersion string
 }
 
 // Decision is what an endpoint should be told to apply.
@@ -66,6 +98,11 @@ type Decision struct {
 	// cannot apply a subset (too old to understand the list) may still be
 	// told "apply everything".
 	Restricted bool
+	// IncludeDrivers is whether Allowed holds a driver update, and
+	// FeatureTarget the version of the feature update it holds, if any:
+	// the agent installs neither kind without being told.
+	IncludeDrivers bool
+	FeatureTarget  string
 }
 
 // Match reports whether the rules admit the patch at the given instant.
@@ -107,7 +144,20 @@ func Evaluate(pending []Patch, lists []List, now time.Time) Decision {
 			blocks = append(blocks, l)
 		}
 	}
+	// A hold on any list covering the endpoint applies, a patch list's or
+	// a block list's: the lowest one wins.
+	hold, holdBy := "", ""
+	for _, l := range append(append([]List{}, allows...), blocks...) {
+		if h := strings.TrimSpace(l.Rules.FeatureHoldVersion); h != "" && (hold == "" || CompareVersions(h, hold) < 0) {
+			hold, holdBy = h, l.Name
+		}
+	}
 	for _, p := range pending {
+		if why := optInRefusal(p, allows, hold, holdBy, now); why != "" {
+			d.Blocked[p.Name] = why
+			d.Restricted = true
+			continue
+		}
 		if len(allows) > 0 {
 			admitted := false
 			for _, l := range allows {
@@ -124,6 +174,9 @@ func Evaluate(pending []Patch, lists []List, now time.Time) Decision {
 		}
 		blocked := false
 		for _, l := range blocks {
+			if l.Rules.holdOnly() {
+				continue
+			}
 			if l.Rules.Match(p, now) {
 				d.Blocked[p.Name] = "blocked by " + l.Name
 				d.Restricted = true
@@ -134,9 +187,63 @@ func Evaluate(pending []Patch, lists []List, now time.Time) Decision {
 		if blocked {
 			continue
 		}
+		if p.Category == CategoryFeature {
+			// One Windows upgrade per run: two would race each other, and
+			// Windows offers only one at a time anyway.
+			if d.FeatureTarget != "" {
+				d.Blocked[p.Name] = "another feature update is already in this run"
+				d.Restricted = true
+				continue
+			}
+			d.FeatureTarget = p.TargetVersion
+		}
+		if p.Category == CategoryDriver {
+			d.IncludeDrivers = true
+		}
 		d.Allowed = append(d.Allowed, p)
 	}
+	// A run carrying a driver or a feature update always names what it
+	// installs, never "everything pending", so nothing the endpoint found
+	// after the server last looked rides along with it.
+	if d.IncludeDrivers || d.FeatureTarget != "" {
+		d.Restricted = true
+	}
 	return d
+}
+
+// holdOnly is a block list that only holds the Windows version. With no
+// other rules it would otherwise match, and block, every patch.
+func (r Rules) holdOnly() bool {
+	return strings.TrimSpace(r.FeatureHoldVersion) != "" && len(r.Severities) == 0 && len(r.OS) == 0 &&
+		len(r.NamePatterns) == 0 && r.MinAgeDays == 0
+}
+
+// optInRefusal is why a driver or feature update may not be applied before
+// the ordinary rules are even consulted, or "" when it may (or is neither).
+func optInRefusal(p Patch, allows []List, hold, holdBy string, now time.Time) string {
+	switch p.Category {
+	case CategoryDriver:
+		for _, l := range allows {
+			if l.Rules.Drivers && l.Rules.Match(p, now) {
+				return ""
+			}
+		}
+		return "driver update: no patch list covering this endpoint includes drivers"
+	case CategoryFeature:
+		if hold != "" && (p.TargetVersion == "" || CompareVersions(p.TargetVersion, hold) > 0) {
+			return "feature update: Windows is held at " + hold + " by " + holdBy
+		}
+		if p.TargetVersion == "" {
+			return "feature update: its target version is unknown, so no patch list can name it"
+		}
+		for _, l := range allows {
+			if t := strings.TrimSpace(l.Rules.FeatureTargetVersion); t != "" && strings.EqualFold(t, p.TargetVersion) && l.Rules.Match(p, now) {
+				return ""
+			}
+		}
+		return "feature update to " + p.TargetVersion + ": no patch list covering this endpoint targets that version"
+	}
+	return ""
 }
 
 func containsFold(list []string, v string) bool {

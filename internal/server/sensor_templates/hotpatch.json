@@ -1,0 +1,37 @@
+{
+  "notes": "Reports Windows hotpatch readiness as one line: edition, build, VBS state and whether the hotpatch policy is set. It does not evaluate eligibility or Arm64 CHPE, and reports not applicable on Linux and macOS.",
+  "commands": {
+    "linux": "# Standalone example: Reports Windows hotpatch readiness as one line: edition, build, VBS state and whether the hotpatch policy is set. It does not evaluate eligibility or Arm64 CHPE, and reports not applicable on Linux and macOS.\necho 'not applicable'\n",
+    "darwin": "# Standalone example: Reports Windows hotpatch readiness as one line: edition, build, VBS state and whether the hotpatch policy is set. It does not evaluate eligibility or Arm64 CHPE, and reports not applicable on Linux and macOS.\necho 'not applicable'\n",
+    "windows": "# Standalone example: Reports Windows hotpatch readiness as one line: edition, build, VBS state and whether the hotpatch policy is set. It does not evaluate eligibility or Arm64 CHPE, and reports not applicable on Linux and macOS.\n$cv = Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion'\n$vbs = 'unknown'\ntry {\n  $dg = Get-CimInstance -ClassName Win32_DeviceGuard -Namespace root\\Microsoft\\Windows\\DeviceGuard -ErrorAction Stop\n  $vbs = @('off', 'enabled', 'running')[[int]$dg.VirtualizationBasedSecurityStatus]\n} catch {}\n$pm = Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\PolicyManager\\current\\device\\Update' -ErrorAction SilentlyContinue\n$enrolled = [bool]($pm -and $pm.AllowRebootlessUpdates -eq 1)\n\"$($cv.EditionID) build $($cv.CurrentBuildNumber).$($cv.UBR) vbs=$vbs enrolled=$enrolled\"\n"
+  },
+  "interval_seconds": 900,
+  "timeout_seconds": 60,
+  "enabled": false,
+  "fields": [
+    {
+      "name": "value",
+      "type": "string"
+    }
+  ],
+  "platforms": {
+    "linux": {
+      "language": "shell",
+      "output": {
+        "format": "text"
+      }
+    },
+    "darwin": {
+      "language": "shell",
+      "output": {
+        "format": "text"
+      }
+    },
+    "windows": {
+      "language": "powershell",
+      "output": {
+        "format": "text"
+      }
+    }
+  }
+}

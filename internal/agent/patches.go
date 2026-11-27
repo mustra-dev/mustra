@@ -303,24 +303,15 @@ var oldUpdateDetail = regexp.MustCompile(`^(.+?) \(([^)]+)\)`)
 // collectPatchesWindows uses the Windows Update Agent COM API directly
 // (CreateUpdateSearcher) rather than the PSWindowsUpdate module, which
 // isn't installed by default — this works on a stock Windows install with
-// no prerequisites.
+// no prerequisites. Drivers, feature updates and hotpatches are told apart
+// from ordinary updates (winupdate.go).
 func collectPatchesWindows(ctx context.Context) ([]proto.PatchInfo, error) {
-	const script = `
-$s = New-Object -ComObject Microsoft.Update.Session
-$r = $s.CreateUpdateSearcher().Search("IsInstalled=0 and IsHidden=0")
-$out = @()
-foreach ($u in $r.Updates) {
-  $severity = ""
-  if ($u.MsrcSeverity) { $severity = $u.MsrcSeverity }
-  $out += [PSCustomObject]@{ Title = $u.Title; Severity = $severity }
-}
-$out | ConvertTo-Json -Compress`
 	// Stderr is captured and folded into the error rather than discarded:
 	// a killed or failing powershell reports nothing but "exit status 1",
 	// which is indistinguishable between a COM failure, a WSUS the machine
 	// can't reach, and the collection budget running out.
 	var stdout, stderr bytes.Buffer
-	cmd := exec.CommandContext(ctx, "powershell", "-NoProfile", "-NonInteractive", "-Command", script)
+	cmd := exec.CommandContext(ctx, "powershell", "-NoProfile", "-NonInteractive", "-Command", wuaSearchScript)
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {
 		detail := strings.TrimSpace(stderr.String())
@@ -332,34 +323,7 @@ $out | ConvertTo-Json -Compress`
 		}
 		return nil, fmt.Errorf("windows update search: %w: %s", err, detail)
 	}
-	out := stdout.Bytes()
-	type psUpdate struct {
-		Title    string `json:"Title"`
-		Severity string `json:"Severity"`
-	}
-	trimmed := bytes.TrimSpace(out)
-	if len(trimmed) == 0 {
-		return nil, nil
-	}
-	var raw []psUpdate
-	if trimmed[0] == '{' {
-		var one psUpdate
-		if err := json.Unmarshal(trimmed, &one); err != nil {
-			return nil, fmt.Errorf("decode windows update search output: %w", err)
-		}
-		raw = []psUpdate{one}
-	} else if err := json.Unmarshal(trimmed, &raw); err != nil {
-		return nil, fmt.Errorf("decode windows update search output: %w", err)
-	}
-	patches := make([]proto.PatchInfo, 0, len(raw))
-	for _, u := range raw {
-		severity := ""
-		if u.Severity != "" {
-			severity = "security"
-		}
-		patches = append(patches, proto.PatchInfo{Name: u.Title, Severity: severity})
-	}
-	return patches, nil
+	return decodeWUASearch(stdout.Bytes())
 }
 
 // patchProgress is how applyPatches reports stages back to the caller:
@@ -400,8 +364,9 @@ type patchApplyResult struct {
 // and says whether a reboot is outstanding afterwards. See
 // proto.AgentCommand's doc comment for why this fixed, agent-constructed
 // command is safe to expose over the command channel.
-// viaMDM says the server hands macOS updates to an MDM after this job.
-func applyPatches(ctx context.Context, nc *gonats.Conn, agentID string, names []string, viaMDM bool, report patchProgress) (patchApplyResult, error) {
+// opts carries the rest of the command: whether the server hands macOS
+// updates to an MDM after this job, and the Windows opt-ins.
+func applyPatches(ctx context.Context, nc *gonats.Conn, agentID string, names []string, opts patchApplyOptions, report patchProgress) (patchApplyResult, error) {
 	if report == nil {
 		report = func(string, string, int) {}
 	}
@@ -409,11 +374,11 @@ func applyPatches(ctx context.Context, nc *gonats.Conn, agentID string, names []
 	case "linux":
 		return applyPatchesLinuxWithApps(ctx, nc, agentID, names, report)
 	case "darwin":
-		return applyPatchesDarwin(ctx, names, viaMDM, report)
+		return applyPatchesDarwin(ctx, names, opts.ViaMDM, report)
 	case "freebsd":
 		return applyPatchesFreeBSD(ctx, names, report)
 	case "windows":
-		return applyPatchesWindows(ctx, names, report)
+		return applyPatchesWindows(ctx, names, opts, report)
 	default:
 		return patchApplyResult{}, fmt.Errorf("apply_patches not supported on %s", runtime.GOOS)
 	}
@@ -793,19 +758,47 @@ func lastLine(out string, err error) string {
 // applyPatchesWindows uses the Windows Update Agent COM API. The selection
 // travels as base64 JSON so titles with quotes or brackets cannot break
 // the script, and STAGE lines on stdout drive the progress report.
-func applyPatchesWindows(ctx context.Context, names []string, report patchProgress) (patchApplyResult, error) {
+//
+// The job always names what it installs. Drivers and feature updates are
+// left out unless the command opted in (windowsSelection), so the list is
+// read first: an empty selection would have the script install whatever
+// it finds, drivers and Windows upgrades included. Not knowing what is
+// pending, the job does not guess.
+func applyPatchesWindows(ctx context.Context, names []string, opts patchApplyOptions, report patchProgress) (patchApplyResult, error) {
 	var res patchApplyResult
 	res.Attempts = 1
-	selection, _ := json.Marshal(names)
+	report("downloading", "listing pending updates", 1)
+	pending, err := collectPatchesWindows(ctx)
+	if err != nil {
+		return res, fmt.Errorf("could not list pending updates, so could not leave out drivers and feature updates: %w", err)
+	}
+	install, eula, skipped, notes := windowsSelection(pending, names, opts)
+	res.Skipped, res.Notes = skipped, notes
+	if len(install) == 0 {
+		res.Output = "no pending updates selected"
+		return res, nil
+	}
+	selection, _ := json.Marshal(install)
+	accept, _ := json.Marshal(eula)
 	script := `
-$sel = @()
+$sel = @(); $eula = @()
 $raw = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("` + base64.StdEncoding.EncodeToString(selection) + `"))
 if ($raw -and $raw -ne "null") { $sel = @(ConvertFrom-Json $raw) }
+$raw = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("` + base64.StdEncoding.EncodeToString(accept) + `"))
+if ($raw -and $raw -ne "null") { $eula = @(ConvertFrom-Json $raw) }
+if ($sel.Count -eq 0) { Write-Output "no pending updates selected"; exit 0 }
 $s = New-Object -ComObject Microsoft.Update.Session
 $searcher = $s.CreateUpdateSearcher()
 $result = $searcher.Search("IsInstalled=0 and IsHidden=0")
 $wanted = New-Object -ComObject Microsoft.Update.UpdateColl
-foreach ($u in $result.Updates) { if ($sel.Count -eq 0 -or $sel -contains $u.Title) { $wanted.Add($u) | Out-Null } }
+foreach ($u in $result.Updates) {
+  if ($sel -contains $u.Title) {
+    # A feature update or driver an administrator opted in to may carry
+    # licence terms; without accepting them its install fails.
+    if (($eula -contains $u.Title) -and -not $u.EulaAccepted) { $u.AcceptEula() }
+    $wanted.Add($u) | Out-Null
+  }
+}
 if ($wanted.Count -eq 0) { Write-Output "no pending updates selected"; exit 0 }
 # One update at a time, so the person at the computer (Self Service) and
 # the console see "3 of 7: <title>" rather than one long silence.

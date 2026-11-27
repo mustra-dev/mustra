@@ -126,6 +126,15 @@ Open work, kept here so it can be picked up. Add to it when deferring something,
 - [ ] Restart choice and override-windows on scheduled patch rollouts. Scheduled firings, like scheduled runs without rings, patch without a restart.
 - [ ] Software deployments still run their plans in one goroutine, drawing percentages at random and sleeping between rings, so a restart loses the rollout. Move them onto the persistent ring rollouts (resume, abort, halts) used by patching and Enforce.
 
+## Windows drivers, feature updates and Hotpatch
+
+- [ ] Run the driver, feature-update and hotpatch paths on real Windows machines: a driver offered by Windows Update, a feature update (24H2 → 25H2) through to its restart and verification, and a hotpatch-enrolled Windows 11 Enterprise device. The first slice was built and tested only with recorded Windows Update output.
+- [ ] Set the Windows-side policies too (`TargetReleaseVersion`, `ExcludeWUDriversInQualityUpdate`) so Windows' own automatic updates follow the same hold and driver choices; today only mustra's runs do.
+- [ ] Choose drivers per device or hardware ID, and roll a driver back (`pnputil`), rather than only by name pattern.
+- [ ] Report a feature update's compatibility holds (safeguard holds) and setup's own result codes when it fails.
+- [ ] Read hotpatch enrolment from a documented source if Microsoft publishes one; the agent reads the PolicyManager registry location of `Update/AllowRebootlessUpdates`, which is not documented as an interface.
+- [ ] Show drivers and feature updates in the deploy preview (how many each run would install), and on the endpoint page.
+
 ## Patch health checks
 
 - [ ] Check services after patching on Windows (automatic services that were running) and macOS (launchd daemons). Only Linux with systemd compares services today; other endpoints get the server's restart watch alone.

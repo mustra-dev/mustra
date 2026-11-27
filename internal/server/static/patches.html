@@ -14,6 +14,10 @@
   .sev-pill { font-size: var(--fs-meta); text-transform: uppercase; letter-spacing: .04em; padding: 2px 8px; border-radius: 999px; }
   .sev-pill.security { background: var(--off-bg); color: var(--off); }
   .sev-pill.none { background: var(--surface-2); color: var(--text-muted); }
+  .sev-pill.ok { background: var(--ok-bg); color: var(--ok); }
+  .sev-pill.warn { background: var(--warn-bg); color: var(--warn); }
+  fieldset.win-optins { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px 12px 12px; }
+  fieldset.win-optins legend { padding: 0 6px; }
   .apply-btn.is-busy { display: inline-flex; align-items: center; gap: 7px; opacity: .75; cursor: not-allowed; }
   .spin-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid currentColor; border-top-color: transparent; animation: spin-dot .8s linear infinite; }
   @keyframes spin-dot { to { transform: rotate(360deg); } }
@@ -103,7 +107,16 @@
           Built from each agent's cached patches sensor (auto-refreshed on the usual sensor interval) — not a live query.
           A patch is <strong>superseded</strong> the moment any endpoint reports a newer version of it pending.
           <label class="u-ml-10"><input type="checkbox" id="hide-superseded" checked> hide superseded</label>
+          <label class="u-ml-10" for="patch-kind">Show</label>
+          <select id="patch-kind" class="u-w-auto">
+            <option value="">all kinds</option>
+            <option value="update">updates</option>
+            <option value="driver">Windows drivers</option>
+            <option value="feature">Windows feature updates</option>
+            <option value="hotpatch">hotpatches</option>
+          </select>
         </p>
+        <p class="u-fs-12 u-c-text-muted">Windows <strong>drivers</strong> and <strong>feature updates</strong> are listed but never installed unless a patch list opts in to them (Patch Lists).</p>
         <div class="table-scroll table-scroll-y rows-10 no-cards">
           <table class="table-compact table-nowrap">
             <thead><tr><th>OS</th><th>Patch</th><th>Version</th><th>Severity</th><th>First seen</th><th>Missing on</th></tr></thead>
@@ -119,14 +132,24 @@
           <span class="u-fs-12 u-c-text-muted">Showing <strong id="devices-filter-label"></strong></span>
           <button class="tiny u-w-auto" id="devices-filter-clear">Show all reporting devices</button>
         </div>
+        <div class="query-row">
+          <label class="u-fs-12 u-c-text-muted" for="devices-hotpatch">Hotpatch</label>
+          <select id="devices-hotpatch" class="u-w-auto">
+            <option value="">any</option>
+            <option value="enrolled">enrolled</option>
+            <option value="eligible">eligible, not enrolled</option>
+            <option value="ineligible">not eligible</option>
+            <option value="unknown">not reported</option>
+          </select>
+        </div>
         <div class="query-row" id="devices-bulk-row" hidden>
           <span class="u-fs-12 u-c-text-muted"><span id="devices-selected-count">0</span> selected</span>
           <button class="primary u-w-auto" id="devices-apply-selected">Apply patches to selected</button>
         </div>
         <div class="table-scroll table-scroll-y rows-10 no-cards">
           <table class="table-compact table-nowrap">
-            <thead><tr><th><input type="checkbox" id="devices-select-all" aria-label="Select all devices"></th><th>Hostname</th><th>OS</th><th>Site</th><th>Pending patches</th><th>Last checked</th><th>Action</th></tr></thead>
-            <tbody id="devices-body"><tr><td class="empty" colspan="7">loading…</td></tr></tbody>
+            <thead><tr><th><input type="checkbox" id="devices-select-all" aria-label="Select all devices"></th><th>Hostname</th><th>OS</th><th>Site</th><th>Pending patches</th><th>Hotpatch</th><th>Last checked</th><th>Action</th></tr></thead>
+            <tbody id="devices-body"><tr><td class="empty" colspan="8">loading…</td></tr></tbody>
           </table>
         </div>
         <div class="apply-output" id="devices-apply-output" hidden></div>
@@ -267,6 +290,12 @@
           <div class="field"><label for="ppl-patterns">Name patterns (one per line; * and ? wildcards, otherwise substring)</label><textarea id="ppl-patterns" rows="3" placeholder="linux-image-*&#10;cumulative&#10;KB50*"></textarea></div>
           <div class="field"><label for="ppl-age">Minimum age (days seen pending; 0 = no minimum)</label><input id="ppl-age" type="number" min="0" max="365" value="0"></div>
         </div>
+        <fieldset class="form-grid top win-optins">
+          <legend class="u-fs-12 u-c-text-muted">Windows drivers and feature updates — never installed unless a patch list opts in</legend>
+          <div class="field"><label>Driver updates</label><div class="checks"><label><input type="checkbox" id="ppl-drivers"> Include Windows driver updates</label></div><div class="hint u-mt-4">Patch lists only. The rules above still apply to drivers.</div></div>
+          <div class="field"><label for="ppl-feature-target">Feature update target version</label><input id="ppl-feature-target" placeholder="e.g. 25H2" maxlength="4" autocomplete="off"><div class="hint u-mt-4">Patch lists only. Installs only the upgrade to exactly this version, and restarts the endpoint.</div></div>
+          <div class="field"><label for="ppl-feature-hold">Hold Windows at version</label><input id="ppl-feature-hold" placeholder="e.g. 24H2" maxlength="4" autocomplete="off"><div class="hint u-mt-4">Any list. Blocks every feature update past this version, whatever targets it.</div></div>
+        </fieldset>
         <div class="checks"><label><input type="checkbox" id="ppl-enabled" checked> Enabled</label></div>
         <div class="panel-actions">
           <button class="primary" id="ppl-save">Save list</button>
@@ -573,7 +602,8 @@ document.getElementById("devices-filter-clear").addEventListener("click", () => 
 function renderPatchGroups() {
   const body = document.getElementById("patches-body");
   const hide = document.getElementById("hide-superseded").checked;
-  const patches = (summary.patches || []).filter(p => !(hide && p.superseded));
+  const kind = document.getElementById("patch-kind").value;
+  const patches = (summary.patches || []).filter(p => !(hide && p.superseded) && (!kind || patchKind(p) === kind));
   const superseded = (summary.patches || []).filter(p => p.superseded).length;
   document.getElementById("patches-summary").textContent = `${patches.length} shown${superseded ? ` · ${superseded} superseded${hide ? " hidden" : ""}` : ""}`;
   if (patches.length === 0) {
@@ -583,8 +613,8 @@ function renderPatchGroups() {
   body.innerHTML = patches.map(p => `
     <tr class="${p.superseded ? "muted" : ""}">
       <td>${patchSystems(p).map(x => `<span class="os-pill" title="${escapeHtml(p.os)}">${escapeHtml(x)}</span>`).join(" ")}</td>
-      <td>${escapeHtml(p.name)}${p.restart_required ? ' <span class="sev-pill none" title="Installing it restarts the computer">restart</span>' : ""}${p.superseded ? ' <span class="sev-pill none" title="A newer version of this patch is pending on at least one endpoint">superseded</span>' : ""}</td>
-      <td>${escapeHtml(p.new_version || "—")}</td>
+      <td>${escapeHtml(p.name)}${patchKindBadge(p)}${p.restart_required ? ' <span class="sev-pill none" title="Installing it restarts the computer">restart</span>' : ""}${p.superseded ? ' <span class="sev-pill none" title="A newer version of this patch is pending on at least one endpoint">superseded</span>' : ""}</td>
+      <td>${escapeHtml(p.new_version || "—")}${driverDetail(p)}</td>
       <td><span class="sev-pill ${p.severity === "security" ? "security" : "none"}">${escapeHtml(p.severity || "unspecified")}</span></td>
       <td data-sort="${escapeHtml(p.age_days || 0)}">${p.first_seen ? `${escapeHtml(p.age_days)} day${p.age_days === 1 ? "" : "s"} ago` : "—"}</td>
       <td>
@@ -597,6 +627,28 @@ function renderPatchGroups() {
   `).join("");
   const dt = initDataTable(body.closest("table"), { storageKey: "patches-missing" });
   if (dt) dt.refresh();
+}
+
+// What kind of update a row is. Only Windows agents that classify updates
+// report drivers, feature updates and hotpatches; everything else is an
+// ordinary update.
+function patchKind(p) {
+  if (p.category === "driver" || p.category === "feature") return p.category;
+  return p.hotpatch ? "hotpatch" : "update";
+}
+function patchKindBadge(p) {
+  switch (patchKind(p)) {
+    case "driver": return ' <span class="sev-pill warn" title="Windows driver update: installed only where a patch list includes drivers">driver</span>';
+    case "feature": return ` <span class="sev-pill warn" title="${escapeHtml(`Windows feature update${p.target_version ? ` to ${p.target_product || "Windows"} ${p.target_version}` : ""}: installed only where a patch list targets that version`)}">feature update${p.target_version ? " → " + escapeHtml(p.target_version) : ""}</span>`;
+    case "hotpatch": return ' <span class="sev-pill ok" title="Hotpatch: installs and takes effect without a restart">hotpatch</span>';
+  }
+  return "";
+}
+function driverDetail(p) {
+  const d = p.driver;
+  if (!d) return "";
+  const parts = [d.class, d.manufacturer || d.provider, d.model, d.date].filter(Boolean);
+  return parts.length ? `<div class="hint">${escapeHtml(parts.join(" · "))}</div>` : "";
 }
 
 // The rows currently drawn, which is not always summary.agents: a
@@ -617,20 +669,22 @@ function renderDevices() {
       // needs a filter spanning both pending states.
       return deviceFilter === "needs_patching" ? state !== "up_to_date" : state === deviceFilter;
     });
+  const hpFilter = document.getElementById("devices-hotpatch").value;
+  if (hpFilter) renderedDevices = renderedDevices.filter(a => hotpatchState(a) === hpFilter);
 
   document.getElementById("devices-filter-row").hidden = !deviceFilter;
   document.getElementById("devices-filter-label").textContent = DEVICE_FILTERS[deviceFilter] || "";
 
   if ((summary.agents || []).length === 0 && !deviceFilter) {
     document.getElementById("devices-count").textContent = "";
-    body.innerHTML = '<tr><td class="empty" colspan="7">no agent has published the patches sensor yet</td></tr>';
+    body.innerHTML = '<tr><td class="empty" colspan="8">no agent has published the patches sensor yet</td></tr>';
     return;
   }
   document.getElementById("devices-count").textContent = deviceFilter
     ? `${renderedDevices.length} of ${(summary.agents || []).length} reporting device(s) shown`
     : `${renderedDevices.length} device(s) reporting`;
   if (renderedDevices.length === 0) {
-    body.innerHTML = '<tr><td class="empty" colspan="7">no device is in that state</td></tr>';
+    body.innerHTML = '<tr><td class="empty" colspan="8">no device is in that state</td></tr>';
     syncDevicesBulkRow();
     return;
   }
@@ -642,6 +696,7 @@ function renderDevices() {
       <td>${escapeHtml(a.site)}</td>
       <td data-sort="${escapeHtml(a.patch_count == null || (a.check_error && !a.collected_at) ? -1 : a.patch_count)}">${escapeHtml(a.patch_count == null || (a.check_error && !a.collected_at) ? "unknown" : a.patch_count)}${a.check_error
         ? ` <span class="sev-pill security" title="${escapeHtml(`Last check failed${a.check_failing_since ? ` (failing since ${fmtDate(a.check_failing_since)})` : ""}: ${a.check_error}`)}">check failing</span>` : ""}</td>
+      <td data-sort="${escapeHtml(hotpatchState(a))}">${hotpatchCell(a)}</td>
       <td data-sort="${escapeHtml(a.collected_at || "")}">${a.collected_at ? fmtAgo(a.collected_at) : "never"}${a.check_error && a.check_failing_since ? `<div class="hint">failing since ${escapeHtml(fmtAgo(a.check_failing_since))}</div>` : ""}</td>
       <td>${a.patching ? patchingBadge(a) : a.apply_elsewhere && a.patch_count > 0 ? `<button disabled title="${escapeHtml(a.apply_elsewhere)}">Update in Home Assistant</button>` : canApply && a.patch_count > 0 ? `<button class="primary apply-btn" data-idx="${i}">Apply patches</button>` : ""}</td>
     </tr>
@@ -655,6 +710,23 @@ function renderDevices() {
   syncDevicesBulkRow();
   const dt = initDataTable(body.closest("table"), { storageKey: "patches-devices" });
   if (dt) dt.refresh();
+}
+
+// Hotpatch standing from the hotpatch sensor (Windows agents that report
+// it); "unknown" for everything else, so the filter can find the gaps.
+function hotpatchState(a) {
+  if (!a.hotpatch) return "unknown";
+  if (a.hotpatch.enrolled) return "enrolled";
+  return a.hotpatch.eligible ? "eligible" : "ineligible";
+}
+function hotpatchCell(a) {
+  const st = hotpatchState(a);
+  if (st === "unknown") return '<span class="u-c-text-muted">—</span>';
+  const why = (a.hotpatch.reasons || []).join("; ");
+  const label = { enrolled: "enrolled", eligible: "eligible", ineligible: "not eligible" }[st];
+  const cls = { enrolled: "ok", eligible: "none", ineligible: "warn" }[st];
+  const title = st === "enrolled" && why ? `Enrolled, but: ${why}` : why || (st === "eligible" ? "Meets the prerequisites the agent can see; not enrolled in hotpatch updates" : "Receives hotpatch updates when Windows offers them");
+  return `<span class="sev-pill ${escapeHtml(cls)}" title="${escapeHtml(title)}">${escapeHtml(label)}</span>`;
 }
 
 // A device with a patch job still open says so in place of its button:
@@ -1422,18 +1494,23 @@ async function loadPolicies() {
   const body = document.getElementById("ppl-body");
   document.getElementById("ppl-status").textContent = policies.length ? `${policies.filter(p => p.kind === "allow").length} patch list(s), ${policies.filter(p => p.kind === "block").length} block list(s)` : "";
   if (!policies.length) { body.innerHTML = '<tr><td class="empty" colspan="7">No lists. Every endpoint may receive everything it has pending.</td></tr>'; return; }
-  const rules = r => {
+  const rules = (r, kind) => {
     const parts = [];
     if ((r.severities || []).length) parts.push("severity " + r.severities.map(x => escapeHtml(x || "unclassified")).join("/"));
     if ((r.os || []).length) parts.push(r.os.map(x => escapeHtml(osLabel(x))).join("/"));
     if ((r.name_patterns || []).length) parts.push("name " + r.name_patterns.map(x => `<code>${escapeHtml(x)}</code>`).join(", "));
     if (r.min_age_days) parts.push(`at least ${escapeHtml(r.min_age_days)} day(s) old`);
-    return parts.length ? parts.join(" · ") : "everything";
+    const win = [];
+    if (r.drivers) win.push("includes drivers");
+    if (r.feature_target_version) win.push(`feature update to ${r.feature_target_version}`);
+    if (r.feature_hold_version) win.push(`holds Windows at ${r.feature_hold_version}`);
+    const base = parts.length ? parts.join(" · ") : (kind === "block" && r.feature_hold_version ? "" : "everything");
+    return [base, ...win.map(w => `<span class="sev-pill warn">${escapeHtml(w)}</span>`)].filter(Boolean).join(" · ");
   };
   body.innerHTML = policies.map(p => `<tr class="${p.enabled ? "" : "muted"}">
     <td><span class="sev-pill ${p.kind === "block" ? "security" : "none"}">${p.kind === "block" ? "block list" : "patch list"}</span></td>
     <td><strong>${escapeHtml(p.name)}</strong>${p.description ? `<div class="hint u-m-2-0-0">${escapeHtml(p.description)}</div>` : ""}</td>
-    <td>${rules(p.rules || {})}</td>
+    <td>${rules(p.rules || {}, p.kind)}</td>
     <td>${(p.group_ids || []).length ? p.group_ids.map(id => escapeHtml(gname(id))).join(", ") + ` <span class="hint">(${escapeHtml(p.members)} endpoint${p.members === 1 ? "" : "s"})</span>` : "every endpoint"}</td>
     <td>${escapeHtml(p.matches)} pending patch(es)</td>
     <td>${p.enabled ? "enabled" : "disabled"}</td>
@@ -1465,6 +1542,9 @@ function editPolicy(p) {
   document.querySelectorAll(".ppl-os").forEach(c => c.checked = (r.os || []).includes(c.value));
   document.getElementById("ppl-patterns").value = (r.name_patterns || []).join("\n");
   document.getElementById("ppl-age").value = r.min_age_days || 0;
+  document.getElementById("ppl-drivers").checked = !!r.drivers;
+  document.getElementById("ppl-feature-target").value = r.feature_target_version || "";
+  document.getElementById("ppl-feature-hold").value = r.feature_hold_version || "";
   document.getElementById("ppl-enabled").checked = !p || p.enabled;
   document.getElementById("ppl-save-status").textContent = "";
   if (p) document.getElementById("ppl-editor-title").scrollIntoView({ block: "nearest" });
@@ -1481,7 +1561,10 @@ document.getElementById("ppl-save").addEventListener("click", async () => {
     group_ids: [...document.getElementById("ppl-groups").selectedOptions].map(o => o.value),
     rules: { severities, os: [...document.querySelectorAll(".ppl-os:checked")].map(c => c.value),
       name_patterns: document.getElementById("ppl-patterns").value.split("\n").map(x => x.trim()).filter(Boolean),
-      min_age_days: Number(document.getElementById("ppl-age").value) || 0 },
+      min_age_days: Number(document.getElementById("ppl-age").value) || 0,
+      drivers: document.getElementById("ppl-drivers").checked,
+      feature_target_version: document.getElementById("ppl-feature-target").value.trim(),
+      feature_hold_version: document.getElementById("ppl-feature-hold").value.trim() },
   };
   status.textContent = "saving…";
   const resp = await fetch(editingPolicy ? `/api/patch-policies/${encodeURIComponent(editingPolicy)}` : "/api/patch-policies",
@@ -1514,6 +1597,8 @@ document.getElementById("ppl-import-file").addEventListener("change", async (e) 
   loadPolicies();
 });
 document.getElementById("hide-superseded").addEventListener("change", renderPatchGroups);
+document.getElementById("patch-kind").addEventListener("change", renderPatchGroups);
+document.getElementById("devices-hotpatch").addEventListener("change", renderDevices);
 </script>
 </body>
 </html>

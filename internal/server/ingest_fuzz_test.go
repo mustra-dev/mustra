@@ -14,7 +14,7 @@ var allSensorKinds = []proto.SensorKind{
 	proto.SensorPatches, proto.SensorDisks, proto.SensorNetwork, proto.SensorUsers,
 	proto.SensorHardware, proto.SensorPrivileges, proto.SensorNeighbors,
 	proto.SensorCertificates, proto.SensorPerformance, proto.SensorIntegrity,
-	proto.SensorLocalAdmins, proto.SensorSecurityPosture, proto.SensorReveal,
+	proto.SensorLocalAdmins, proto.SensorSecurityPosture, proto.SensorReveal, proto.SensorHotpatch,
 	"custom_abc", "unknown_kind", "custom_bad.kind",
 }
 

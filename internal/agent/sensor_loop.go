@@ -25,6 +25,18 @@ type sensorCollector func(ctx context.Context) (any, error)
 // the console showed a clean success.
 const patchApplyTimeout = 2 * time.Hour
 
+// featureUpdateApplyTimeout is the budget of a job that may install a
+// Windows feature update, which downloads several gigabytes and then
+// migrates the whole installation before its restart.
+const featureUpdateApplyTimeout = 4 * time.Hour
+
+func patchApplyTimeoutFor(opts patchApplyOptions) time.Duration {
+	if opts.FeatureTarget != "" {
+		return featureUpdateApplyTimeout
+	}
+	return patchApplyTimeout
+}
+
 // sensorTimeout is how long one collection may take. Most sensors read
 // local state and finish in milliseconds; the patches sensor is the
 // exception, because a Windows Update COM search has to talk to Microsoft
@@ -37,6 +49,9 @@ func sensorTimeout(kind proto.SensorKind) time.Duration {
 	}
 	if kind == proto.SensorDirectory {
 		return time.Minute // an LDAP round trip to a distant DC, then PowerShell
+	}
+	if kind == proto.SensorHotpatch {
+		return time.Minute // a PowerShell start and a WMI query, on a busy desktop
 	}
 	if kind == proto.SensorBackups {
 		return 3 * time.Minute // a remote PBS storage can take a while to list
@@ -411,7 +426,7 @@ func (a *Agent) handleCommand(ctx context.Context, data []byte, intervalChans ma
 		runID, actionID := cmd.RunID, cmd.ActionID
 		names, selective := cmd.Patches, cmd.Selective
 		rebootMode, rebootWarn := cmd.RebootMode, cmd.RebootWarnMinutes
-		viaMDM := cmd.MacOSViaMDM
+		opts := patchApplyOptions{ViaMDM: cmd.MacOSViaMDM, IncludeDrivers: cmd.IncludeDrivers, FeatureTarget: cmd.FeatureTarget}
 		go func() {
 			if selective && len(names) == 0 {
 				// The server's patch lists permitted nothing here. Say so
@@ -420,7 +435,8 @@ func (a *Agent) handleCommand(ctx context.Context, data []byte, intervalChans ma
 				a.reportActionResult(ctx, proto.AgentActionResult{RunID: runID, ActionID: actionID, Kind: "patch_apply", OK: true, Detail: "No pending patches are permitted by the patch lists that cover this endpoint"})
 				return
 			}
-			actx, cancel := context.WithTimeout(ctx, patchApplyTimeout)
+			timeout := patchApplyTimeoutFor(opts)
+			actx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			progress := func(stage, detail string, attempt int) {
 				a.reportActionResult(ctx, proto.AgentActionResult{RunID: runID, ActionID: actionID, Kind: "patch_apply", Progress: true, Status: stage, Detail: detail, Attempt: attempt})
@@ -433,14 +449,15 @@ func (a *Agent) handleCommand(ctx context.Context, data []byte, intervalChans ma
 			if len(targeted) == 0 {
 				if before, berr := collectPatches(actx, a.nc, a.agentID); berr == nil {
 					pending = before
-					for _, p := range before {
-						targeted = append(targeted, p.Name)
-					}
+					// Less the drivers and feature updates the job leaves
+					// alone, or the check afterwards would hold them
+					// against it.
+					targeted = installableByDefault(before, opts)
 				}
 			}
 			// And what it must not break: checked again once it is done.
 			baseline := a.patchHealthBaseline(actx)
-			res, err := applyPatches(actx, a.nc, a.agentID, names, viaMDM, progress)
+			res, err := applyPatches(actx, a.nc, a.agentID, names, opts, progress)
 			for _, u := range res.PrepareForUser {
 				go a.prepareMacOSUpdate(context.WithoutCancel(ctx), runID, actionID, u)
 			}
@@ -532,7 +549,7 @@ func (a *Agent) handleCommand(ctx context.Context, data []byte, intervalChans ma
 			}
 			switch {
 			case timedOut:
-				a.logger.Error("apply patches timed out", "after", patchApplyTimeout, "output", out)
+				a.logger.Error("apply patches timed out", "after", timeout, "output", out)
 			case err != nil:
 				a.logger.Error("apply patches failed", "error", err, "output", out)
 			default:
@@ -543,7 +560,7 @@ func (a *Agent) handleCommand(ctx context.Context, data []byte, intervalChans ma
 				detail = err.Error() + "\n" + out
 			}
 			if timedOut {
-				detail = "the agent stopped waiting after " + patchApplyTimeout.String() +
+				detail = "the agent stopped waiting after " + timeout.String() +
 					"; the update may still be installing on the device\n" + detail
 			}
 			// The restart the console asked for, scheduled before the
@@ -556,7 +573,13 @@ func (a *Agent) handleCommand(ctx context.Context, data []byte, intervalChans ma
 			case err != nil || timedOut:
 				blocked = "the updates did not finish cleanly."
 			}
-			note, restarting := patchRestartNote(ctx, rebootMode, rebootWarn, res.RebootRequired, blocked)
+			var note string
+			var restarting bool
+			if skipRestartForHotpatches(rebootMode, res.RebootRequired, res.Installed, blocked) {
+				note = "Not restarting: every update this job installed was a hotpatch, which takes effect without a restart."
+			} else {
+				note, restarting = patchRestartNote(ctx, rebootMode, rebootWarn, res.RebootRequired, blocked)
+			}
 			if note != "" {
 				a.logger.Info("patch restart", "mode", rebootMode, "note", note)
 				detail = note + "\n" + detail
