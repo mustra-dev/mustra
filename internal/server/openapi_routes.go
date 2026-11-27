@@ -329,7 +329,20 @@ var routeDocs = map[string]routeDoc{
 	"GET /api/deployment-plans":         {Resp: listPlansResponse{}, Errors: []int{500}},
 	"POST /api/deployment-plans":        {Body: store.DeploymentPlan{}, Resp: store.DeploymentPlan{}, Errors: []int{400, 404, 500}},
 	"PUT /api/deployment-plans/{id}":    {Body: store.DeploymentPlan{}, Resp: store.DeploymentPlan{}, Errors: []int{400, 404, 500}},
-	"DELETE /api/deployment-plans/{id}": {Status: 204, Errors: []int{500}},
+	"DELETE /api/deployment-plans/{id}": {Status: 204, Errors: []int{409, 500}},
+
+	// rollouts
+	"GET /api/rollouts": {Query: []queryParam{
+		{Name: "kind", Desc: "only rollouts of this kind", Enum: []string{"patch", "enforce"}},
+		{Name: "source_id", Desc: "only the rollouts of this patch schedule or Enforce policy"},
+		{Name: "limit", Type: "integer", Desc: "at most this many (default 50, up to 200)"}},
+		Resp: listRolloutsResponse{}, Errors: []int{400, 500}},
+	"GET /api/rollouts/{id}":                  {Resp: store.RingRollout{}, Errors: []int{404, 500}},
+	"POST /api/patches/rollouts/{id}/resume":  {NoBody: true, Resp: store.RingRollout{}, Errors: []int{404, 409, 500}},
+	"POST /api/patches/rollouts/{id}/abort":   {NoBody: true, Resp: store.RingRollout{}, Errors: []int{404, 409, 500}},
+	"POST /api/enforce/rollouts/{id}/resume":  {NoBody: true, Resp: store.RingRollout{}, Errors: []int{404, 409, 500}},
+	"POST /api/enforce/rollouts/{id}/abort":   {NoBody: true, Resp: store.RingRollout{}, Errors: []int{404, 409, 500}},
+	"POST /api/enforce/policies/{id}/rollout": {Body: startEnforceRolloutRequest{}, Resp: store.RingRollout{}, Errors: []int{400, 404, 409, 500}},
 
 	// directory
 	"GET /api/directory":       {Resp: directoryView{}, Errors: []int{500}},

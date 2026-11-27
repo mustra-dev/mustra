@@ -273,6 +273,9 @@ func (s *Server) reportPatchHealthFailure(ctx context.Context, agentID, hostname
 		s.audit(ctx, auditEvent{Action: "patch_run.held", Actor: "system", Target: runID, Severity: "warning",
 			Detail: map[string]any{"agent_id": agentID, "hostname": hostname, "held": n}})
 	}
+	// A ring rollout this run belongs to stops too: the rings after it
+	// are the same updates going to more endpoints.
+	s.haltRolloutsForRun(context.WithoutCancel(ctx), runID, hostname+": "+detail)
 	s.notify(ctx, "critical", "Patch", title, safeTruncate(strings.TrimSpace(body), 300),
 		"/endpoint/"+url.PathEscape(agentID)+"#activity")
 	s.logger.Warn("patch health check failed", "agent_id", agentID, "hostname", hostname,

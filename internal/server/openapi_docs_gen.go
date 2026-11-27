@@ -634,6 +634,7 @@ var typeDocs = map[string]typeDoc{
 	"github.com/mustra-dev/mustra/internal/server.createPatchScheduleRequest": {
 		Fields: map[string]string{
 			"Kind":         "\"once\" | \"daily\" | \"weekly\"",
+			"PlanID":       "PlanID rolls every firing out ring by ring through this deployment plan. A firing whose plan has been deleted, or whose last rollout is still running or halted, is skipped rather than sent all at once.",
 			"TargetAgents": "TargetAgents freezes the schedule to a named set of endpoints, the same shape \"Deploy now\" takes. Resolved at fire time like every other target, so a machine that is offline that night is simply skipped.",
 		},
 	},
@@ -743,7 +744,13 @@ var typeDocs = map[string]typeDoc{
 		Fields: map[string]string{
 			"OnlyPackages":    "OnlyPackages narrows the run to these packages, by endpoint ID: each endpoint installs only the pending updates for the packages listed for it (a remediation from a threat briefing), within what the patch lists allow. Needs target_agents, and an endpoint not listed is not patched. Omitted, every pending update is installed.",
 			"OverrideWindows": "OverrideWindows patches endpoints whose maintenance windows are closed. Needs deploy.override_windows.",
+			"PlanID":          "PlanID rolls the run out ring by ring through this deployment plan instead of patching every target at once; the answer then names the rollout and its first ring's run. Not with only_packages.",
 			"TargetAgents":    "TargetAgents names an explicit set of endpoints, which is how the Remediation view deploys to \"the ones that offer an update for this package\" rather than to an OS or a site.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.deployPatchesResponse": {
+		Fields: map[string]string{
+			"RolloutID": "RolloutID is set when the run goes out through a rollout plan: RunID is then its first ring's run, and Started and Failed that ring's.",
 		},
 	},
 	"github.com/mustra-dev/mustra/internal/server.deployPreviewResponse": {
@@ -1294,6 +1301,9 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/server.listRolesResponse": {
 		Doc: "listRolesResponse is what GET /api/admin/roles answers.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.listRolloutsResponse": {
+		Doc: "listRolloutsResponse is what GET /api/rollouts answers.",
 	},
 	"github.com/mustra-dev/mustra/internal/server.listSavedQuestionsResponse": {
 		Doc: "listSavedQuestionsResponse is what GET /api/interact/saved answers.",
@@ -2055,6 +2065,12 @@ var typeDocs = map[string]typeDoc{
 			"Warning":    "Warning is set when SSO providers exist but no rule does, which means every SSO sign-in is being refused.",
 		},
 	},
+	"github.com/mustra-dev/mustra/internal/server.startEnforceRolloutRequest": {
+		Doc: "startEnforceRolloutRequest is the body of POST /api/enforce/policies/{id}/rollout.",
+		Fields: map[string]string{
+			"PlanID": "PlanID is the deployment plan whose rings the policy is promoted through, from report to enforce.",
+		},
+	},
 	"github.com/mustra-dev/mustra/internal/server.startQueryRequest": {
 		Fields: map[string]string{
 			"AgentID": "target one agent instead of the fleet",
@@ -2663,6 +2679,7 @@ var typeDocs = map[string]typeDoc{
 		Doc: "PatchSchedule is one scheduled or recurring patch-deployment job — see schema.sql for the field semantics.",
 		Fields: map[string]string{
 			"Kind":         "\"once\" | \"daily\" | \"weekly\"",
+			"PlanID":       "PlanID, when set, rolls each firing out ring by ring through that deployment plan instead of patching every target at once.",
 			"TargetAgents": "TargetAgents freezes the schedule to a named set of endpoints (\"Specific endpoints\" in the console). Like every other target it is resolved at fire time against the online fleet, so a machine that is off that night is skipped rather than failing the run. Empty means the fields above decide.",
 			"TargetVulnID": "TargetVulnID, when set, means this schedule came from a Risk & Compliance CVE's \"Schedule\" button — resolved at fire time to whichever online agents currently carry this vuln_id, instead of a frozen host list. Mutually exclusive with TargetOS/TargetSite/ TargetAgent in practice (the UI only ever sets one kind of target).",
 			"TimeOfDay":    "\"HH:MM\" UTC",
@@ -2737,15 +2754,37 @@ var typeDocs = map[string]typeDoc{
 		Fields: map[string]string{
 			"GroupID":     "GroupID targets a computer group (custom plans).",
 			"MinSuccess":  "MinSuccess is how many endpoints must succeed before the next ring starts; SuccessRate is the same thing as a percentage. Whichever is set gates progression — a plan with neither runs straight through, which is a staged rollout with no brakes and worth doing knowingly.",
-			"Percent":     "Percent takes a random share of the whole target set (dynamic plans).",
+			"Percent":     "Percent takes this share of the whole target set from the endpoints no earlier ring took (at least one): drawn at random for a software deployment, by a hash of plan and agent ID for a patch or Enforce rollout. A ring is a group or a percentage, not both.",
 			"SuccessRate": "MinSuccess is how many endpoints must succeed before the next ring starts; SuccessRate is the same thing as a percentage. Whichever is set gates progression — a plan with neither runs straight through, which is a staged rollout with no brakes and worth doing knowingly.",
-			"WaitMinutes": "WaitMinutes holds the rollout open after a ring completes, so a problem that takes time to show up has time to show up.",
+			"WaitMinutes": "WaitMinutes holds the rollout open after a ring completes, so a problem that takes time to show up has time to show up (the soak; up to 30 days). A patch or Enforce rollout checks the threshold again when it ends.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/store.RingOutcome": {
+		Doc: "RingOutcome counts a ring's endpoints by what their results say. Every endpoint is in exactly one bucket; Open is still working. NoResponse is an endpoint that never reported, which is not a success.",
+	},
+	"github.com/mustra-dev/mustra/internal/store.RingRollout": {
+		Doc: "RingRollout is one staged rollout of a patch run or an Enforce promotion: a deployment plan's rings, copied in when it started, with what each ring has done so far.",
+		Fields: map[string]string{
+			"CurrentRing": "CurrentRing indexes Rings; equal to len(Rings) once every ring is done.",
+			"Kind":        "Kind is \"patch\" (a patch schedule firing or a Deploy now) or \"enforce\" (a report-mode policy promoted to enforce ring by ring).",
+			"Params":      "Params is what the kind needs to dispatch a later ring (a patch run's target and restart choice).",
+			"Rings":       "CurrentRing indexes Rings; equal to len(Rings) once every ring is done.",
+			"SourceID":    "SourceID is the patch schedule or Enforce policy the rollout belongs to; blank for a Deploy now, which has nothing to come back to.",
+			"Status":      "Status is running, halted (a ring missed its threshold, or a patch failed its health check; waiting for an operator to resume or abort), completed or aborted.",
+			"Untouched":   "Untouched counts endpoints of the target that no ring took, known once the rollout completes: a plan of group rings that do not cover the whole target leaves them alone, and says so.",
 		},
 	},
 	"github.com/mustra-dev/mustra/internal/store.Role": {
 		Doc: "Role is a named bundle of permission keys (see internal/server/auth/permissions.go for the fixed set mustra checks), assignable to a user or a group. Builtin roles (\"admin\", \"user\") can't be deleted or renamed but their description/permissions can still be inspected; \"admin\" is reseeded to the full permission set on every startup so it can't be crippled by accident.\n\nThe JSON tags are not decoration. Without them the fields marshalled under their capitalised Go names while every other type in the API is lower_snake, and the console read it both ways in the same file: the roles table used the capitalised names and the assign-a-role dropdowns used the lower-case ones, so every dropdown rendered \"undefined\" and assigning a role to a group silently could not work.",
 		Fields: map[string]string{
 			"ComputerGroupIDs": "ComputerGroupIDs are the role's management rights: the endpoints it may act on. Empty means the whole fleet, so a role written before management rights existed keeps working.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/store.RolloutRing": {
+		Doc: "RolloutRing is one ring of a rollout: its definition from the plan, and its progress.",
+		Fields: map[string]string{
+			"RunID": "RunID is the patch run (deployment) this ring dispatched.",
+			"State": "State is pending, running (dispatched, results coming in), soaking (complete and passing, waiting out its soak time), passed, failed (missed its threshold or tripped a health check) or skipped (no endpoint of the target fell in it).",
 		},
 	},
 	"github.com/mustra-dev/mustra/internal/store.RootTrust": {

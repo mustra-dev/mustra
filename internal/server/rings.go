@@ -211,6 +211,10 @@ func (s *Server) handleUpsertPlan(w http.ResponseWriter, r *http.Request) {
 	if body.Kind != "dynamic" {
 		body.Kind = "custom"
 	}
+	if msg, status := s.validatePlanRings(r.Context(), &body); msg != "" {
+		http.Error(w, msg, status)
+		return
+	}
 	// A POST creates under an ID minted here, whatever the body says; a
 	// PUT updates the plan it names, which must exist.
 	if id := r.PathValue("id"); id != "" {
@@ -237,6 +241,17 @@ func (s *Server) handleUpsertPlan(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDeletePlan(w http.ResponseWriter, r *http.Request) {
+	// A schedule rolling out through this plan would otherwise skip every
+	// firing from now on; say so now rather than at three in the morning.
+	users, err := s.store.PatchSchedulesUsingPlan(r.Context(), r.PathValue("id"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if len(users) > 0 {
+		http.Error(w, "patch schedules roll out through this plan: "+strings.Join(users, ", ")+"; delete them first", http.StatusConflict)
+		return
+	}
 	if err := s.store.DeleteDeploymentPlan(r.Context(), r.PathValue("id")); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -244,4 +259,43 @@ func (s *Server) handleDeletePlan(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-var _ = context.Background
+// maxRingWaitMinutes caps a ring's soak at thirty days: longer is a
+// rollout nobody remembers starting.
+const maxRingWaitMinutes = 30 * 24 * 60
+
+// validatePlanRings refuses rings that cannot select anything or would
+// select the wrong thing: each ring is either a computer group that exists
+// or a percentage, never both, and its numbers are in range. It returns
+// the message and status to refuse with, or "" when the plan is sound.
+func (s *Server) validatePlanRings(ctx context.Context, p *store.DeploymentPlan) (string, int) {
+	for i := range p.Rings {
+		ring := &p.Rings[i]
+		ring.Name = strings.TrimSpace(ring.Name)
+		label := "ring " + itoaInt(i+1)
+		if ring.Name != "" {
+			label += " (" + ring.Name + ")"
+		}
+		switch {
+		case ring.GroupID != "" && ring.Percent > 0:
+			return label + " is both a computer group and a percentage; choose one", http.StatusBadRequest
+		case p.Kind == "dynamic" && ring.GroupID != "":
+			return label + ": a dynamic plan's rings are percentages", http.StatusBadRequest
+		case ring.GroupID == "" && ring.Percent <= 0:
+			return label + " needs a computer group or a percentage", http.StatusBadRequest
+		case ring.Percent > 100, ring.SuccessRate < 0, ring.SuccessRate > 100:
+			return label + ": percentages are 0 to 100", http.StatusBadRequest
+		case ring.MinSuccess < 0, ring.WaitMinutes < 0, ring.WaitMinutes > maxRingWaitMinutes:
+			return label + ": soak time is 0 to 30 days and the minimum successes cannot be negative", http.StatusBadRequest
+		}
+		if ring.GroupID != "" {
+			g, err := s.store.GetComputerGroup(ctx, ring.GroupID)
+			if err != nil {
+				return err.Error(), http.StatusInternalServerError
+			}
+			if g == nil {
+				return label + ": no such computer group", http.StatusBadRequest
+			}
+		}
+	}
+	return "", 0
+}

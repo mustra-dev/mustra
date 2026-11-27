@@ -192,6 +192,9 @@ type Server struct {
 	// person can otherwise start the same one twice, concurrently. See
 	// inflight.go.
 	runs *inflight
+	// rolloutPasses remembers which Enforce rollout rings have had their
+	// first pass since being promoted (ring_rollouts_drivers.go).
+	rolloutPasses sync.Map
 	// debsec holds Debian's own verdict on each (package, CVE, release),
 	// which is what separates a live finding from a CVE the distribution
 	// already backported a fix for. Refreshed daily in the background.
@@ -516,6 +519,7 @@ func Run(ctx context.Context, cfg Config) error {
 	go s.deployDispatchLoop(ctx)
 	go s.huntLoop(ctx)
 	go s.enforceLoop(ctx)
+	go s.rolloutLoop(ctx)
 	go s.osLifecycleLoop(ctx)
 	go s.playbookSchedulerLoop(ctx)
 	go s.reportSchedulerLoop(ctx)

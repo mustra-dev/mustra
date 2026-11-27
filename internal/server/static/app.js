@@ -478,6 +478,7 @@ const NAV_TREE = [
     desc: "Settings that must hold — checked on a timer, and put back when they move.", sub: [
       { label: "Standing", hash: "standing", icon: "chart", desc: "Every policy's state across the fleet, worst first." },
       { label: "Policies", hash: "policies", icon: "book", desc: "What must be true, and the command that makes it true again — typed editors for Windows Firewall, BitLocker, Defender, AppLocker and Linux Firewall, or your own rules." },
+      { label: "Rollouts", hash: "rollouts", icon: "rocket", desc: "Report-mode policies promoted to enforce one ring of endpoints at a time; resume or abort a halted one." },
       { label: "Coverage", hash: "coverage", icon: "shield", desc: "Firewall, encryption, antimalware and app-control coverage across the fleet, from the security posture sensor." },
     ] },
 
@@ -596,6 +597,7 @@ const NAV_TREE = [
       { label: "Overview", hash: "overview", icon: "patch", desc: "Fleet-wide missing-patch visibility, by device and by patch." },
       { label: "Deploy & Schedule", hash: "deploy", perm: "patches.manage", icon: "rocket", desc: "Push patches now, or set up a recurring deployment window." },
       { label: "Deployments", hash: "deployments", perm: "patches.manage", icon: "list", desc: "Every patch deployment, active and inactive, with what it targets." },
+      { label: "Rollouts", hash: "rollouts", perm: "patches.manage", icon: "rocket", desc: "Patch runs going out ring by ring, with a threshold and soak per ring; resume or abort a halted one." },
       { label: "Recent Activity", hash: "history", perm: "patches.manage", icon: "clock", desc: "History of every patch job that's run, scheduled or ad-hoc." },
       { label: "Patch Lists", hash: "policies", perm: "patches.manage", icon: "list", desc: "Patch lists say what may be applied, block lists what may not; rules over severity, OS, name and age." },
       { label: "Scan Management", hash: "scanmgmt", perm: "patches.manage", icon: "folder", desc: "Define named repo lists and assign them to hosts, sites, or platforms." },

@@ -2979,3 +2979,36 @@ CREATE TABLE IF NOT EXISTS remediation_imports (
     imported_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Staged rollouts of a patch run or an Enforce promotion, ring by ring
+-- (server/ring_rollouts.go). The plan's rings are copied in when the rollout
+-- starts, with each ring's state and the endpoints it took, so editing or
+-- deleting the plan mid-rollout changes nothing already under way and a
+-- restarted server picks the rollout up where it was.
+CREATE TABLE IF NOT EXISTS ring_rollouts (
+    id           TEXT PRIMARY KEY,
+    kind         TEXT NOT NULL,                     -- patch | enforce
+    source_id    TEXT NOT NULL DEFAULT '',          -- patch schedule or enforce policy; '' for a Deploy now
+    source_name  TEXT NOT NULL DEFAULT '',
+    plan_id      TEXT NOT NULL DEFAULT '',
+    plan_name    TEXT NOT NULL DEFAULT '',
+    status       TEXT NOT NULL DEFAULT 'running',   -- running | halted | completed | aborted
+    current_ring INTEGER NOT NULL DEFAULT 0,
+    rings        JSONB NOT NULL DEFAULT '[]'::jsonb,
+    params       JSONB NOT NULL DEFAULT '{}'::jsonb,
+    halt_reason  TEXT NOT NULL DEFAULT '',
+    untouched    INTEGER NOT NULL DEFAULT 0,
+    version      INTEGER NOT NULL DEFAULT 0,
+    created_by   TEXT NOT NULL DEFAULT '',
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    finished_at  TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_ring_rollouts_status ON ring_rollouts (status, created_at DESC);
+-- One open rollout per schedule or policy: a schedule firing again while its
+-- last rollout is halted must not start a second one past the halt.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ring_rollouts_open_source ON ring_rollouts (kind, source_id)
+    WHERE status IN ('running', 'halted') AND source_id <> '';
+
+-- A patch schedule that rolls out through a plan instead of all at once.
+ALTER TABLE patch_schedules ADD COLUMN IF NOT EXISTS plan_id TEXT NOT NULL DEFAULT '';

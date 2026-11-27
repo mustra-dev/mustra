@@ -414,6 +414,10 @@ func (s *Server) runDuePatchSchedules(ctx context.Context) {
 			s.logger.Info("patch schedule fired with nothing in its author's reach", "schedule", sched.Name, "target", targetDesc)
 			continue
 		}
+		if sched.PlanID != "" {
+			s.firePatchScheduleRollout(ctx, sched, targetDesc)
+			continue
+		}
 		runID := idgen.New("run-")
 		if err := s.store.RecordPatchJobRun(ctx, store.PatchJobRun{
 			ID: runID, ScheduleID: sched.ID, ScheduleName: sched.Name,
@@ -479,4 +483,58 @@ func (s *Server) narrowPatchScheduleTargets(ctx context.Context, sched store.Pat
 	s.audit(ctx, auditEvent{Action: "patch_schedule.narrowed", Actor: "system", Target: sched.Name, Severity: "notice",
 		Detail: map[string]any{"id": sched.ID, "created_by": sched.CreatedBy, "dropped": dropped, "remaining": len(narrowed)}})
 	return narrowed, false
+}
+
+// firePatchScheduleRollout is a schedule with a rollout plan firing: it
+// starts a ring rollout instead of patching every target at once. It never
+// falls back to all at once. A plan that has gone missing, or a rollout
+// from an earlier firing still running or halted, skips this firing (with
+// the reason) and the schedule keeps its cadence.
+func (s *Server) firePatchScheduleRollout(ctx context.Context, sched store.PatchSchedule, targetDesc string) {
+	now := time.Now().UTC()
+	mark := func() {
+		next, err := computeNextRun(sched.Kind, sched.TimeOfDay, sched.Weekday, now)
+		if err != nil {
+			next = nil
+		}
+		if err := s.store.MarkPatchScheduleRun(ctx, sched.ID, now, next); err != nil {
+			s.logger.Warn("mark patch schedule run failed", "schedule", sched.Name, "error", err)
+		}
+	}
+	skip := func(reason string) {
+		mark()
+		s.logger.Warn("patch schedule firing skipped", "schedule", sched.Name, "reason", reason)
+		s.audit(ctx, auditEvent{Action: "patch_schedule.skipped", Actor: "system", Target: sched.Name, Severity: "warning",
+			Detail: map[string]any{"id": sched.ID, "plan_id": sched.PlanID, "reason": reason}})
+		s.notify(ctx, "warning", "Patch", "Scheduled patching skipped: "+sched.Name, reason, "/patches#rollouts")
+	}
+	open, err := s.store.OpenRingRollout(ctx, "patch", sched.ID)
+	if err != nil {
+		s.logger.Warn("check open rollout failed; not firing", "schedule", sched.Name, "error", err)
+		return
+	}
+	if open != nil {
+		skip(fmt.Sprintf("its rollout from %s is still %s; resume or abort it first", open.CreatedAt.UTC().Format("2006-01-02 15:04 UTC"), open.Status))
+		return
+	}
+	plan, err := s.store.GetDeploymentPlan(ctx, sched.PlanID)
+	if err != nil {
+		s.logger.Warn("read rollout plan failed; not firing", "schedule", sched.Name, "error", err)
+		return
+	}
+	if plan == nil || len(plan.Rings) == 0 {
+		skip("its rollout plan no longer exists; choose another plan or recreate the schedule")
+		return
+	}
+	r, err := s.startRollout(ctx, "patch", sched.ID, sched.Name, *plan, patchRolloutParams{
+		TargetOS: sched.TargetOS, TargetSite: sched.TargetSite, TargetAgent: sched.TargetAgent,
+		TargetVulnID: sched.TargetVulnID, TargetAgents: sched.TargetAgents,
+		ScheduleID: sched.ID, RequestedBy: "scheduler",
+	}, sched.CreatedBy)
+	if err != nil {
+		s.logger.Warn("start patch rollout failed", "schedule", sched.Name, "error", err)
+		return
+	}
+	mark()
+	s.logger.Info("patch schedule fired as a rollout", "schedule", sched.Name, "target", targetDesc, "rollout", r.ID, "plan", plan.Name)
 }

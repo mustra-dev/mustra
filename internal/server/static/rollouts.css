@@ -1,0 +1,64 @@
+/* Ring rollouts (rollouts.js): a card per rollout with one row per ring,
+   and the deployment plan editor. Shared by Patch and Enforce. Colour
+   only says state: a halted rollout and a failed ring are the only red. */
+
+.rollout-list { display: flex; flex-direction: column; gap: 12px; }
+.rollout-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 14px 16px; }
+.rollout-card.is-halted { border-color: var(--off); }
+.rollout-head { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.rollout-title { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
+.rollout-meta { font-size: var(--fs-meta); color: var(--text-muted); margin-top: 3px; }
+.rollout-actions { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+.rollout-halt { margin: 10px 0 0; padding: 9px 12px; border-left: 3px solid var(--off); background: var(--off-bg);
+                border-radius: 0 var(--radius-md) var(--radius-md) 0; font-size: 12.5px; line-height: 1.5; overflow-wrap: anywhere; }
+
+.rollout-status { font-size: var(--fs-meta); font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+                  padding: 2px 8px; border-radius: 999px; white-space: nowrap; background: var(--surface-2); color: var(--text-muted); }
+.rollout-status.st-running, .rollout-status.st-soaking { background: color-mix(in srgb, var(--viz-progress) 14%, transparent); color: var(--text); }
+.rollout-status.st-halted, .rollout-status.st-failed { background: var(--off-bg); color: var(--off); }
+.rollout-status.st-completed, .rollout-status.st-passed { background: var(--ok-bg); color: var(--ok); }
+
+.rollout-rings { list-style: none; margin: 12px 0 0; padding: 0; counter-reset: ring; }
+.rollout-ring { display: grid; grid-template-columns: 26px minmax(150px, 1.1fr) minmax(180px, 2fr) auto; gap: 6px 12px;
+                align-items: center; padding: 9px 0; border-top: 1px solid var(--border); }
+.rollout-ring.is-current { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.rollout-ring-no { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: var(--fs-meta);
+                   font-weight: 700; background: var(--surface-2); color: var(--text-muted); }
+.rollout-ring.is-current .rollout-ring-no { background: var(--accent); color: var(--accent-text); }
+.rollout-ring-name { font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
+.rollout-ring-sub { font-size: var(--fs-meta); color: var(--text-muted); margin-top: 2px; overflow-wrap: anywhere; }
+.rollout-ring-note { grid-column: 2 / -1; font-size: var(--fs-meta); color: var(--text-muted); overflow-wrap: anywhere; }
+.rollout-ring-note.is-bad { color: var(--off); }
+.rollout-bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--surface-2); }
+.rollout-bar > span { display: block; min-width: 3px; }
+.rollout-counts { font-size: var(--fs-meta); color: var(--text-muted); margin-top: 4px; }
+.rollout-counts b { color: var(--text); font-weight: 600; }
+.rollout-ring-end { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.rollout-ring-end a { font-size: var(--fs-meta); }
+.rollout-members { grid-column: 2 / -1; font-size: var(--fs-meta); }
+.rollout-members summary { cursor: pointer; color: var(--accent); }
+.rollout-members ul { margin: 4px 0 0; padding-left: 18px; columns: 3 180px; color: var(--text-muted); }
+
+.rollout-empty { color: var(--text-muted); font-size: 13px; padding: 8px 2px; }
+
+/* The plan editor: one row per ring. */
+.plan-rings { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+/* Columns: number, name, endpoints, group or percent, threshold, soak, unit, tools. */
+.plan-ring { display: grid; grid-template-columns: 26px minmax(110px, 1.3fr) minmax(140px, 1.3fr) minmax(130px, 1.4fr)
+               minmax(90px, .8fr) minmax(64px, .6fr) minmax(90px, .8fr) auto; gap: 8px; align-items: end;
+             border: 1px solid var(--border); border-radius: var(--radius-md); padding: 10px; background: var(--surface-2); }
+.plan-ring label { display: block; font-size: var(--fs-meta); color: var(--text-muted); margin-bottom: 4px; }
+.plan-ring input, .plan-ring select { width: 100%; padding: 7px 9px; border-radius: var(--radius-md); border: 1px solid var(--border-input);
+                                      background: var(--input-bg); color: var(--text); font: inherit; font-size: 13px; }
+.plan-ring .rollout-ring-no { align-self: center; }
+.plan-ring-tools { display: flex; gap: 4px; align-self: center; }
+.plan-hint { font-size: var(--fs-meta); color: var(--text-muted); line-height: 1.5; }
+
+@media (max-width: 720px) {
+  .rollout-ring { grid-template-columns: 26px 1fr; }
+  .rollout-ring > :nth-child(3), .rollout-ring-end { grid-column: 2; }
+  .rollout-ring-end { align-items: flex-start; text-align: left; }
+  .plan-ring { grid-template-columns: 1fr 1fr; }
+  .plan-ring-tools { grid-column: 1 / -1; }
+  .plan-ring .rollout-ring-no { display: none; }
+}

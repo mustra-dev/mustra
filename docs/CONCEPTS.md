@@ -379,6 +379,47 @@ the override flag but cannot launder the permission: it is honoured only
 for a user who holds it at deploy time, and saving a template with the
 flag set needs the permission too.
 
+## Rings — rolling a change out in stages
+
+A **rollout plan** is ordered rings. Each ring is a computer group or a percentage of the
+target, with a **threshold** (a share, a count, or both, of the ring's endpoints that must
+succeed) and a **soak** time. Patch deployments (Deploy now or a schedule) and Enforce
+promotions run through the same plans; software deployments use them too, in their own
+simpler way (all in one process, percentages drawn at random).
+
+For patching and Enforce, a rollout is a record of its own, advanced once a minute:
+
+1. A ring takes its endpoints **only from the deployment's own target**, resolved when the
+   ring starts. A group ring is the group's members in it. A percentage ring is that share
+   of the whole target, taken from what earlier rings left, at least one endpoint. The
+   choice is a hash of plan and agent ID, so the same plan picks the same canaries every
+   time it runs. A ring whose group has been deleted **halts** the rollout. It is not read
+   as everyone, and it is not quietly skipped, which would start the next, broader ring
+   without its canary. A ring that matches nothing in the target is skipped.
+2. The ring is **complete** when every endpoint has a final result: for patching, no job
+   open and no restart still being watched (or a day and three hours have passed, after
+   which anything open counts as no response); for Enforce, one pass since the ring was
+   promoted.
+3. It **passes** when the threshold holds. Success is succeeded, skipped or pending restart
+   for a patch job, and compliant or remediated on every setting for Enforce. Failure,
+   timeout, unknown and no response all count against it. A ring where no endpoint
+   reported anything never passes, whatever its threshold.
+4. It then **soaks**, is checked again on the latest results (a patch can fail its restart
+   check, a setting can drift back), and only then does the next ring start.
+
+A ring that misses its threshold, or a patch run that trips the health-check hold (see
+above), **halts** the rollout until somebody acts. **Resume** accepts the halted ring as it
+stands and starts the next; it does not re-run the ring. **Abort** ends the rollout; for
+patching it also cancels the current ring's jobs still waiting for a maintenance window.
+Each ring of a patch rollout is its own deployment, with the usual derived status.
+
+A schedule with a plan **never falls back to all at once**. A firing while its last
+rollout is still running or halted, or after its plan was deleted, is skipped with a
+notification, and the schedule keeps its cadence. A plan a schedule uses cannot be deleted;
+rollouts already started keep their own copy of the plan.
+
+An Enforce promotion is described under Enforce below.
+
 ## Deployments — what actually happened
 
 A **deployment** is one identified event that targeted some set of machines.
@@ -1105,6 +1146,19 @@ it. The exception is adding the check to a different chosen policy, which is
 how to hold it in a second scope on purpose. Creating these takes
 `deploy.manage`, the same as writing a setting by hand. The same translation
 is behind `POST /api/enforce/from-checks`, for anything scripted.
+
+#### Promoting a policy ring by ring
+
+Switching report to enforce for a whole target in one save is the single most
+consequential click in the module, so a report-mode policy can instead be **promoted in
+rings** through a rollout plan (see Rings above). While the promotion is open the policy
+stays in report mode, and each pass, scheduled, run by hand or from a playbook step,
+enforces only on the endpoints of the rings promoted so far. A ring passes on the results
+recorded since it was promoted. When the last one passes, the policy switches to enforce
+for everything it targets, including any endpoint no ring took. A halted promotion keeps
+its promoted rings enforcing and adds none. An aborted one, or a policy deleted mid-way,
+puts every endpoint back to report. A policy switched to enforce by hand, disabled or
+orphaned by a deleted group ends or halts the promotion with that reason.
 
 #### Typed policies, posture, and recovery keys
 

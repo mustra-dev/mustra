@@ -1223,6 +1223,57 @@ const (
 
 	// The deployment plan of the body examples, as stored: the Pilot
 	// group first, then the web servers.
+	// The Wednesday-night schedule rolling out through the pilot plan: the
+	// pilot ring passed and soaked for its hour, and the web servers are
+	// patching now.
+	patchRolloutExample = `{
+		"id": "rollout-7c2e9a4f1b6d48e3a0c5f8b2d4e1a9c6",
+		"kind": "patch",
+		"source_id": "psched-4b8d2f6a0c1e47e3a9c5b7d1f3e0a8c2",
+		"source_name": "Web servers, Wednesday night",
+		"plan_id": "plan-aa84f3bbe99040d7d2c10d3c11ab9c32",
+		"plan_name": "Pilot, then web servers",
+		"status": "running",
+		"current_ring": 1,
+		"rings": [
+			{"name": "Pilot", "group_id": "cgrp-6ea76dc9c2fb40e65159fc3cbda2a266", "min_success": 3, "wait_minutes": 60,
+			 "state": "passed", "agent_ids": ["agt-4f2a9c1e7b3d48e6a05c9d2f81b7e3a4", "agt-2c6e0a4f8b1d47e3a9c5f1b7d3e0a8c6", "agt-8d2f6a0c4e1b47d3a9c5e7b1f3a0c8e2"],
+			 "run_id": "run-0e7c3a9f5b1d48e2a6c4f8b0d2e9a1c3", "started_at": "2026-10-14T22:00:04Z", "completed_at": "2026-10-14T22:19:31Z", "soak_until": "2026-10-14T23:19:31Z",
+			 "outcome": {"total": 3, "succeeded": 3, "failed": 0, "timed_out": 0, "no_response": 0, "unknown": 0, "open": 0}},
+			{"name": "Web servers", "group_id": "cgrp-1c8e4a2f6b9d43e7a5c0f2b8d6e4a1c3", "success_rate": 95,
+			 "state": "running", "agent_ids": ["agt-9b1d7e3a5c2f48d0a6e4b8c1f3d5a7e9", "agt-5a1c9e3b7d2f46a8b0e4c6d8f2a1b3e5"],
+			 "run_id": "run-3f9b5d1e7a2c48e6b0d4a8c2f6e1b3d7", "started_at": "2026-10-14T23:20:02Z",
+			 "outcome": {"total": 2, "succeeded": 1, "failed": 0, "timed_out": 0, "no_response": 0, "unknown": 0, "open": 1}}
+		],
+		"params": {"target_os": "linux", "schedule_id": "psched-4b8d2f6a0c1e47e3a9c5b7d1f3e0a8c2", "requested_by": "scheduler"},
+		"untouched": 0,
+		"created_by": "jdoe",
+		"created_at": "2026-10-14T22:00:04Z",
+		"updated_at": "2026-10-14T23:24:40Z"
+	}`
+
+	// A report-mode firewall policy promoted through the pilot plan, just
+	// started: the pilot group enforces, the first pass has not finished.
+	enforceRolloutFields = `"id": "rollout-1e5a9c3f7b2d48e6a0c4f8b2d6e1a3c5",
+		"kind": "enforce",
+		"source_id": "enf-3c7e1a9f5b2d48e6a0c4f8b2d6e9a1c5",
+		"source_name": "Host firewall must be on",
+		"plan_id": "plan-aa84f3bbe99040d7d2c10d3c11ab9c32",
+		"plan_name": "Pilot, then web servers",
+		"current_ring": 0,
+		"rings": [
+			{"name": "Pilot", "group_id": "cgrp-6ea76dc9c2fb40e65159fc3cbda2a266", "min_success": 3, "wait_minutes": 60,
+			 "state": "running", "agent_ids": ["agt-4f2a9c1e7b3d48e6a05c9d2f81b7e3a4", "agt-2c6e0a4f8b1d47e3a9c5f1b7d3e0a8c6", "agt-8d2f6a0c4e1b47d3a9c5e7b1f3a0c8e2"],
+			 "started_at": "2026-10-20T09:12:05Z",
+			 "outcome": {"total": 3, "succeeded": 0, "failed": 0, "timed_out": 0, "no_response": 0, "unknown": 0, "open": 3}},
+			{"name": "Web servers", "group_id": "cgrp-1c8e4a2f6b9d43e7a5c0f2b8d6e4a1c3", "success_rate": 95,
+			 "state": "pending", "agent_ids": [], "outcome": {"total": 0, "succeeded": 0, "failed": 0, "timed_out": 0, "no_response": 0, "unknown": 0, "open": 0}}
+		],
+		"params": {},
+		"untouched": 0,
+		"created_by": "jdoe",
+		"created_at": "2026-10-20T09:12:05Z"`
+
 	pilotPlanExample = `{
 		"id": "plan-aa84f3bbe99040d7d2c10d3c11ab9c32",
 		"name": "Pilot, then web servers",
@@ -3165,6 +3216,79 @@ var respExamples = map[string]string{
 	"POST /api/deployment-plans":     pilotPlanExample,
 	"PUT /api/deployment-plans/{id}": pilotPlanExample,
 
+	// rollouts
+	"GET /api/rollouts":      `{"rollouts": [` + patchRolloutExample + `]}`,
+	"GET /api/rollouts/{id}": patchRolloutExample,
+	// Resumed after the web-server ring missed its threshold: that ring is
+	// accepted as it stands and the rollout runs on to the next.
+	"POST /api/patches/rollouts/{id}/resume": `{
+		"id": "rollout-7c2e9a4f1b6d48e3a0c5f8b2d4e1a9c6",
+		"kind": "patch",
+		"source_id": "",
+		"source_name": "os=linux",
+		"plan_id": "plan-5b9d3f7a1c2e48d6a0b4e8c2f6d1a3e7",
+		"plan_name": "Canary 5%, then 30%, then the rest",
+		"status": "running",
+		"current_ring": 2,
+		"rings": [
+			{"name": "Canary", "percent": 5, "success_rate": 100, "wait_minutes": 1440, "state": "passed", "agent_ids": ["agt-4f2a9c1e7b3d48e6a05c9d2f81b7e3a4", "agt-2c6e0a4f8b1d47e3a9c5f1b7d3e0a8c6"],
+			 "run_id": "run-0e7c3a9f5b1d48e2a6c4f8b0d2e9a1c3", "started_at": "2026-10-19T09:00:03Z", "completed_at": "2026-10-19T09:21:44Z", "soak_until": "2026-10-20T09:21:44Z",
+			 "outcome": {"total": 2, "succeeded": 2, "failed": 0, "timed_out": 0, "no_response": 0, "unknown": 0, "open": 0}},
+			{"name": "Early", "percent": 30, "success_rate": 95, "wait_minutes": 240, "state": "passed", "agent_ids": ["agt-9b1d7e3a5c2f48d0a6e4b8c1f3d5a7e9", "agt-5a1c9e3b7d2f46a8b0e4c6d8f2a1b3e5"],
+			 "run_id": "run-3f9b5d1e7a2c48e6b0d4a8c2f6e1b3d7", "started_at": "2026-10-20T09:22:01Z", "completed_at": "2026-10-20T09:58:12Z",
+			 "outcome": {"total": 2, "succeeded": 1, "failed": 0, "timed_out": 0, "no_response": 1, "unknown": 0, "open": 0},
+			 "note": "accepted when jdoe resumed the rollout: ring 2 (Early): success rate 50% is below the required 95%"},
+			{"name": "Everyone else", "percent": 100, "state": "pending", "agent_ids": [], "outcome": {"total": 0, "succeeded": 0, "failed": 0, "timed_out": 0, "no_response": 0, "unknown": 0, "open": 0}}
+		],
+		"params": {"target_os": "linux", "requested_by": "jdoe"},
+		"untouched": 0,
+		"created_by": "jdoe",
+		"created_at": "2026-10-19T09:00:03Z",
+		"updated_at": "2026-10-20T10:31:09Z"
+	}`,
+	"POST /api/patches/rollouts/{id}/abort": `{
+		"id": "rollout-7c2e9a4f1b6d48e3a0c5f8b2d4e1a9c6",
+		"kind": "patch",
+		"source_id": "psched-4b8d2f6a0c1e47e3a9c5b7d1f3e0a8c2",
+		"source_name": "Web servers, Wednesday night",
+		"plan_id": "plan-aa84f3bbe99040d7d2c10d3c11ab9c32",
+		"plan_name": "Pilot, then web servers",
+		"status": "aborted",
+		"current_ring": 1,
+		"rings": [
+			{"name": "Pilot", "group_id": "cgrp-6ea76dc9c2fb40e65159fc3cbda2a266", "min_success": 3, "wait_minutes": 60,
+			 "state": "failed", "agent_ids": ["agt-4f2a9c1e7b3d48e6a05c9d2f81b7e3a4", "agt-2c6e0a4f8b1d47e3a9c5f1b7d3e0a8c6", "agt-8d2f6a0c4e1b47d3a9c5e7b1f3a0c8e2"],
+			 "run_id": "run-0e7c3a9f5b1d48e2a6c4f8b0d2e9a1c3", "started_at": "2026-10-14T22:00:04Z", "completed_at": "2026-10-14T22:19:31Z",
+			 "outcome": {"total": 3, "succeeded": 2, "failed": 1, "timed_out": 0, "no_response": 0, "unknown": 0, "open": 0},
+			 "note": "only 2 of a required 3 succeeded"},
+			{"name": "Web servers", "group_id": "cgrp-1c8e4a2f6b9d43e7a5c0f2b8d6e4a1c3", "success_rate": 95,
+			 "state": "pending", "agent_ids": [], "outcome": {"total": 0, "succeeded": 0, "failed": 0, "timed_out": 0, "no_response": 0, "unknown": 0, "open": 0}}
+		],
+		"params": {"target_os": "linux", "schedule_id": "psched-4b8d2f6a0c1e47e3a9c5b7d1f3e0a8c2", "requested_by": "scheduler"},
+		"halt_reason": "aborted by jdoe",
+		"untouched": 0,
+		"created_by": "jdoe",
+		"created_at": "2026-10-14T22:00:04Z",
+		"updated_at": "2026-10-15T08:02:17Z",
+		"finished_at": "2026-10-15T08:02:17Z"
+	}`,
+	"POST /api/enforce/policies/{id}/rollout": `{` + enforceRolloutFields + `,
+		"status": "running",
+		"updated_at": "2026-10-20T09:12:05Z"
+	}`,
+	// Halted after the pilot ring missed its threshold; resuming accepts
+	// it, and the web servers are promoted on the next step.
+	"POST /api/enforce/rollouts/{id}/resume": `{` + enforceRolloutFields + `,
+		"status": "running",
+		"updated_at": "2026-10-20T11:40:52Z"
+	}`,
+	"POST /api/enforce/rollouts/{id}/abort": `{` + enforceRolloutFields + `,
+		"status": "aborted",
+		"halt_reason": "aborted by jdoe",
+		"updated_at": "2026-10-20T09:30:18Z",
+		"finished_at": "2026-10-20T09:30:18Z"
+	}`,
+
 	// discover
 	// The union of the endpoints' neighbour tables, unmanaged first: the
 	// lobby printer of the body example, and web-01 as the Proxmox node
@@ -4643,7 +4767,8 @@ var respExamples = map[string]string{
 				"last_run_at": "2026-10-14T22:00:04Z",
 				"next_run_at": "2026-10-21T22:00:00Z",
 				"created_at": "2026-07-30T14:11:20Z",
-				"created_by": "jdoe"
+				"created_by": "jdoe",
+				"plan_id": "plan-aa84f3bbe99040d7d2c10d3c11ab9c32"
 			}
 		]
 	}`,
@@ -4665,7 +4790,8 @@ var respExamples = map[string]string{
 		"last_run_at": null,
 		"next_run_at": "2026-10-20T22:00:00Z",
 		"created_at": "2026-10-20T10:05:51Z",
-		"created_by": "jdoe"
+		"created_by": "jdoe",
+		"plan_id": ""
 	}`,
 
 	// playbook-triggers: the list never shows a token, only that there

@@ -717,6 +717,16 @@ func (s *Server) routes() http.Handler {
 	protected.Handle("POST /api/deployment-plans", perm(auth.PermDeployManage, hf(s.handleUpsertPlan)))
 	protected.Handle("PUT /api/deployment-plans/{id}", perm(auth.PermDeployManage, hf(s.handleUpsertPlan)))
 	protected.Handle("DELETE /api/deployment-plans/{id}", perm(auth.PermDeployManage, hf(s.handleDeletePlan)))
+	// Ring rollouts of patch runs and Enforce promotions. Reading is open
+	// like deployment history; resuming or aborting takes the permission of
+	// what the rollout does, so each kind has its own routes.
+	protected.HandleFunc("GET /api/rollouts", s.handleListRollouts)
+	protected.HandleFunc("GET /api/rollouts/{id}", s.handleGetRollout)
+	protected.Handle("POST /api/patches/rollouts/{id}/resume", perm(auth.PermPatchesManage, hf(s.handleResumeRollout)))
+	protected.Handle("POST /api/patches/rollouts/{id}/abort", perm(auth.PermPatchesManage, hf(s.handleAbortRollout)))
+	protected.Handle("POST /api/enforce/rollouts/{id}/resume", perm(auth.PermDeployManage, hf(s.handleResumeRollout)))
+	protected.Handle("POST /api/enforce/rollouts/{id}/abort", perm(auth.PermDeployManage, hf(s.handleAbortRollout)))
+	protected.Handle("POST /api/enforce/policies/{id}/rollout", perm(auth.PermDeployManage, hf(s.handleStartEnforceRollout)))
 	protected.Handle("GET /software", perm(auth.PermDeployManage, softwarePageHandler()))
 
 	protected.Handle("GET /api/catalog/requests", perm(auth.PermDeployManage, hf(s.handleListCatalogRequests)))

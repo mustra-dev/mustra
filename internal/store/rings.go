@@ -19,12 +19,21 @@ import (
 // plan's rings are random percentages, re-drawn on every deployment — use
 // it when a representative sample matters more than a specific one, which
 // is what catches a problem that only shows up on some hardware.
+//
+// The same plans drive ring rollouts of patch runs and Enforce promotions
+// (RingRollout). Those draw a percentage ring by a hash of the plan and
+// the agent ID instead of at random, so every run of a schedule picks the
+// same canaries, and they wait between rings for days if asked, across
+// server restarts.
 
 type Ring struct {
 	Name string `json:"name"`
 	// GroupID targets a computer group (custom plans).
 	GroupID string `json:"group_id,omitempty"`
-	// Percent takes a random share of the whole target set (dynamic plans).
+	// Percent takes this share of the whole target set from the endpoints
+	// no earlier ring took (at least one): drawn at random for a software
+	// deployment, by a hash of plan and agent ID for a patch or Enforce
+	// rollout. A ring is a group or a percentage, not both.
 	Percent int `json:"percent,omitempty"`
 	// MinSuccess is how many endpoints must succeed before the next ring
 	// starts; SuccessRate is the same thing as a percentage. Whichever is
@@ -33,7 +42,9 @@ type Ring struct {
 	MinSuccess  int `json:"min_success,omitempty"`
 	SuccessRate int `json:"success_rate,omitempty"`
 	// WaitMinutes holds the rollout open after a ring completes, so a
-	// problem that takes time to show up has time to show up.
+	// problem that takes time to show up has time to show up (the soak;
+	// up to 30 days). A patch or Enforce rollout checks the threshold
+	// again when it ends.
 	WaitMinutes int `json:"wait_minutes,omitempty"`
 }
 

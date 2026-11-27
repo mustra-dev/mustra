@@ -37,7 +37,7 @@ func TestSensorEditorAssets(t *testing.T) {
 			t.Errorf("page does not version %s", name)
 		}
 	}
-	for _, name := range []string{"static/deploy.js", "static/deploy.css", "static/charts.js", "static/deployments.js", "static/theme.js", "static/querybuilder.js"} {
+	for _, name := range []string{"static/deploy.js", "static/deploy.css", "static/charts.js", "static/deployments.js", "static/theme.js", "static/querybuilder.js", "static/rollouts.js", "static/rollouts.css"} {
 		asset, err := staticFS.ReadFile(name)
 		if err != nil {
 			t.Fatal(err)

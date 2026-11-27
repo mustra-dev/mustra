@@ -111,6 +111,12 @@ Open work, kept here so it can be picked up. Add to it when deferring something,
 
 - [ ] Sign the Windows agent. Unsigned, its updater can be blocked by Defender attack surface reduction rules.
 
+## Deployment rings
+
+- [ ] Edit a patch schedule's rollout plan in place. Schedules can only be created and deleted today, so changing the plan means recreating the schedule.
+- [ ] Restart choice and override-windows on scheduled patch rollouts. Scheduled firings, like scheduled runs without rings, patch without a restart.
+- [ ] Software deployments still run their plans in one goroutine, drawing percentages at random and sleeping between rings, so a restart loses the rollout. Move them onto the persistent ring rollouts (resume, abort, halts) used by patching and Enforce.
+
 ## Patch health checks
 
 - [ ] Check services after patching on Windows (automatic services that were running) and macOS (launchd daemons). Only Linux with systemd compares services today; other endpoints get the server's restart watch alone.
