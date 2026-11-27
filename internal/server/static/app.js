@@ -420,6 +420,8 @@ const NAV_TREE = [
     desc: "Everything the console wants you to know, in one place: what to fix, and what to look at." },
   { label: "Assistant", href: "/assistant", icon: "chat", perm: "ai.use", group: "tools",
     desc: "Ask about the fleet in plain words. It reads with your permissions, and what it asks to change waits for approval." },
+  { label: "Triage", href: "/triage", icon: "list", group: "tools",
+    desc: "Support tickets and alerts, each with its endpoint: see its state, fix it, then fix the others like it." },
   { label: "Access", href: "/access", icon: "key", group: "admin",
     desc: "What a role may act on, what a module may reach at all, and which operations wait for a second person.", sub: [
       { label: "Approvals", hash: "approvals", icon: "alert", desc: "Operations parked for a decision, and what your own scope is." },

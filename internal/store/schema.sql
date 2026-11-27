@@ -3041,3 +3041,103 @@ CREATE TABLE IF NOT EXISTS device_replacements (
 );
 CREATE INDEX IF NOT EXISTS idx_device_replacements_created ON device_replacements (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_device_replacements_open ON device_replacements (created_at) WHERE finished_at IS NULL;
+
+-- Triage queue (#89): support tickets and alerts, each tied to the endpoint
+-- it is about, worked to resolution in one place.
+--
+-- An item comes from a source (servicenow, self_service, alert, api,
+-- manual; more can be added without a schema change) and, when the source
+-- has its own identifier for it, that identifier: (source, external_ref)
+-- is unique, so a ServiceNow rule that fires twice updates one item rather
+-- than opening two. agent_id is not a foreign key: an item outlives the
+-- endpoint it was about, and '' means "not attached yet" -- either nothing
+-- matched or several endpoints did, and the server does not guess between
+-- them. ref_* keep what the source said, so the match can be re-explained
+-- and an operator can see why it did not resolve.
+CREATE TABLE IF NOT EXISTS triage_items (
+    id              TEXT PRIMARY KEY,
+    source          TEXT NOT NULL,
+    external_ref    TEXT NOT NULL DEFAULT '',
+    external_number TEXT NOT NULL DEFAULT '',
+    external_url    TEXT NOT NULL DEFAULT '',
+    external_table  TEXT NOT NULL DEFAULT '',
+    integration_id  TEXT NOT NULL DEFAULT '',
+    title           TEXT NOT NULL,
+    description     TEXT NOT NULL DEFAULT '',
+    status          TEXT NOT NULL DEFAULT 'new',  -- new | in_progress | waiting | resolved
+    assignee        TEXT NOT NULL DEFAULT '',
+    agent_id        TEXT NOT NULL DEFAULT '',
+    ref_agent_id    TEXT NOT NULL DEFAULT '',
+    ref_hostname    TEXT NOT NULL DEFAULT '',
+    ref_serial      TEXT NOT NULL DEFAULT '',
+    endpoint_match  TEXT NOT NULL DEFAULT '',
+    created_by      TEXT NOT NULL DEFAULT '',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    resolved_at     TIMESTAMPTZ,
+    resolved_by     TEXT NOT NULL DEFAULT '',
+    -- Closing the loop: whether the resolution reached the source's ticket.
+    sync_state      TEXT NOT NULL DEFAULT '',     -- '' | sent | failed
+    sync_error      TEXT NOT NULL DEFAULT '',
+    sync_at         TIMESTAMPTZ
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_triage_items_ref ON triage_items (source, external_ref) WHERE external_ref <> '';
+CREATE INDEX IF NOT EXISTS idx_triage_items_status ON triage_items (status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_triage_items_agent ON triage_items (agent_id) WHERE agent_id <> '';
+
+-- The item's timeline: operators' notes and every change, in order. The
+-- audit log records the same changes; this is the copy that reads as the
+-- item's own history.
+CREATE TABLE IF NOT EXISTS triage_notes (
+    id         TEXT PRIMARY KEY,
+    item_id    TEXT NOT NULL REFERENCES triage_items(id) ON DELETE CASCADE,
+    kind       TEXT NOT NULL DEFAULT 'note', -- note | created | updated | status | assignee | endpoint | fix | similar | sync
+    author     TEXT NOT NULL DEFAULT '',
+    body       TEXT NOT NULL DEFAULT '',
+    detail     JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_triage_notes_item ON triage_notes (item_id, created_at);
+
+-- A fix run from an item on its one endpoint, through the ordinary deploy
+-- or playbook route. Its outcome is read from that run (deploy_jobs,
+-- playbook_runs) rather than copied, so it cannot disagree with the
+-- deployment's own record.
+CREATE TABLE IF NOT EXISTS triage_fixes (
+    id           TEXT PRIMARY KEY,
+    item_id      TEXT NOT NULL REFERENCES triage_items(id) ON DELETE CASCADE,
+    kind         TEXT NOT NULL,               -- package | playbook
+    ref_id       TEXT NOT NULL,               -- package or playbook id
+    name         TEXT NOT NULL DEFAULT '',
+    request      JSONB NOT NULL DEFAULT '{}'::jsonb, -- the body sent to the route, minus targets
+    agent_id     TEXT NOT NULL,
+    run_id       TEXT NOT NULL DEFAULT '',
+    approval_id  TEXT NOT NULL DEFAULT '',    -- set when an approval policy parked it
+    state        TEXT NOT NULL DEFAULT 'dispatched', -- dispatched | parked | skipped
+    detail       TEXT NOT NULL DEFAULT '',
+    requested_by TEXT NOT NULL DEFAULT '',
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_triage_fixes_item ON triage_fixes (item_id, created_at);
+
+-- "Apply to similar endpoints": a fix that worked, asked for on the
+-- endpoints a group or saved question matched, as an approval request.
+-- agent_ids is the list the requester saw and the approval names; it is
+-- never re-resolved, so a group deleted or changed meanwhile cannot widen it.
+CREATE TABLE IF NOT EXISTS triage_rollouts (
+    id           TEXT PRIMARY KEY,
+    item_id      TEXT NOT NULL REFERENCES triage_items(id) ON DELETE CASCADE,
+    fix_id       TEXT NOT NULL,
+    target_kind  TEXT NOT NULL,              -- group | question
+    target_id    TEXT NOT NULL,
+    target_name  TEXT NOT NULL DEFAULT '',
+    agent_ids    TEXT[] NOT NULL DEFAULT '{}',
+    approval_id  TEXT NOT NULL DEFAULT '',
+    requested_by TEXT NOT NULL DEFAULT '',
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_triage_rollouts_item ON triage_rollouts (item_id, created_at);
+
+-- An item's page lists the recent deployments on its endpoint; without this
+-- that read scans every job of every endpoint.
+CREATE INDEX IF NOT EXISTS idx_deploy_jobs_agent ON deploy_jobs (agent_id, created_at DESC);

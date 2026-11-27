@@ -222,8 +222,27 @@ var typeDocs = map[string]typeDoc{
 			"Enforce":   "Enforce is decided per (endpoint, setting) by the server and sent with the command, rather than being a property of the policy the agent reads for itself. The server is the only party that knows this remediation has already failed three times in a row on this machine, and a remediation that has failed three times will fail a fourth — while still running, every half hour, forever. False here means \"check it and report; do not touch it\".",
 		},
 	},
+	"github.com/mustra-dev/mustra/internal/proto.InstalledApp": {
+		Doc: "InstalledApp is one row of a QueryKindInstalledApps / SensorInstalledApps result.",
+		Fields: map[string]string{
+			"Executable":    "Executable is the product's main binary when the platform records one (Windows DisplayIcon, the macOS bundle's CFBundleExecutable), so the server can tie the product to process starts without guessing from its display name. Lower-case base name, no path, no \".exe\".",
+			"InstallDate":   "InstallDate is YYYY-MM-DD where the platform knows it: the registry's InstallDate on Windows, the dpkg/rpm install record on Linux, the app bundle's modification time on macOS.",
+			"LastUsed":      "LastUsed is RFC 3339, from the endpoint's own record of when the program last ran (Windows Prefetch, Spotlight's kMDItemLastUsedDate). Empty where the platform keeps no such record; the server then relies on process starts alone.",
+			"Source":        "Source and SourceVersion are the source package a Linux package was built from (dpkg's source:Package and source:Version, apk's origin), when it differs from Name or Version or not. Security advisories for Debian, Ubuntu and Alpine are filed by source package: libssl3t64's are openssl's. Empty from older agents and other platforms; the vulnerability scan then uses Name and Version.",
+			"SourceVersion": "Source and SourceVersion are the source package a Linux package was built from (dpkg's source:Package and source:Version, apk's origin), when it differs from Name or Version or not. Security advisories for Debian, Ubuntu and Alpine are filed by source package: libssl3t64's are openssl's. Empty from older agents and other platforms; the vulnerability scan then uses Name and Version.",
+		},
+	},
 	"github.com/mustra-dev/mustra/internal/proto.PackageFileRef": {
 		Doc: "PackageFileRef is one payload the endpoint should fetch before running a package's command.\n\nThe URL carries a per-dispatch token rather than the file being on an open path: these are installers, often licensed. SHA256 is checked after download, because a file that silently truncated is worse than one that failed to arrive — the command would run against it anyway.",
+	},
+	"github.com/mustra-dev/mustra/internal/proto.PatchInfo": {
+		Doc: "PatchInfo is one available (not yet applied) OS patch/update, one row of a QueryKindPatches / SensorPatches result. The field names are deliberately package-manager-neutral (Name/CurrentVersion/NewVersion) since Linux (apt/dnf), macOS (softwareupdate), and Windows (Windows Update) all report this differently — see internal/agent/patches.go for how each OS's native listing maps onto it.",
+		Fields: map[string]string{
+			"CurrentVersion":  "empty on Windows — Windows Update doesn't expose a comparable \"installed version\" for a pending update",
+			"Name":            "package name, or the Windows Update KB/title",
+			"RestartRequired": "RestartRequired: installing it restarts the machine, where the OS says so up front (macOS \"Action: restart\"). Agents before 0.57.8 never set it.",
+			"Severity":        "best-effort: \"security\" | \"\" (unknown/not distinguished on this OS)",
+		},
 	},
 	"github.com/mustra-dev/mustra/internal/proto.PerformanceInfo": {
 		Doc: "PerformanceInfo summarizes an endpoint's recent health. Samples are kept on the endpoint and only this summary travels, because \"is this machine healthy, and how often has it been unhealthy lately\" is the question people actually ask — and answering it from counts rather than from several thousand shipped rows per endpoint per day keeps the server's database the size of an inventory rather than a metrics store.",
@@ -343,6 +362,9 @@ var typeDocs = map[string]typeDoc{
 		Fields: map[string]string{
 			"Acknowledged": "Acknowledged is true when left out, or with no body at all: the route acknowledges. False re-opens the finding. A body that is not valid JSON is refused. The same as an indicator finding's ack.",
 		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.addTriageNoteRequest": {
+		Doc: "addTriageNoteRequest is the body of POST /api/triage/items/{id}/notes.",
 	},
 	"github.com/mustra-dev/mustra/internal/server.adminGroupView": {
 		Fields: map[string]string{
@@ -645,6 +667,19 @@ var typeDocs = map[string]typeDoc{
 			"Kind":         "\"once\" | \"daily\" | \"weekly\"",
 			"PlanID":       "PlanID rolls every firing out ring by ring through this deployment plan. A firing whose plan has been deleted, or whose last rollout is still running or halted, is skipped rather than sent all at once.",
 			"TargetAgents": "TargetAgents freezes the schedule to a named set of endpoints, the same shape \"Deploy now\" takes. Resolved at fire time like every other target, so a machine that is offline that night is simply skipped.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.createTriageRequest": {
+		Doc: "createTriageRequest is the body of POST /api/triage/items: a new item, or an update to the one already filed under the same source and external_ref. A ServiceNow business rule sends source \"servicenow\", the record's sys_id as external_ref and its number, and whichever of agent_id, hostname and serial it knows.",
+		Fields: map[string]string{
+			"AgentID":       "AgentID, Hostname and Serial identify the endpoint; any of them, or none (the item then waits for an operator to choose).",
+			"ExternalRef":   "ExternalRef is the source's identifier; for servicenow, the sys_id.",
+			"ExternalTable": "ExternalTable is the ServiceNow table (incident when empty).",
+			"Hostname":      "AgentID, Hostname and Serial identify the endpoint; any of them, or none (the item then waits for an operator to choose).",
+			"IntegrationID": "IntegrationID chooses the ServiceNow integration resolutions are posted through, when more than one is enabled.",
+			"Note":          "Note is added to the item's timeline (a comment from the ticket).",
+			"Serial":        "AgentID, Hostname and Serial identify the endpoint; any of them, or none (the item then waits for an operator to choose).",
+			"Source":        "Source is manual (the default), api, servicenow or self_service.",
 		},
 	},
 	"github.com/mustra-dev/mustra/internal/server.credBody": {
@@ -1385,6 +1420,9 @@ var typeDocs = map[string]typeDoc{
 	"github.com/mustra-dev/mustra/internal/server.listTranscriptsResponse": {
 		Doc: "listTranscriptsResponse is what GET /api/sessions answers.",
 	},
+	"github.com/mustra-dev/mustra/internal/server.listTriageResponse": {
+		Doc: "listTriageResponse is what GET /api/triage/items answers.",
+	},
 	"github.com/mustra-dev/mustra/internal/server.listTrustRootsResponse": {
 		Doc: "listTrustRootsResponse is what GET /api/certificates/trust answers.",
 	},
@@ -1832,11 +1870,14 @@ var typeDocs = map[string]typeDoc{
 	"github.com/mustra-dev/mustra/internal/server.runPlaybookRequest": {
 		Doc: "runPlaybookRequest is the optional body of POST /api/playbooks/{id}/run.",
 		Fields: map[string]string{
-			"AgentIDs": "AgentIDs restricts this run to these endpoints, among those the playbook's own targeting reaches. It only narrows: an endpoint the playbook does not target is not added. Omitted, the run reaches every endpoint the playbook targets.",
+			"AgentIDs": "AgentIDs restricts this run to these endpoints, among those the playbook's own targeting reaches, as a fix from a triage item does. It only narrows: an endpoint the playbook does not target is not added, and once the playbook's group is deleted it reaches nothing. Every one must be in inventory; one that is left out (offline, retired, another operating system, or not targeted) is named in the answer. Omitted, the run reaches every endpoint the playbook targets.",
 		},
 	},
 	"github.com/mustra-dev/mustra/internal/server.runPlaybookResponse": {
 		Doc: "runPlaybookResponse is what POST /api/playbooks/{id}/run answers.",
+		Fields: map[string]string{
+			"Skipped": "Skipped names the endpoints of agent_ids that were left out, and why.",
+		},
 	},
 	"github.com/mustra-dev/mustra/internal/server.runRevealRuleRequest": {
 		Doc: "runRevealRuleRequest is the body of POST /api/reveal/rules/{id}/run.",
@@ -2293,6 +2334,74 @@ var typeDocs = map[string]typeDoc{
 			"WindowDays":   "WindowDays is how far back CISA KEV additions are listed even when the fleet does not have them.",
 		},
 	},
+	"github.com/mustra-dev/mustra/internal/server.triageContextChanges": {
+		Fields: map[string]string{
+			"Recent": "Total counts changes in the last seven days; Recent lists the newest.",
+			"Total":  "Total counts changes in the last seven days; Recent lists the newest.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.triageContextHealth": {
+		Doc: "triageContextHealth is the endpoint's Performance score (see health.go) and the readings it is built from.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.triageContextResponse": {
+		Doc: "triageContextResponse is what GET /api/triage/items/{id}/context answers. Endpoint is absent while the item is unattached, and every other section with it.",
+		Fields: map[string]string{
+			"OtherItems": "OtherItems are the endpoint's other open triage items.",
+			"Restricted": "Restricted names the sensors left out because the caller's content sets do not grant them.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.triageContextSoftware": {
+		Fields: map[string]string{
+			"Recent": "Recent are the most recently installed, where the platform records install dates.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.triageDetailResponse": {
+		Doc: "triageDetailResponse is what GET /api/triage/items/{id} answers: the item, its timeline, the fixes run from it and the rollouts asked for. Candidates are the endpoints an unattached item's references could mean, for an operator to choose from.",
+		Fields: map[string]string{
+			"Transitions": "Transitions are the statuses the item may move to now.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.triageEndpointBrief": {
+		Doc: "triageEndpointBrief is one endpoint a rollout would reach.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.triageFixRequest": {
+		Doc: "triageFixRequest is the body of POST /api/triage/items/{id}/fix.",
+		Fields: map[string]string{
+			"Kind":       "Kind is package (a software or action package, through Deploy) or playbook.",
+			"Operation":  "PackageID, RevisionID, Operation and Parameters are a package run's, as POST /api/deploy/run takes them. Operation defaults to run for an action package and install for software; RevisionID to the package's published revision.",
+			"PackageID":  "PackageID, RevisionID, Operation and Parameters are a package run's, as POST /api/deploy/run takes them. Operation defaults to run for an action package and install for software; RevisionID to the package's published revision.",
+			"Parameters": "PackageID, RevisionID, Operation and Parameters are a package run's, as POST /api/deploy/run takes them. Operation defaults to run for an action package and install for software; RevisionID to the package's published revision.",
+			"PlaybookID": "PlaybookID is the playbook to run.",
+			"RevisionID": "PackageID, RevisionID, Operation and Parameters are a package run's, as POST /api/deploy/run takes them. Operation defaults to run for an action package and install for software; RevisionID to the package's published revision.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.triageFixResponse": {
+		Doc: "triageFixResponse is what POST /api/triage/items/{id}/fix answers.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.triageItemResponse": {
+		Doc: "triageItemResponse is what creating or updating an item answers.",
+		Fields: map[string]string{
+			"Created": "Created is false when the source's reference matched an existing item, which was updated instead.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.triageNotesResponse": {
+		Doc: "triageNotesResponse is what adding a note answers: the timeline.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.triageSimilarPreview": {
+		Doc: "triageSimilarPreview is what POST /api/triage/items/{id}/similar/preview answers: the endpoints a request would name, exactly.",
+		Fields: map[string]string{
+			"Dropped": "Dropped counts members left out because they are outside the caller's management rights or the module's action group.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.triageSimilarRequest": {
+		Doc: "triageSimilarRequest is the body of POST /api/triage/items/{id}/similar and its preview: which fix, and either a computer group or a saved question choosing the endpoints.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.triageSimilarResponse": {
+		Doc: "triageSimilarResponse is what POST /api/triage/items/{id}/similar answers once the approval request exists.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.triageSyncResponse": {
+		Doc: "triageSyncResponse is what POST /api/triage/items/{id}/sync answers.",
+	},
 	"github.com/mustra-dev/mustra/internal/server.trustRootView": {
 		Doc: "trustRootView is an entry of what GET /api/certificates/trust answers.",
 	},
@@ -2350,6 +2459,9 @@ var typeDocs = map[string]typeDoc{
 			"UninstallPassword":   "UninstallPassword: nil leaves it alone, \"\" removes the requirement, anything else replaces it.",
 			"WebhookAllowedHosts": "WebhookAllowedHosts: hosts a Connect, report or Jump Gate webhook may reach although they are internal (and the only ones allowed http).",
 		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.updateTriageRequest": {
+		Doc: "updateTriageRequest is the body of PUT /api/triage/items/{id}. Fields left out are unchanged. Note is added to the timeline with the change and, when the item is resolved, is the resolution sent to ServiceNow.",
 	},
 	"github.com/mustra-dev/mustra/internal/server.upgradeRingRequest": {
 		Doc: "upgradeRingRequest is the body of POST /api/clients/upgrade.",
@@ -2614,6 +2726,18 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/store.EmailTemplate": {
 		Doc: "EmailTemplate is an email's wording: Go templates for each part. A blank field falls through to the next level, and finally the built-in default.",
+	},
+	"github.com/mustra-dev/mustra/internal/store.EndpointChange": {
+		Doc: "EndpointChange is one recent file or registry change on an endpoint.",
+	},
+	"github.com/mustra-dev/mustra/internal/store.EndpointDeployment": {
+		Doc: "EndpointDeployment is one recent deploy job on an endpoint.",
+	},
+	"github.com/mustra-dev/mustra/internal/store.EndpointFinding": {
+		Doc: "EndpointFinding is one compliance check or Enforce setting not in its good state.",
+	},
+	"github.com/mustra-dev/mustra/internal/store.EndpointIdentity": {
+		Doc: "EndpointIdentity is what an item's endpoint is matched on: the agent ID, the hostname, and the serial number from the hardware sensor.",
 	},
 	"github.com/mustra-dev/mustra/internal/store.EnforcePolicy": {
 		Fields: map[string]string{
@@ -2945,6 +3069,9 @@ var typeDocs = map[string]typeDoc{
 	"github.com/mustra-dev/mustra/internal/store.SoftwareRequirements": {
 		Doc: "SoftwareRequirements gate applicability. A package that needs 4 GB of RAM is Not Applicable on a device with 2, rather than a deployment that fails halfway through.",
 	},
+	"github.com/mustra-dev/mustra/internal/store.StateCount": {
+		Doc: "StateCount is a count of rows in one state.",
+	},
 	"github.com/mustra-dev/mustra/internal/store.Survey": {
 		Fields: map[string]string{
 			"DeadlineAt": "DeadlineAt is when it stops being worth asking. \"How did the migration go\" collected three weeks later is a worse answer than no answer, so an expired survey is dropped at the endpoint rather than answered late.",
@@ -2976,6 +3103,50 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/store.TrackedProduct": {
 		Doc: "TrackedProduct is a product an operator has chosen to watch and price.",
+	},
+	"github.com/mustra-dev/mustra/internal/store.TriageCounts": {
+		Doc: "TriageCounts are the queue's tiles.",
+	},
+	"github.com/mustra-dev/mustra/internal/store.TriageFix": {
+		Doc: "TriageFix is a fix run from an item on its endpoint.",
+		Fields: map[string]string{
+			"Kind":    "package | playbook",
+			"Outcome": "Outcome is read from the run when the fix is listed: the deploy job's status for a package (queued, running, succeeded, failed, timed_out…), the playbook run's for a playbook (running, succeeded, partial, failed); empty until the run exists.",
+			"State":   "dispatched | parked | skipped",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/store.TriageItem": {
+		Doc: "TriageItem is one support ticket or alert in the triage queue.",
+		Fields: map[string]string{
+			"AgentID":        "AgentID is the endpoint the item is about; empty while unattached.",
+			"EndpointMatch":  "EndpointMatch says how the endpoint was found, or why it was not.",
+			"ExternalNumber": "what people call it: INC0010023",
+			"ExternalRef":    "ExternalRef is the source's own identifier (a ServiceNow sys_id, a Guide item's id). Together with Source it is unique: the same ticket sent twice updates one item.",
+			"ExternalTable":  "ExternalTable is the ServiceNow table the ticket lives in (incident when empty).",
+			"Hostname":       "Hostname is the attached endpoint's current hostname, when it still exists.",
+			"IntegrationID":  "IntegrationID names the ServiceNow integration that resolutions are posted through; empty uses the only enabled one.",
+			"RefAgentID":     "RefAgentID, RefHostname and RefSerial are what the source said the endpoint was, kept so the match can be explained and redone.",
+			"RefHostname":    "RefAgentID, RefHostname and RefSerial are what the source said the endpoint was, kept so the match can be explained and redone.",
+			"RefSerial":      "RefAgentID, RefHostname and RefSerial are what the source said the endpoint was, kept so the match can be explained and redone.",
+			"Source":         "servicenow | self_service | alert | api | manual",
+			"Status":         "new | in_progress | waiting | resolved",
+			"SyncError":      "SyncState is whether the resolution reached the source's ticket: \"\" (nothing to send), sent or failed; SyncError says why it failed.",
+			"SyncState":      "SyncState is whether the resolution reached the source's ticket: \"\" (nothing to send), sent or failed; SyncError says why it failed.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/store.TriageNote": {
+		Doc: "TriageNote is one entry in an item's timeline.",
+		Fields: map[string]string{
+			"Kind": "note | created | updated | status | assignee | endpoint | fix | similar | sync",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/store.TriageRollout": {
+		Doc: "TriageRollout is one \"apply to similar endpoints\" request.",
+		Fields: map[string]string{
+			"ApprovalState": "ApprovalState and Outcome are the approval request's, read when listed: pending, approved, denied, expired or failed, and what the replay answered.",
+			"Outcome":       "ApprovalState and Outcome are the approval request's, read when listed: pending, approved, denied, expired or failed, and what the replay answered.",
+			"TargetKind":    "group | question",
+		},
 	},
 	"github.com/mustra-dev/mustra/internal/store.UsageDayCount": {
 		Doc: "UsageDayCount is how many endpoints launched any of a set of executables on one day.",

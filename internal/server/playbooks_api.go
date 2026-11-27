@@ -331,11 +331,25 @@ func (s *Server) handleDeletePlaybook(w http.ResponseWriter, r *http.Request) {
 	writeJSONResponse(w, deletePlaybookResponse{Deleted: pb.Name})
 }
 
+// runPlaybookRequest is the optional body of POST /api/playbooks/{id}/run.
+type runPlaybookRequest struct {
+	// AgentIDs restricts this run to these endpoints, among those the
+	// playbook's own targeting reaches, as a fix from a triage item does.
+	// It only narrows: an endpoint the playbook does not target is not
+	// added, and once the playbook's group is deleted it reaches nothing.
+	// Every one must be in inventory; one that is left out (offline,
+	// retired, another operating system, or not targeted) is named in the
+	// answer. Omitted, the run reaches every endpoint the playbook targets.
+	AgentIDs []string `json:"agent_ids,omitempty"`
+}
+
 // runPlaybookResponse is what POST /api/playbooks/{id}/run answers.
 type runPlaybookResponse struct {
 	Endpoints int    `json:"endpoints"`
 	Playbook  string `json:"playbook"`
 	RunID     string `json:"run_id"`
+	// Skipped names the endpoints of agent_ids that were left out, and why.
+	Skipped []string `json:"skipped,omitempty"`
 }
 
 // idSet is ids as a set, or nil when there are none: nil means "no
@@ -351,19 +365,11 @@ func idSet(ids []string) map[string]bool {
 	return m
 }
 
-// runPlaybookRequest is the optional body of POST /api/playbooks/{id}/run.
-type runPlaybookRequest struct {
-	// AgentIDs restricts this run to these endpoints, among those the
-	// playbook's own targeting reaches. It only narrows: an endpoint the
-	// playbook does not target is not added. Omitted, the run reaches
-	// every endpoint the playbook targets.
-	AgentIDs []string `json:"agent_ids,omitempty"`
-}
-
 func (s *Server) handleRunPlaybook(w http.ResponseWriter, r *http.Request) {
+	// No body runs the playbook on its own targets, as it always has.
 	var req runPlaybookRequest
 	if r.ContentLength != 0 && r.Body != nil {
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
 			http.Error(w, "invalid request body: "+err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -374,31 +380,43 @@ func (s *Server) handleRunPlaybook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	who := auth.CurrentUser(r.Context()).Username
-	only := idSet(req.AgentIDs)
 	// Resolve the targeting first so access control and any approval see
 	// the endpoints this run would actually reach.
-	planned, err := s.playbookTargets(r.Context(), *pb)
-	if err != nil {
+	var planned []store.AgentRecord
+	var skipped []string
+	if len(req.AgentIDs) > 0 {
+		planned, skipped, err = s.namedPlaybookTargets(r.Context(), *pb, req.AgentIDs)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if len(planned) == 0 {
+			http.Error(w, "none of those endpoints is an online endpoint this playbook targets: "+strings.Join(skipped, "; "), http.StatusBadRequest)
+			return
+		}
+	} else if planned, err = s.playbookTargets(r.Context(), *pb); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	plannedIDs := make([]string, 0, len(planned))
 	for _, a := range planned {
-		if only != nil && !only[a.AgentID] {
-			continue
-		}
 		plannedIDs = append(plannedIDs, a.AgentID)
-	}
-	if only != nil && len(plannedIDs) == 0 {
-		http.Error(w, "none of those endpoints is an online endpoint this playbook targets", http.StatusBadRequest)
-		return
 	}
 	if !s.checkTargets(w, r, "playbooks", plannedIDs) {
 		return
 	}
+	// The body is what an approval replays, so a run on named endpoints
+	// stays on those endpoints when it is approved, and is narrowed again
+	// against the playbook's targeting as it stands then.
 	if s.requireApproval(w, r, "playbooks", "playbooks.run",
 		fmt.Sprintf("run playbook %s on %d endpoint(s)", pb.Name, len(plannedIDs)), plannedIDs, req) {
 		return
+	}
+	// Launch re-resolves the playbook's targets and keeps only these, so an
+	// endpoint that left the group in between is not reached either.
+	var only map[string]bool
+	if len(req.AgentIDs) > 0 {
+		only = idSet(plannedIDs)
 	}
 	runID, targets, err := s.launchPlaybookOn(r.Context(), *pb, who, only)
 	if err != nil {
@@ -412,6 +430,6 @@ func (s *Server) handleRunPlaybook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSONResponse(w, runPlaybookResponse{
-		RunID: runID, Endpoints: targets, Playbook: pb.Name,
+		RunID: runID, Endpoints: targets, Playbook: pb.Name, Skipped: skipped,
 	})
 }

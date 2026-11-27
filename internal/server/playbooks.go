@@ -164,6 +164,58 @@ func (s *Server) launchPlaybook(ctx context.Context, pb store.Playbook, who stri
 	return s.launchPlaybookOn(ctx, pb, who, nil)
 }
 
+// namedPlaybookTargets resolves a run on named endpoints. It narrows the
+// playbook's own targeting and never widens it: a named endpoint the
+// playbook does not reach (another group, another operating system, or any
+// endpoint once its group was deleted) is skipped with the reason, as is
+// one that is retired or offline. An endpoint not in inventory at all is an
+// error, not a silent omission.
+func (s *Server) namedPlaybookTargets(ctx context.Context, pb store.Playbook, ids []string) ([]store.AgentRecord, []string, error) {
+	agents, err := s.store.ListAgents(ctx, s.staleAfter())
+	if err != nil {
+		return nil, nil, err
+	}
+	byID := make(map[string]store.AgentRecord, len(agents))
+	for _, a := range agents {
+		byID[a.AgentID] = a
+	}
+	targets, err := s.playbookTargets(ctx, pb)
+	if err != nil {
+		return nil, nil, err
+	}
+	targeted := make(map[string]bool, len(targets))
+	for _, a := range targets {
+		targeted[a.AgentID] = true
+	}
+	var out []store.AgentRecord
+	var skipped []string
+	seen := map[string]bool{}
+	for _, id := range ids {
+		if id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		a, ok := byID[id]
+		switch {
+		case !ok:
+			return nil, nil, fmt.Errorf("no endpoint %q", id)
+		case !a.Managed:
+			skipped = append(skipped, a.Hostname+": retired")
+		case !a.Online:
+			skipped = append(skipped, a.Hostname+": offline")
+		case pb.OS != "" && a.OS != pb.OS:
+			skipped = append(skipped, a.Hostname+": not "+pb.OS)
+		case pb.GroupDeleted:
+			skipped = append(skipped, a.Hostname+": this playbook's computer group was deleted")
+		case !targeted[id]:
+			skipped = append(skipped, a.Hostname+": not targeted by this playbook")
+		default:
+			out = append(out, a)
+		}
+	}
+	return out, skipped, nil
+}
+
 // launchPlaybookOn is launchPlaybook restricted to the endpoints in only,
 // among those the playbook targets; nil means all of them. It narrows and
 // never widens, so a restriction naming nothing the playbook reaches

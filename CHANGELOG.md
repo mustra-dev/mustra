@@ -126,6 +126,24 @@ only and works with current agents. No manual migration is needed: the server ad
   `localhost` or `all`, or import other files. Writing one needs `deploy.manage`. The
   endpoint needs `ansible-core` installed and the new agent: older agents report the policy
   unknown. Server and agent.
+- **Triage queue.** Support tickets and alerts, each tied to the endpoint it is about, worked
+  in one place (**Tools → Triage**). Items arrive from ServiceNow through
+  `POST /api/triage/items` (a business rule or flow calls it with an API token holding
+  `alerts.triage`; the guide has the setup), from the Guide with **Send to triage**, or by
+  hand; the same ticket sent twice updates one item. The endpoint is matched by agent ID,
+  hostname or serial number, and only when those agree on exactly one: anything ambiguous
+  waits, with the candidates listed, for an operator to choose. An item's page shows the
+  endpoint's current state from data mustra already holds, runs an existing package or
+  playbook (one that already targets it) on that endpoint alone through the ordinary Deploy
+  and Playbooks checks, and,
+  once the fix has worked, asks for it on a computer group or saved query's endpoints as an
+  approval request that somebody else decides. Resolving an item from ServiceNow posts a
+  work note to the ticket and records whether it arrived. Reading the queue needs
+  `fleet.read`; working it needs `alerts.triage`. Server only; the schema is added on
+  startup.
+- A playbook run with `agent_ids` names, in its answer's `skipped`, each endpoint it left out
+  and why: offline, retired, another operating system, or not among the playbook's targets.
+  An endpoint not in inventory is refused.
 
 ### Changed
 - An approval request records the person behind it and, when a token asked, the token. The

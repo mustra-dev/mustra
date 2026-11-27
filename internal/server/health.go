@@ -116,13 +116,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		h.Breakdown["cpu"] = categoryScore(p.CPUEvents)
 		h.Breakdown["memory"] = categoryScore(p.MemoryEvents)
 		h.Breakdown["disk"] = categoryScore(p.DiskEvents)
-		// Disk weighted highest: a full disk stops a machine outright,
-		// where sustained CPU merely makes it slow.
-		h.Score = int(math.Round(
-			0.30*float64(h.Breakdown["cpu"]) +
-				0.30*float64(h.Breakdown["memory"]) +
-				0.40*float64(h.Breakdown["disk"])))
-		h.Band = band(h.Score)
+		h.Score, h.Band = healthOf(p)
 		bands[h.Band]++
 		out = append(out, h)
 	}

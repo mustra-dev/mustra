@@ -172,18 +172,7 @@ func answerQuestion(devices []groups.Device, req questionRequest) questionResult
 	// one to the sensor rows they match (interact_filters.go); the result
 	// keeps the get entries as asked, filters and all, for its headings.
 	bare, vf, _ := parseGetFilters(req.Get) // validated by the handler
-	matched := devices
-	if len(req.Where) > 0 || len(vf.all) > 0 {
-		matched = matched[:0:0]
-		for _, d := range devices {
-			if len(req.Where) > 0 && !groups.Matches(d, req.Where, req.MatchAll) {
-				continue
-			}
-			if trimmed, ok := vf.apply(d); ok {
-				matched = append(matched, trimmed)
-			}
-		}
-	}
+	matched := questionMatches(devices, req.Where, req.MatchAll, vf)
 	out.Matched = len(matched)
 	if len(bare) == len(req.Get) {
 		req.Get = bare
@@ -197,6 +186,27 @@ func answerQuestion(devices []groups.Device, req questionRequest) questionResult
 		out.Rows = perDeviceRows(matched, req.Get, &out.Reporting)
 	}
 	return out
+}
+
+// questionMatches is a question's from clause: the devices its where
+// rules match and its value filters keep, each trimmed to the rows the
+// filters match. A triage rollout (triage_similar.go) targets exactly
+// these, so "the endpoints this saved question finds" means the same
+// thing there as in Interact.
+func questionMatches(devices []groups.Device, where []groups.Rule, matchAll bool, vf valueFilters) []groups.Device {
+	if len(where) == 0 && len(vf.all) == 0 {
+		return devices
+	}
+	matched := devices[:0:0]
+	for _, d := range devices {
+		if len(where) > 0 && !groups.Matches(d, where, matchAll) {
+			continue
+		}
+		if trimmed, ok := vf.apply(d); ok {
+			matched = append(matched, trimmed)
+		}
+	}
+	return matched
 }
 
 // countingRows collapses identical answers into one row with a tally —

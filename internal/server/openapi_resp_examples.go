@@ -1419,6 +1419,55 @@ const (
 		"status": "running",
 		"counts": {"installed": 1, "running": 1}
 	}`
+
+	// The triage item of the body examples: a ServiceNow incident about
+	// web-01, matched by its hostname and serial number, being worked.
+	triageItemFields = `"id": "tri-5b9d3f7a1c2e48e6a0d4b8f2c6e1a3d7",
+		"source": "servicenow",
+		"external_ref": "9d385017c611228701d22104cc95c371",
+		"external_number": "INC0010023",
+		"external_url": "https://example.service-now.com/nav_to.do?uri=incident.do?sys_id=9d385017c611228701d22104cc95c371",
+		"title": "Deployment scripts fail on web-01: jq not found",
+		"description": "The nightly release job stops at its first JSON step.",
+		"assignee": "jdoe",
+		"agent_id": "agt-4f2a9c1e7b3d48e6a05c9d2f81b7e3a4",
+		"hostname": "web-01",
+		"ref_hostname": "web-01",
+		"ref_serial": "VMW-42-1c-8e-4a-2f-6b-9d",
+		"endpoint_match": "matched by serial number and hostname",
+		"created_by": "token:servicenow",
+		"created_at": "2026-10-20T07:58:12Z"`
+
+	// The fix run from it: jq installed on web-01 alone.
+	triageFixExample = `{
+		"id": "trf-3e7a1c9f5b2d48e6a0c4d8b2f6e1a9c3",
+		"item_id": "tri-5b9d3f7a1c2e48e6a0d4b8f2c6e1a3d7",
+		"kind": "package",
+		"ref_id": "sw-7d3b9f1a5e2c48b6a0d4f8e2c6b1a9d5",
+		"name": "jq",
+		"request": {"package_id": "sw-7d3b9f1a5e2c48b6a0d4f8e2c6b1a9d5", "revision_id": "", "operation": "install", "agent_ids": null, "parameters": null, "allow_reboot": false, "force_remove": false, "expire_seconds": 0},
+		"agent_id": "agt-4f2a9c1e7b3d48e6a05c9d2f81b7e3a4",
+		"run_id": "run-5d1f9b3e7a2c46e8b0d4f6a8c2e1b3d5",
+		"state": "dispatched",
+		"requested_by": "jdoe",
+		"created_at": "2026-10-20T08:12:40Z",
+		"outcome": "succeeded"
+	}`
+
+	// Its rollout to the rest of Web servers, waiting on a second person.
+	triageRolloutExample = `{
+		"id": "tro-7c1e5a9d3b2f46e8a0c4b6d8f2e1a3c5",
+		"item_id": "tri-5b9d3f7a1c2e48e6a0d4b8f2c6e1a3d7",
+		"fix_id": "trf-3e7a1c9f5b2d48e6a0c4d8b2f6e1a9c3",
+		"target_kind": "group",
+		"target_id": "cgrp-1c8e4a2f6b9d43e7a5c0f2b8d6e4a1c3",
+		"target_name": "Web servers",
+		"agent_ids": ["agt-1a7c3e9b5d2f48a6c0e4b8d2f6a1c9e3", "agt-6e2a8c4f0b1d47e9a3c5d7f9b1e3a5c8"],
+		"approval_id": "apr-2c6e0a4f8b1d47e3a9c5d7f1b3e9a0c4",
+		"requested_by": "jdoe",
+		"created_at": "2026-10-20T08:31:05Z",
+		"approval_state": "pending"
+	}`
 )
 
 // respExamples are success responses, one per route, keyed like
@@ -6010,6 +6059,79 @@ var respExamples = map[string]string{
 	// The rollup has just run, so rolled_up_at is now.
 	"POST /api/software-inventory/refresh": `{"summary": {` + softwareInventorySummaryFields + `, "rolled_up_at": "2026-10-20T09:46:03.581274903Z"}}`,
 
+	// triage
+	"GET /api/triage/items": `{
+		"items": [{` + triageItemFields + `, "status": "in_progress", "updated_at": "2026-10-20T08:12:40Z"}],
+		"counts": {"new": 3, "in_progress": 1, "waiting": 0, "resolved": 14, "unattached": 1},
+		"sources": {"alert": "Alert", "api": "API", "manual": "Manual", "self_service": "Self Service", "servicenow": "ServiceNow"},
+		"statuses": {"in_progress": "In progress", "new": "New", "resolved": "Resolved", "waiting": "Waiting"}
+	}`,
+	"POST /api/triage/items": `{"item": {` + triageItemFields + `, "status": "in_progress", "updated_at": "2026-10-20T08:40:51Z"}, "created": false}`,
+	"GET /api/triage/items/{id}": `{
+		"item": {` + triageItemFields + `, "status": "in_progress", "updated_at": "2026-10-20T08:31:05Z"},
+		"notes": [
+			{"id": "trn-0a4c8e2f6b1d47e9a3c5d7f9b1e3a5c6", "item_id": "tri-5b9d3f7a1c2e48e6a0d4b8f2c6e1a3d7", "kind": "created", "author": "token:servicenow", "body": "Opened from ServiceNow", "detail": {"agent_id": "agt-4f2a9c1e7b3d48e6a05c9d2f81b7e3a4", "endpoint_match": "matched by serial number and hostname"}, "created_at": "2026-10-20T07:58:12Z"},
+			{"id": "trn-2c6e0a4f8b1d47e3a9c5d7f1b3e9a0c5", "item_id": "tri-5b9d3f7a1c2e48e6a0d4b8f2c6e1a3d7", "kind": "fix", "author": "jdoe", "body": "Ran jq on web-01: Sent to the endpoint.", "detail": {"fix_id": "trf-3e7a1c9f5b2d48e6a0c4d8b2f6e1a9c3", "run_id": "run-5d1f9b3e7a2c46e8b0d4f6a8c2e1b3d5", "approval_id": "", "state": "dispatched"}, "created_at": "2026-10-20T08:12:40Z"},
+			{"id": "trn-4e8a2c6f0b1d47e9a3c5d7f9b1e3a5c7", "item_id": "tri-5b9d3f7a1c2e48e6a0d4b8f2c6e1a3d7", "kind": "similar", "author": "jdoe", "body": "Asked for approval to run jq on 2 endpoint(s) of group Web servers", "detail": {"request_id": "apr-2c6e0a4f8b1d47e3a9c5d7f1b3e9a0c4", "fix_id": "trf-3e7a1c9f5b2d48e6a0c4d8b2f6e1a9c3", "devices": 2}, "created_at": "2026-10-20T08:31:05Z"}
+		],
+		"fixes": [` + triageFixExample + `],
+		"rollouts": [` + triageRolloutExample + `],
+		"candidates": [],
+		"transitions": ["new", "waiting", "resolved"]
+	}`,
+	"PUT /api/triage/items/{id}": `{"item": {` + triageItemFields + `, "status": "resolved", "updated_at": "2026-10-20T09:02:18Z", "resolved_at": "2026-10-20T09:02:18Z", "resolved_by": "jdoe", "sync_state": "sent", "sync_at": "2026-10-20T09:02:19Z"}, "created": false}`,
+	"GET /api/triage/items/{id}/context": `{
+		"endpoint": {"agent_id": "agt-4f2a9c1e7b3d48e6a05c9d2f81b7e3a4", "hostname": "web-01", "os": "linux", "platform": "ubuntu", "platform_version": "24.04", "agent_version": "0.57.41", "site": "dc-east", "ips": ["10.20.1.11"], "online": true, "managed": true, "last_heartbeat": "2026-10-20T08:41:52Z", "manufacturer": "VMware, Inc.", "model": "VMware Virtual Platform", "serial": "VMW-42-1c-8e-4a-2f-6b-9d", "uptime_hours": 311.4},
+		"health": {"score": 92, "band": "good", "cpu_peak": 71.2, "memory_peak": 64.8, "disk_current": 58.1, "window_hours": 24, "collected_at": "2026-10-20T08:40:07Z"},
+		"software": {"count": 612, "recent": [{"name": "nginx", "version": "1.24.0-2ubuntu7.1", "install_date": "2026-10-14"}], "collected_at": "2026-10-20T08:40:07Z"},
+		"patches": {"pending": 3, "security": 1, "restart_required": 0, "items": [{"name": "openssl", "current_version": "3.0.13-0ubuntu3.4", "new_version": "3.0.13-0ubuntu3.5", "severity": "security"}], "collected_at": "2026-10-20T08:40:07Z"},
+		"vulnerabilities": [{"state": "high", "count": 2}, {"state": "medium", "count": 5}],
+		"compliance": {"counts": [{"state": "fail", "count": 4}, {"state": "pass", "count": 118}], "failing": [{"policy": "CIS Ubuntu 24.04 Level 1", "title": "Ensure auditd is installed", "severity": "high", "state": "fail", "checked_at": "2026-10-20T06:00:12Z"}]},
+		"enforce": {"counts": [{"state": "compliant", "count": 9}], "failing": []},
+		"alerts": [],
+		"changes": {"total": 2, "recent": [{"path": "/etc/nginx/nginx.conf", "kind": "modified", "what": "contents", "expected": false, "detected_at": "2026-10-19T22:14:03Z"}]},
+		"actions": [],
+		"deployments": [{"run_id": "run-5d1f9b3e7a2c46e8b0d4f6a8c2e1b3d5", "package_id": "sw-7d3b9f1a5e2c48b6a0d4f8e2c6b1a9d5", "package": "jq", "operation": "install", "status": "succeeded", "created_at": "2026-10-20T08:12:40Z", "updated_at": "2026-10-20T08:13:20Z"}],
+		"other_items": []
+	}`,
+	"POST /api/triage/items/{id}/notes": `{"notes": [
+		{"id": "trn-6a0c4e8f2b1d47e9a3c5d7f9b1e3a5c8", "item_id": "tri-5b9d3f7a1c2e48e6a0d4b8f2c6e1a3d7", "kind": "note", "author": "jdoe", "body": "Release job passes again after the install.", "created_at": "2026-10-20T08:20:44Z"}
+	]}`,
+	"POST /api/triage/items/{id}/fix": `{"fix": ` + triageFixExample + `, "message": "Sent to the endpoint."}`,
+	"POST /api/triage/items/{id}/similar/preview": `{
+		"target_kind": "group",
+		"target_id": "cgrp-1c8e4a2f6b9d43e7a5c0f2b8d6e4a1c3",
+		"target_name": "Web servers",
+		"endpoints": [
+			{"agent_id": "agt-1a7c3e9b5d2f48a6c0e4b8d2f6a1c9e3", "hostname": "web-02", "os": "linux", "online": true},
+			{"agent_id": "agt-6e2a8c4f0b1d47e9a3c5d7f9b1e3a5c8", "hostname": "web-03", "os": "linux", "online": false}
+		],
+		"dropped": 0
+	}`,
+	"POST /api/triage/items/{id}/similar": `{
+		"rollout": ` + triageRolloutExample + `,
+		"request_id": "apr-2c6e0a4f8b1d47e3a9c5d7f1b3e9a0c4",
+		"message": "Waiting for approval: jq on 2 endpoint(s). Somebody else with approvals.decide approves it under Access → Approvals."
+	}`,
+	"POST /api/triage/items/{id}/sync": `{"item": {` + triageItemFields + `, "status": "resolved", "updated_at": "2026-10-20T09:15:40Z", "resolved_at": "2026-10-20T09:02:18Z", "resolved_by": "jdoe", "sync_state": "sent", "sync_at": "2026-10-20T09:15:40Z"}}`,
+	// A Guide alert sent to the queue: it links to the endpoint's page,
+	// so the item is attached to that endpoint.
+	"POST /api/guide/{id}/triage": `{"item": {
+		"id": "tri-8d2f6b0a4c1e47e9b3a5c7d9f1e3a5b9",
+		"source": "alert",
+		"external_ref": "gd-3f7b1d5a9c2e48e6a0b4c8d2f6e1a9b5",
+		"title": "FIN-LT-0142 has been offline for a day",
+		"description": "Last heard from 2026-10-19 07:12 UTC.\n\nGuide link: /endpoint/agt-9b1d7e3a5c2f48d0a6e4b8c1f3d5a7e9",
+		"status": "new",
+		"assignee": "",
+		"agent_id": "agt-9b1d7e3a5c2f48d0a6e4b8c1f3d5a7e9",
+		"hostname": "FIN-LT-0142",
+		"ref_agent_id": "agt-9b1d7e3a5c2f48d0a6e4b8c1f3d5a7e9",
+		"endpoint_match": "matched by agent ID",
+		"created_by": "jdoe",
+		"created_at": "2026-10-20T08:44:02Z",
+		"updated_at": "2026-10-20T08:44:02Z"
+	}, "created": true}`,
 	// tokens
 	"GET /api/admin/tokens": `{
 		"permissions": ["settings.manage", "users.manage", "patches.manage", "deploy.manage", "groups.manage", "deploy.override_windows", "enforce.recovery_keys", "approvals.decide", "sessions.audit", "jump.approve", "alerts.triage"],

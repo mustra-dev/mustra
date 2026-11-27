@@ -139,3 +139,13 @@ Open work, kept here so it can be picked up. Add to it when deferring something,
 - [ ] Offer a fix from where the problem shows: a "Run a remediation" action on the endpoint page (pre-selecting the endpoint in the deploy window through `?agents=`) and from Guide items such as low disk space.
 - [ ] Say on the gallery when the imported package or playbook was edited after import, so **Update** can warn that it publishes over a locally changed version rather than beside it.
 - [ ] A gallery update that adds a required input leaves an imported playbook without a value for it; its next run is refused at the step. Ask for the new input when updating.
+
+## Triage queue
+
+- [ ] Self Service help requests: a "Get help" form in the Self Service window that files a
+  triage item (source `self_service`, already accepted by the queue) for the endpoint it runs
+  on. Needs an agent change, a durable message type and broker ACL; deferred from #89.
+- [ ] ServiceNow state changes into mustra: a ticket closed or cancelled in ServiceNow does
+  not move its item yet; the inbound API only refreshes the text and adds notes.
+- [ ] Apply to similar endpoints for patches and Enforce runs directly; today they go
+  through a playbook step.
