@@ -11,6 +11,14 @@ policies), Ansible playbook policies, and Windows driver, feature-update and Hot
 need this agent release; everything else is server only and works with current agents. No manual migration is needed: the server adds its new tables and columns on start.
 
 ### Added
+- **Pick rows in a query result.** Interact results have a checkbox on every row and a
+  select-all box in the header that takes the rows the column filters leave shown.
+  Shift-click picks a range. The action bar is always there once a result has rows: Drill
+  down, Deploy action, Apply patches and the new Save as computer group (a static group of
+  the endpoints behind the selection, for `groups.manage`) wait for a selection, and Export
+  CSV exports only the selected rows when there are any. Rows a filter hides stay selected,
+  and the bar says how many, since an action reaches them too. Filters, sorting and the
+  Columns menu now work on every result, not only the first one run on the page.
 - **The fleet over MCP, with changes that wait for approval.** The MCP endpoint at
   `/api/mcp` now answers about endpoints and their facts, cached sensor answers,
   vulnerabilities, hardening and compliance, Enforce drift, recent deployments and each

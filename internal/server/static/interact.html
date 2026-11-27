@@ -48,6 +48,12 @@
   .qrow { cursor: pointer; }
   .qrow:hover { background: var(--surface-2); }
   .qrow.picked { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  /* Selection column: a real checkbox per row and a select-all box in the
+     header, so picking rows is visible and works from the keyboard. */
+  th.q-chk, td.q-chk { width: 40px; text-align: center; }
+  .q-chk input { margin: 0; cursor: pointer; width: 16px; height: 16px; accent-color: var(--accent); }
+  .result-actions button:disabled { opacity: .45; cursor: not-allowed; border-color: var(--border); }
+  .q-picked-note { color: var(--text-muted); }
   .result-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 12px;
     background: var(--surface-2); border-radius: var(--radius-md); margin-bottom: 12px; font-size: 12.5px; }
   button.tiny { font-size: var(--fs-meta); padding: 5px 9px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: pointer; }
@@ -122,11 +128,13 @@
           <div class="meter-bar"><div class="meter-fill" id="q-meter"></div></div>
           <span id="q-reporting"></span>
         </div>
-        <div class="result-actions" id="q-actions" hidden>
-          <span id="q-picked">0 rows selected</span>
+        <div class="result-actions" id="q-actions" role="toolbar" aria-label="Act on the selected rows" hidden>
+          <span id="q-picked" aria-live="polite">No rows selected</span>
+          <button class="tiny" id="q-select-all">Select all shown</button>
           <button class="tiny" id="q-drill">Drill down into these endpoints</button>
           <button class="tiny go" id="q-deploy">Deploy action…</button>
           <button class="tiny go" id="q-patch" hidden>Apply patches…</button>
+          <button class="tiny" id="q-group" hidden>Save as computer group…</button>
           <button class="tiny" id="q-clear">Clear selection</button>
         </div>
         <!-- Deploy Action from a result: pick rows, pick a package, land
@@ -208,7 +216,7 @@ const EXAMPLES = [
   "get disks.used_percent from all machines with disks.used_percent greater_than 80",
 ];
 
-let fields = [], lastResult = null, lastRequest = null, picked = new Set();
+let fields = [], lastResult = null, lastRequest = null, picked = new Set(), pickAnchor = null;
 
 document.addEventListener("mustra:user", (e) => {
   initModuleSections([
@@ -231,6 +239,7 @@ document.addEventListener("mustra:user", (e) => {
   // viewer may not use is worse than one that is not offered.
   document.getElementById("q-patch").hidden =
     !(e.detail && (e.detail.is_admin || (e.detail.permissions || []).includes("patches.manage")));
+  document.getElementById("q-group").hidden = !hasPermission(e.detail, "groups.manage");
   document.getElementById("q-examples").innerHTML = EXAMPLES
     .map(x => `<button class="example" data-ex="${escapeHtml(x)}">${escapeHtml(x)}</button>`).join("");
   document.querySelectorAll("[data-ex]").forEach(b => b.addEventListener("click", () => {
@@ -552,33 +561,96 @@ function renderResult() {
   const cols = r.counting
     ? [r.get[0], "Count"]
     : ["Endpoint", ...r.get];
+  // A fresh table per result: the shared table helper sets up its filter
+  // row, sorting and column menu once per table, and a result with other
+  // columns needs them built again rather than left from the last one.
+  const oldTable = document.getElementById("q-body").closest("table");
+  const scroll = oldTable.closest(".table-scroll");
+  const prevBar = scroll && scroll.previousElementSibling;
+  if (prevBar && prevBar.classList.contains("dt-toolbar")) prevBar.remove();
+  const table = document.createElement("table");
+  table.innerHTML = '<thead id="q-head"></thead><tbody id="q-body"></tbody>';
+  oldTable.replaceWith(table);
   document.getElementById("q-head").innerHTML =
-    `<tr>${cols.map(c => `<th>${escapeHtml(c)}</th>`).join("")}</tr>`;
+    `<tr><th class="q-chk" data-no-resize><input type="checkbox" id="q-all" aria-label="Select all rows shown"><span class="sr-only">Selected</span></th>` +
+    `${cols.map(c => `<th>${escapeHtml(c)}</th>`).join("")}</tr>`;
 
   const cell = v => v === "[no result]"
     ? '<span class="no-result">no result</span>'
     : (v === "" ? '<span class="no-result">(empty)</span>' : escapeHtml(v));
 
   document.getElementById("q-body").innerHTML = r.rows.length === 0
-    ? `<tr><td class="empty" colspan="${escapeHtml(cols.length)}">no endpoint matched</td></tr>`
+    ? `<tr><td class="empty" colspan="${escapeHtml(cols.length + 1)}">no endpoint matched</td></tr>`
     : r.rows.map((row, i) => `
-      <tr class="qrow" data-i="${i}">
+      <tr class="qrow" data-i="${i}" aria-selected="false">
+        <td class="q-chk" data-sort="0"><input type="checkbox" class="q-pick" aria-label="Select ${escapeHtml(r.counting ? row.values[0] : row.hostname)}"></td>
         ${r.counting
           ? `<td>${cell(row.values[0])}</td><td class="count-cell" data-sort="${escapeHtml(row.count)}">${escapeHtml(row.count)}</td>`
           : `<td><a href="/endpoint/${escapeHtml(row.agent_ids[0])}">${escapeHtml(row.hostname)}</a></td>` +
             row.values.map(v => `<td>${cell(v)}</td>`).join("")}
       </tr>`).join("");
 
-  document.querySelectorAll(".qrow").forEach(tr => tr.addEventListener("click", ev => {
-    if (ev.target.tagName === "A") return;
-    const i = Number(tr.dataset.i);
-    if (picked.has(i)) picked.delete(i); else picked.add(i);
-    tr.classList.toggle("picked", picked.has(i));
+  pickAnchor = null;
+  document.querySelectorAll(".qrow").forEach(tr => {
+    // Shift-click picks a range; keep it from selecting the page's text.
+    tr.addEventListener("mousedown", ev => { if (ev.shiftKey) ev.preventDefault(); });
+    tr.addEventListener("click", ev => {
+      if (ev.target.closest("a")) return;
+      pickRow(tr, ev.shiftKey);
+    });
+  });
+  const all = document.getElementById("q-all");
+  // The box sits in a sortable heading: ticking it must not also sort.
+  all.addEventListener("click", ev => {
+    ev.stopPropagation();
+    const rows = shownRows();
+    const on = !rows.every(tr => picked.has(Number(tr.dataset.i)));
+    rows.forEach(tr => setPicked(tr, on));
     refreshPicked();
-  }));
-  refreshPicked();
-  const dt = initDataTable(document.getElementById("q-body").closest("table"), { storageKey: "interact-results" });
+  });
+  // Per query shape, so a filter or column order made for one kind of
+  // answer is not applied to another.
+  const dt = initDataTable(table, { storageKey: "interact-results:" + (r.counting ? "count:" : "") + cols.join("|") });
   if (dt) dt.refresh();
+  const chkTh = table.tHead.querySelector("th.q-chk");
+  if (chkTh && chkTh._dtFilterCell) chkTh._dtFilterCell.replaceChildren();
+  // A column filter changes which rows "all" means.
+  table.tHead.addEventListener("input", () => refreshPicked());
+  refreshPicked();
+}
+
+// Rows the column filters leave on screen, in their current order.
+function shownRows() {
+  return [...document.querySelectorAll("#q-body .qrow")].filter(tr => tr.style.display !== "none");
+}
+
+function setPicked(tr, on) {
+  const i = Number(tr.dataset.i);
+  if (on) picked.add(i); else picked.delete(i);
+  tr.classList.toggle("picked", on);
+  tr.setAttribute("aria-selected", String(on));
+  const cb = tr.querySelector(".q-pick");
+  if (cb) cb.checked = on;
+  const cell = tr.querySelector("td.q-chk");
+  if (cell) cell.dataset.sort = on ? "1" : "0"; // sorting the column puts picked rows together
+}
+
+// pickRow toggles one row, or with shift sets every shown row between the
+// last one clicked and this one to that row's state.
+function pickRow(tr, range) {
+  if (range && pickAnchor && pickAnchor.isConnected) {
+    const rows = shownRows();
+    const a = rows.indexOf(pickAnchor), b = rows.indexOf(tr);
+    if (a >= 0 && b >= 0) {
+      const on = picked.has(Number(pickAnchor.dataset.i));
+      rows.slice(Math.min(a, b), Math.max(a, b) + 1).forEach(row => setPicked(row, on));
+      refreshPicked();
+      return;
+    }
+  }
+  setPicked(tr, !picked.has(Number(tr.dataset.i)));
+  pickAnchor = tr;
+  refreshPicked();
 }
 
 function pickedAgents() {
@@ -587,17 +659,62 @@ function pickedAgents() {
   return [...out];
 }
 
+// The bar stays up whenever there are rows, so what can be done with a
+// selection is visible before anything is picked; the actions wait for one.
 function refreshPicked() {
   const actions = document.getElementById("q-actions");
-  actions.hidden = picked.size === 0;
-  document.getElementById("q-picked").textContent =
-    `${picked.size} row(s) selected — ${pickedAgents().length} endpoint(s)`;
+  const rows = shownRows();
+  actions.hidden = !lastResult || lastResult.rows.length === 0;
+  const label = document.getElementById("q-picked");
+  if (picked.size === 0) {
+    label.textContent = "No rows selected: tick rows, shift-click for a range, or select all";
+  } else {
+    // Rows a filter hides stay selected, and an action reaches them too,
+    // so say so rather than act on endpoints the operator cannot see.
+    const unseen = [...picked].filter(i => !rows.some(tr => Number(tr.dataset.i) === i)).length;
+    label.innerHTML = `${escapeHtml(picked.size)} row(s) selected — ${escapeHtml(pickedAgents().length)} endpoint(s)` +
+      (unseen ? ` <span class="q-picked-note">(${escapeHtml(unseen)} hidden by a filter)</span>` : "");
+  }
+  for (const id of ["q-drill", "q-deploy", "q-patch", "q-group", "q-clear"]) {
+    document.getElementById(id).disabled = picked.size === 0;
+  }
+  const allShown = rows.length > 0 && rows.every(tr => picked.has(Number(tr.dataset.i)));
+  const selAll = document.getElementById("q-select-all");
+  selAll.textContent = `Select all ${rows.length} shown`;
+  selAll.disabled = rows.length === 0 || allShown;
+  const box = document.getElementById("q-all");
+  if (box) {
+    box.checked = allShown;
+    box.indeterminate = !allShown && rows.some(tr => picked.has(Number(tr.dataset.i)));
+  }
+  document.getElementById("q-export").textContent = picked.size ? `Export ${picked.size} selected` : "Export CSV";
 }
 
-document.getElementById("q-clear").addEventListener("click", () => {
-  picked = new Set();
-  document.querySelectorAll(".qrow").forEach(tr => tr.classList.remove("picked"));
+document.getElementById("q-select-all").addEventListener("click", () => {
+  shownRows().forEach(tr => setPicked(tr, true));
   refreshPicked();
+});
+
+document.getElementById("q-clear").addEventListener("click", () => {
+  document.querySelectorAll(".qrow").forEach(tr => setPicked(tr, false));
+  picked = new Set();
+  pickAnchor = null;
+  refreshPicked();
+});
+
+// Save the endpoints behind the selection as a static computer group, so a
+// one-off answer can be targeted again later (patching, policies, Deploy).
+document.getElementById("q-group").addEventListener("click", async () => {
+  const ids = pickedAgents();
+  if (ids.length === 0) return;
+  const name = prompt(`Name the new computer group (${ids.length} endpoint(s)):`);
+  if (!name || !name.trim()) return;
+  const resp = await fetch("/api/groups", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: name.trim(), kind: "static", description: `From the query: ${lastResult.text}`, member_ids: ids }),
+  });
+  if (resp.ok) showToast(`Created the group "${name.trim()}" with ${ids.length} endpoint(s)`, "ok");
+  else showToast("Could not create the group: " + (await resp.text()), "error");
 });
 
 // Drill down: run a follow-up query scoped to the endpoints behind the selected
@@ -702,7 +819,9 @@ document.getElementById("q-patch").addEventListener("click", () => {
 document.getElementById("q-export").addEventListener("click", () => {
   const r = lastResult;
   const head = r.counting ? [r.get[0], "count"] : ["hostname", ...r.get];
-  const lines = [csvRow(head)].concat(r.rows.map(row =>
+  // With rows selected, only those; otherwise the whole answer.
+  const rows = picked.size ? r.rows.filter((_, i) => picked.has(i)) : r.rows;
+  const lines = [csvRow(head)].concat(rows.map(row =>
     csvRow(r.counting ? [row.values[0], row.count] : [row.hostname, ...row.values])));
   const blob = new Blob([lines.join("\n")], { type: "text/csv" });
   const a = document.createElement("a");
