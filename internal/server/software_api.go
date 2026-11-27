@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -173,6 +174,17 @@ func (s *Server) handleUpsertSoftware(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "only a software package detected by name can follow an upstream release", http.StatusBadRequest)
 		return
 	}
+	// Left out, category_ids stays nil and the package keeps its own.
+	cats, err := s.cleanCategoryIDs(r.Context(), body.CategoryIDs)
+	if errors.Is(err, errCategoryGone) {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	body.CategoryIDs = cats
 	if id := r.PathValue("id"); id != "" {
 		body.ID = id
 	}

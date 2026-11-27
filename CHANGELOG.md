@@ -6,7 +6,8 @@ rather than a page that can drift from it.
 
 ## Unreleased
 
-Server only; agents are unchanged.
+Server and agent: the Self Service category column needs this agent release; everything else
+is server only and works with current agents.
 
 ### Added
 - **The fleet over MCP, with changes that wait for approval.** The MCP endpoint at
@@ -47,6 +48,17 @@ Server only; agents are unchanged.
   version in a later release is offered as **Update**. New API routes `GET /api/remediations`
   and `POST /api/remediations/{id}/import`. Server only: the fixes run on agents as action
   packages do today. The server adds a `remediation_imports` table on start.
+- **Self Service categories.** **Deploy → Self Service → Categories** keeps the list of
+  sections the Self Service window files its catalog under: a name, an optional icon and
+  the order. A software package is filed under any number of them in its Catalog settings.
+  The window shows a category column beside **All** (chips on a narrow window), with a count
+  for each; packages filed nowhere appear under All and **Other**, and search still covers
+  every category. Upgrading creates Browsers, Productivity, Communication, Developer tools,
+  Utilities and Security once, plus a category for each free-text category packages already
+  had, with those packages filed under it; a category you delete is not recreated.
+  Server and agent: the window is part of the agent, so endpoints need this agent release to
+  show the category column. An older agent keeps filtering by one category per package (the
+  first in the list's order).
 
 ### Changed
 - An approval request records the person behind it and, when a token asked, the token. The

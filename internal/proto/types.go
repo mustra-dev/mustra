@@ -1386,13 +1386,29 @@ type SelfServiceItem struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
-	Category    string `json:"category"`
-	Icon        string `json:"icon"`
-	Package     string `json:"package,omitempty"` // resolved for this device's OS
-	Entitled    bool   `json:"entitled"`
-	Pending     bool   `json:"pending"`     // a request is awaiting a decision
-	CanRequest  bool   `json:"can_request"` // not entitled, but may ask
-	Installed   bool   `json:"installed"`   // already present per installed_apps
+	// Category is the name of the first category the item is filed under,
+	// for windows from before categories were a list: they filter on this
+	// string alone. A current window reads CategoryIDs.
+	Category string `json:"category"`
+	// CategoryIDs are the reply's Categories this item is filed under, in
+	// their order. Empty: under All and Other only. An older server never
+	// sends it.
+	CategoryIDs []string `json:"category_ids,omitempty"`
+	Icon        string   `json:"icon"`
+	Package     string   `json:"package,omitempty"` // resolved for this device's OS
+	Entitled    bool     `json:"entitled"`
+	Pending     bool     `json:"pending"`     // a request is awaiting a decision
+	CanRequest  bool     `json:"can_request"` // not entitled, but may ask
+	Installed   bool     `json:"installed"`   // already present per installed_apps
+}
+
+// SelfServiceCategory is one section of the window's catalog. Icon is a
+// name from a fixed set the window draws itself; one it does not know
+// draws nothing.
+type SelfServiceCategory struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Icon string `json:"icon,omitempty"`
 }
 
 // SelfServiceActivity is one thing mustra has done to this device.
@@ -1417,6 +1433,11 @@ type SelfServiceReply struct {
 	AgentID  string                `json:"agent_id,omitempty"`
 	Items    []SelfServiceItem     `json:"items,omitempty"`
 	Activity []SelfServiceActivity `json:"activity,omitempty"`
+	// Categories are the Self Service categories at least one of Items is
+	// filed under, in the operator's order. Absent from an older server's
+	// reply, and when nothing offered here is filed anywhere; the window
+	// then groups by each item's Category string, as it always has.
+	Categories []SelfServiceCategory `json:"categories,omitempty"`
 	// Install replies carry what to run — resolved server-side from the
 	// catalog, never accepted from the local UI.
 	Package string `json:"package,omitempty"`

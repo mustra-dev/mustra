@@ -721,6 +721,14 @@ func (s *Server) routes() http.Handler {
 	protected.Handle("GET /api/selfservice/branding", perm(auth.PermDeployManage, hf(s.handleGetSelfServiceBranding)))
 	protected.Handle("PUT /api/selfservice/branding", perm(auth.PermDeployManage, hf(s.handleUpdateSelfServiceBranding)))
 	protected.Handle("GET /selfservice/preview", perm(auth.PermDeployManage, hf(handleSelfServicePreview)))
+	// Self Service categories. Reading them is reading the catalog, open to
+	// anyone signed in like GET /api/software; shaping what endpoints are
+	// shown is a deployment act.
+	protected.HandleFunc("GET /api/selfservice/categories", s.handleListSelfServiceCategories)
+	protected.Handle("POST /api/selfservice/categories", perm(auth.PermDeployManage, hf(s.handleCreateSelfServiceCategory)))
+	protected.Handle("PUT /api/selfservice/categories/order", perm(auth.PermDeployManage, hf(s.handleReorderSelfServiceCategories)))
+	protected.Handle("PUT /api/selfservice/categories/{id}", perm(auth.PermDeployManage, hf(s.handleUpdateSelfServiceCategory)))
+	protected.Handle("DELETE /api/selfservice/categories/{id}", perm(auth.PermDeployManage, hf(s.handleDeleteSelfServiceCategory)))
 
 	protected.HandleFunc("GET /api/risk", s.handleRiskSummary) // viewable by anyone logged in, same as /api/patches
 	protected.Handle("POST /api/risk/scan", perm(auth.PermPatchesManage, hf(s.handleRiskScanNow)))

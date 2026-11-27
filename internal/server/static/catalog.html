@@ -48,6 +48,20 @@
   .ss-preview iframe { width: 100%; height: 620px; border: 1px solid var(--border); border-radius: var(--radius); background: #000; display: block; }
   .ss-preview-bar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
   .ss-preview-bar .grow { flex: 1; }
+  /* Categories: the list endpoints file their catalog under. */
+  .cat-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-bottom: 14px; }
+  .cat-add .field { margin: 0; }
+  .cat-add input, .cat-row input, .cat-add select, .cat-row select { padding: 7px 9px; border-radius: var(--radius-md); border: 1px solid var(--border-input); background: var(--input-bg); color: var(--text); font: inherit; font-size: 13px; }
+  .cat-add input, .cat-row input { width: 220px; max-width: 100%; }
+  .cat-add input, .cat-add select, .cat-row input, .cat-row select { height: 34px; box-sizing: border-box; }
+  .cat-icon:empty { visibility: hidden; }
+  .cat-icon { display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; border-radius: var(--radius-sm); background: var(--surface-2); color: var(--accent); flex: none; }
+  .cat-icon svg { width: 16px; height: 16px; }
+  .cat-pick { display: inline-flex; align-items: center; gap: 6px; }
+  .cat-order { display: inline-flex; gap: 4px; }
+  .cat-order button { min-width: 28px; }
+  .cat-chip { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-meta); background: var(--surface-2); border-radius: 999px; padding: 1px 8px; margin: 1px 4px 1px 0; white-space: nowrap; }
+  .cat-chip svg { width: 12px; height: 12px; color: var(--accent); }
 </style>
 </head>
 <body>
@@ -74,8 +88,31 @@
         </p>
         <div class="table-scroll">
           <table>
-            <thead><tr><th>Name</th><th>Category</th><th>Platforms</th><th>Scope</th><th>Requests</th><th>Pending</th><th>State</th><th>Action</th></tr></thead>
+            <thead><tr><th>Name</th><th>Categories</th><th>Platforms</th><th>Scope</th><th>Requests</th><th>Pending</th><th>State</th><th>Action</th></tr></thead>
             <tbody id="items-body"><tr><td class="empty" colspan="8">loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="module-section" id="section-categories" hidden>
+      <div class="panel">
+        <div class="panel-header"><h2>Categories</h2><span class="scan-status" id="cats-status"></span></div>
+        <p class="hint">
+          The sections the Self Service window files its catalog under, in this order, beside <strong>All</strong>.
+          A package is filed under categories in its Catalog settings under Deploy → <a href="/software#catalog">Software Catalog</a>;
+          one in none appears under All and <strong>Other</strong>. Endpoints show only the categories something they are
+          offered is in, and pick up a change the next time the window is opened.
+        </p>
+        <form class="cat-add" id="cat-add">
+          <div class="field"><label for="cat-new-name">New category</label><input id="cat-new-name" maxlength="40" placeholder="Design tools" required></div>
+          <div class="field"><label for="cat-new-icon">Icon</label><span class="cat-pick"><select id="cat-new-icon"></select><span class="cat-icon" id="cat-new-preview" aria-hidden="true"></span></span></div>
+          <button class="primary" type="submit">Add category</button>
+        </form>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Order</th><th>Name</th><th>Icon</th><th>Packages</th><th>Action</th></tr></thead>
+            <tbody id="cats-body"><tr><td class="empty" colspan="5">loading…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -211,6 +248,7 @@ let requests = [];
 document.addEventListener("mustra:user", (e) => {
   initModuleSections([
     { hash: "items", label: "Offered Packages" },
+    { hash: "categories", label: "Categories" },
     { hash: "requests", label: "Requests" },
     { hash: "appearance", label: "Appearance" },
   ]);
@@ -220,6 +258,7 @@ document.addEventListener("mustra:user", (e) => {
     { label: "Computer Groups", href: "/groups", icon: "groups" },
   ]);
   loadGroups();
+  loadCategories();
   loadItems();
   loadRequests();
   loadAppearance();
@@ -249,8 +288,7 @@ async function loadItems() {
   // applies (the pinned version, installs that need no parameters), so the
   // page cannot claim a platform endpoints are not offered.
   platformsByID = data.self_service_platforms || {};
-  items = (data.packages || []).filter(p => p.self_service)
-    .sort((a, b) => (a.category || "").localeCompare(b.category || "") || a.name.localeCompare(b.name));
+  items = (data.packages || []).filter(p => p.self_service);
   renderItems();
 }
 
@@ -268,6 +306,11 @@ function renderItems() {
   const pending = {};
   for (const r of requests) if (r.status === "pending") pending[r.item_id] = (pending[r.item_id] || 0) + 1;
   document.getElementById("items-status").textContent = items.length ? `${items.length} package(s)` : "";
+  // Filed packages first, in the order of their first category, as the
+  // window lists them; then the rest by name.
+  const rank = id => { const i = categories.findIndex(c => c.id === id); return i < 0 ? Infinity : i; };
+  const first = p => Math.min(Infinity, ...(p.category_ids || []).map(rank));
+  items.sort((a, b) => first(a) - first(b) || a.name.localeCompare(b.name));
   body.innerHTML = items.length === 0
     ? '<tr><td class="empty" colspan="8">nothing is offered yet — open a package under Deploy → Software Catalog and tick “Offer in Self Service”</td></tr>'
     : items.map(p => {
@@ -275,7 +318,7 @@ function renderItems() {
       return `
       <tr>
         <td><a href="${escapeHtml(safeUrl(packageHref(p)))}"><strong>${escapeHtml(p.name)}</strong></a>${p.description ? `<div class="u-fs-meta u-c-text-muted">${escapeHtml(p.description)}</div>` : ""}</td>
-        <td>${escapeHtml(p.category || "—")}</td>
+        <td class="u-ws-normal">${categoryChips(p)}</td>
         <td>${platforms.length ? platforms.map(o => `<span class="pkg-chip">${escapeHtml(osLabel(o))}</span>`).join("") : "none"}</td>
         <td class="u-ws-normal u-maxw-240 u-fs-meta u-c-text-muted">
           ${(p.group_ids || []).length === 0 ? "everyone" : (p.group_ids || []).map(g => escapeHtml(groupName(g))).join(", ")}</td>
@@ -332,6 +375,123 @@ async function decide(id, status) {
   if (!resp.ok) alert((await resp.text()).trim());
   loadRequests();
 }
+// --- Categories ---------------------------------------------------------
+//
+// The list is the server's, in display order; every change reloads it, so
+// two operators editing at once see each other's work rather than
+// overwriting it with a stale copy.
+
+let categories = [];
+let categoryIcons = [];
+
+async function loadCategories() {
+  const resp = await fetch("/api/selfservice/categories");
+  if (!resp.ok) return;
+  const data = await resp.json();
+  categories = data.categories || [];
+  categoryIcons = data.icons || [];
+  renderCategories();
+  renderItems();
+}
+
+function iconOptions(selected) {
+  return `<option value="">No icon</option>` + categoryIcons.map(i =>
+    `<option value="${escapeHtml(i)}"${i === selected ? " selected" : ""}>${escapeHtml(i)}</option>`).join("");
+}
+
+function categoryChips(p) {
+  const chips = (p.category_ids || []).map(id => categories.find(c => c.id === id)).filter(Boolean)
+    .map(c => `<span class="cat-chip">${icon(c.icon)}${escapeHtml(c.name)}</span>`);
+  return chips.length ? chips.join("") : '<span class="u-c-text-muted">Other</span>';
+}
+
+function renderCategories() {
+  const newIcon = document.getElementById("cat-new-icon");
+  if (!newIcon.options.length) {
+    newIcon.innerHTML = iconOptions("");
+    document.getElementById("cat-new-preview").innerHTML = "";
+  }
+  document.getElementById("cats-status").textContent = categories.length ? `${categories.length} categor${categories.length === 1 ? "y" : "ies"}` : "";
+  const body = document.getElementById("cats-body");
+  body.innerHTML = categories.length === 0
+    ? '<tr><td class="empty" colspan="5">no categories: every package appears under All</td></tr>'
+    : categories.map((c, i) => `
+      <tr class="cat-row" data-cat-id="${escapeHtml(c.id)}">
+        <td><span class="cat-order">
+          <button class="tiny" type="button" data-cat-move="-1" aria-label="Move ${escapeHtml(c.name)} up"${i === 0 ? " disabled" : ""}>↑</button>
+          <button class="tiny" type="button" data-cat-move="1" aria-label="Move ${escapeHtml(c.name)} down"${i === categories.length - 1 ? " disabled" : ""}>↓</button>
+        </span></td>
+        <td><input type="text" data-cat-name maxlength="40" aria-label="Name of ${escapeHtml(c.name)}" value="${escapeHtml(c.name)}"></td>
+        <td><span class="cat-pick"><select data-cat-icon aria-label="Icon of ${escapeHtml(c.name)}">${iconOptions(c.icon)}</select>
+          <span class="cat-icon" aria-hidden="true">${icon(c.icon)}</span></span></td>
+        <td data-sort="${escapeHtml(c.package_count)}">${escapeHtml(c.package_count)}</td>
+        <td class="row-actions">
+          <button class="tiny" type="button" data-cat-save>save</button>
+          <button class="tiny danger" type="button" data-cat-delete>delete</button>
+        </td>
+      </tr>`).join("");
+}
+
+async function categoryRequest(method, path, body) {
+  const resp = await fetch(path, {
+    method, headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!resp.ok) { showToast((await resp.text()).trim() || `HTTP ${resp.status}`, "error"); return false; }
+  return true;
+}
+
+document.getElementById("cat-new-icon").addEventListener("change", e => {
+  document.getElementById("cat-new-preview").innerHTML = icon(e.target.value);
+});
+
+document.getElementById("cat-add").addEventListener("submit", async e => {
+  e.preventDefault();
+  const name = document.getElementById("cat-new-name");
+  const ic = document.getElementById("cat-new-icon");
+  if (await categoryRequest("POST", "/api/selfservice/categories", { name: name.value.trim(), icon: ic.value })) {
+    showToast(`Added ${name.value.trim()}`, "ok");
+    name.value = "";
+    ic.value = "";
+    document.getElementById("cat-new-preview").innerHTML = "";
+  }
+  loadCategories();
+});
+
+document.getElementById("cats-body").addEventListener("change", e => {
+  if (e.target.matches("[data-cat-icon]")) e.target.nextElementSibling.innerHTML = icon(e.target.value);
+});
+
+document.getElementById("cats-body").addEventListener("click", async e => {
+  const row = e.target.closest("[data-cat-id]");
+  if (!row) return;
+  const id = row.dataset.catId;
+  const c = categories.find(c => c.id === id);
+  if (!c) return;
+  if (e.target.closest("[data-cat-save]")) {
+    const name = row.querySelector("[data-cat-name]").value.trim();
+    const ic = row.querySelector("[data-cat-icon]").value;
+    if (await categoryRequest("PUT", `/api/selfservice/categories/${encodeURIComponent(id)}`, { name, icon: ic })) showToast(`Saved ${name}`, "ok");
+    loadCategories();
+  } else if (e.target.closest("[data-cat-delete]")) {
+    const filed = c.package_count ? ` ${c.package_count} package(s) filed under it move to Other unless they are in another category.` : "";
+    if (!confirm(`Delete the category “${c.name}”?${filed}`)) return;
+    if (await categoryRequest("DELETE", `/api/selfservice/categories/${encodeURIComponent(id)}`)) showToast(`Deleted ${c.name}`, "ok");
+    loadCategories();
+    loadItems();
+  } else if (e.target.closest("[data-cat-move]")) {
+    const step = Number(e.target.closest("[data-cat-move]").dataset.catMove);
+    const ids = categories.map(c => c.id);
+    const i = ids.indexOf(id), j = i + step;
+    if (j < 0 || j >= ids.length) return;
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    await categoryRequest("PUT", "/api/selfservice/categories/order", { ids });
+    await loadCategories();
+    // Keep the keyboard on the row that moved.
+    document.querySelector(`[data-cat-id="${CSS.escape(id)}"] [data-cat-move="${step}"]`)?.focus();
+  }
+});
+
 // --- Appearance: the Self Service window's branding -------------------
 //
 // The form is the branding object; every edit is posted to the framed

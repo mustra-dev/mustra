@@ -470,6 +470,7 @@ var bodyExamples = map[string]string{
 		"vendor": "Example Corp",
 		"description": "Forwards nginx and system logs to the central collector",
 		"category": "Monitoring",
+		"category_ids": ["sscat-utilities"],
 		"group_ids": ["cgrp-1c8e4a2f6b9d43e7a5c0f2b8d6e4a1c3"],
 		"self_service": false,
 		"allow_requests": false,
@@ -832,6 +833,12 @@ var bodyExamples = map[string]string{
 	// schedules
 	"POST /api/schedules":     scheduleExample,
 	"PUT /api/schedules/{id}": scheduleExample,
+
+	// selfservice
+	// A new category goes to the end of the list; no package is filed
+	// under it until one is, so endpoints see no change.
+	"POST /api/selfservice/categories":     `{"name": "Design tools", "icon": "layers"}`,
+	"PUT /api/selfservice/categories/{id}": `{"name": "Design and media", "icon": "layers"}`,
 
 	// sensors
 	"POST /api/sensors/custom": customSensorExample,

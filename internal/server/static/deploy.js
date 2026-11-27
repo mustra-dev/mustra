@@ -88,6 +88,29 @@
     box.append(summary,row(q,clear),list);sum();draw();
     return box;
   }
+  // Which Self Service categories the package is filed under: the window
+  // lists it under each, and under All; none ticked files it under Other.
+  function categoryPicker(meta){
+    const box=node('div',undefined,'gp');
+    box.append(node('span','Self Service categories','gp-label'));
+    if(!state.categoryList){box.append(note('Loading categories…'));if(!state.categoryListLoading){state.categoryListLoading=true;api('/api/selfservice/categories').then(r=>{state.categoryList=(r.categories||[]).filter(c=>c&&c.id);}).catch(()=>{state.categoryList=[];}).finally(()=>{state.categoryListLoading=false;render();});}return box;}
+    meta.category_ids??=[];
+    const chosen=new Set(meta.category_ids);
+    const summary=node('p',undefined,'gp-summary');
+    const sum=()=>{const names=state.categoryList.filter(c=>chosen.has(c.id)).map(c=>c.name);summary.textContent=names.length?`Listed under All and ${names.join(', ')}.`:'Listed under All and Other: no category is ticked.';};
+    const list=node('div',undefined,'gp-list');
+    for(const c of state.categoryList){
+      const lab=node('label',undefined,'gp-item');const cb=node('input');cb.type='checkbox';cb.checked=chosen.has(c.id);
+      cb.onchange=()=>{cb.checked?chosen.add(c.id):chosen.delete(c.id);meta.category_ids=state.categoryList.filter(x=>chosen.has(x.id)).map(x=>x.id);sum();};
+      const name=node('span',undefined,'gp-name');
+      if(c.icon&&typeof icon==='function'){const ic=node('span',undefined,'gp-ic');ic.innerHTML=/* safe-html: fixed SVG paths from app.js ICON_PATHS, keyed by name */ icon(c.icon);name.append(ic);}
+      name.append(document.createTextNode(c.name));
+      lab.append(cb,name,node('span',`${c.package_count||0} package${c.package_count===1?'':'s'}`,'gp-meta'));list.append(lab);}
+    if(!state.categoryList.length)list.append(note('No categories yet.'));
+    const manage=node('a','Manage categories','cl-link');manage.href='/catalog#categories';
+    box.append(summary,list,manage);sum();
+    return box;
+  }
   function csv(obj,key,label){const holder={value:(obj[key]||[]).join(', ')};const f=field(holder,'value',label);f.lastChild.oninput=e=>obj[key]=e.target.value.split(',').map(x=>x.trim()).filter(Boolean);return f;}
   function jsonField(obj,key,label,fallback){const holder={value:JSON.stringify(obj[key]??fallback,null,2)};const f=field(holder,'value',label,'textarea');f.lastChild.onchange=e=>{try{obj[key]=JSON.parse(e.target.value);e.target.setCustomValidity('');}catch(err){e.target.setCustomValidity(err.message);e.target.reportValidity();}};return f;}
   function isAction(){return state.draft?.kind==='action';}
@@ -103,7 +126,7 @@
   // Package details (name, description, vendor, category, groups, Self
   // Service…) belong to the package, not a version: they save on their own,
   // and Save or Publish saves them too, so no edit is lost.
-  const META_FIELDS=['enabled','vendor','category','description','group_ids','self_service','self_service_follow_latest','self_service_revision','expire_seconds','allow_requests'];
+  const META_FIELDS=['enabled','vendor','category','category_ids','description','group_ids','self_service','self_service_follow_latest','self_service_revision','expire_seconds','allow_requests'];
   function metaKey(){const m=state.metadata||{};return JSON.stringify([state.name,...META_FIELDS.map(k=>m[k]??null)]);}
   // Taken after the editor's first render, which fills in defaults, and
   // normalized as a save would be, so opening a version is not an edit.
@@ -622,7 +645,7 @@
   }
   function catalogCard(){
     if(state.packageID==='new')return null;const meta=state.metadata;meta.name=state.name;
-    const c=card('Catalog settings',row(field(meta,'enabled','Enabled','checkbox'),...(isAction()?[]:[field(meta,'self_service','Offer in Self Service','checkbox'),field(meta,'self_service_follow_latest','Self Service follows latest published','checkbox'),field(meta,'allow_requests','Endpoints outside its groups may request it','checkbox')])),row(field(meta,'vendor','Vendor'),field(meta,'category','Category')),field(meta,'description','Description','textarea'),groupPicker(meta),...(isAction()?[]:[field(meta,'self_service_revision','Self Service pinned revision','text',[['','First published revision'],...state.revisions.filter(r=>r.published&&!r.retired).map(r=>[r.id,r.label||r.id])])]),field(meta,'expire_seconds','Default deployment expiry (seconds)','number'),button('Save details',()=>act(async()=>{if(state.packageID==='new')throw Error('Save the package first');const c=await saveMeta();render();message(c?'Package details saved. The version is unchanged.':'Nothing to save.');})));
+    const c=card('Catalog settings',row(field(meta,'enabled','Enabled','checkbox'),...(isAction()?[]:[field(meta,'self_service','Offer in Self Service','checkbox'),field(meta,'self_service_follow_latest','Self Service follows latest published','checkbox'),field(meta,'allow_requests','Endpoints outside its groups may request it','checkbox')])),row(field(meta,'vendor','Vendor'),...(isAction()?[field(meta,'category','Category')]:[])),field(meta,'description','Description','textarea'),...(isAction()?[]:[categoryPicker(meta)]),groupPicker(meta),...(isAction()?[]:[field(meta,'self_service_revision','Self Service pinned revision','text',[['','First published revision'],...state.revisions.filter(r=>r.published&&!r.retired).map(r=>[r.id,r.label||r.id])])]),field(meta,'expire_seconds','Default deployment expiry (seconds)','number'),button('Save details',()=>act(async()=>{if(state.packageID==='new')throw Error('Save the package first');const c=await saveMeta();render();message(c?'Package details saved. The version is unchanged.':'Nothing to save.');})));
     c.querySelector('textarea')?.classList.add('deploy-short');return c;
   }
   function render(){const root=$('deploy-editor');if(!root)return;root.replaceChildren();if(!state.draft){showEditor(false);return;}showEditor(true);root.append(crumb());
