@@ -1462,7 +1462,9 @@ BEGIN
       ('sscat-security',     'Security',        'shield',   6, 'schema')
     ON CONFLICT DO NOTHING;
     INSERT INTO selfservice_categories (id, name, position, created_by)
-    SELECT 'sscat-' || md5(lower(btrim(category))), min(btrim(category)),
+    -- COLLATE "C" so the capitalised spelling wins ("Graphics" over
+    -- "graphics") whatever the database's own collation sorts first.
+    SELECT 'sscat-' || md5(lower(btrim(category))), min(btrim(category) COLLATE "C"),
            6 + row_number() OVER (ORDER BY lower(btrim(category))), 'schema'
       FROM software_packages
      WHERE btrim(category) <> ''
