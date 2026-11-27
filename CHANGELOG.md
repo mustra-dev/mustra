@@ -8,9 +8,9 @@ rather than a page that can drift from it.
 
 Server and agent: the Self Service category column, Enforce's `u:` rules (Linux Firewall
 policies), Ansible playbook policies, Windows driver, feature-update and Hotpatch handling,
-SaaS Experience measurements, and the Debian-family patching fix below need this agent release;
-everything else is server only and works with current agents. No manual migration is needed:
-the server adds its new tables and columns on start.
+SaaS Experience measurements, network surveys, and the Debian-family patching fix below need this agent
+release; everything else is server only and works with current agents. No manual migration is
+needed: the server adds its new tables and columns on start.
 
 ### Added
 - **Pick rows in a query result.** Interact results have a checkbox on every row and a
@@ -219,6 +219,19 @@ the server adds its new tables and columns on start.
   certificate's expiry is announced like other expiring certificates. Server only: no agent
   update is needed, and Fleet and Intune keep working as before. The database gains the
   `mdm_*` tables on first start.
+- **Network surveys in Discover.** An operator can now ask chosen endpoints to identify the devices
+  on the subnets they sit on, with read-only probes: SNMP v2c/v3 (system group, interfaces,
+  Printer-MIB toner levels), IPP printer attributes, Modbus TCP device identification (function
+  43/14 only), BACnet Who-Is, EtherNet/IP List Identity and, from Linux endpoints, Profinet DCP
+  Identify. Nothing is written to any device. Surveys are off until created and enabled, need
+  `deploy.manage`, pass the deploy action group and approval policies, and are bounded per survey:
+  subnets the endpoint is directly attached to (unless explicitly allowed), at most a /22 each,
+  1–200 probes per second, 1–32 hosts at once, a per-probe timeout and a time budget. SNMP secrets
+  are stored with the credential vault and never returned by the API. Discover gains a device type
+  (printer, switch, PLC, building controller…) with a filter, model, firmware, serial, supplies and
+  interfaces per device, and a per-run status list. Server and agent: endpoints need this agent to
+  run surveys; an older agent's run is reported as "agent too old". The new tables are created on
+  server start.
 
 ### Changed
 - An approval request records the person behind it and, when a token asked, the token. The

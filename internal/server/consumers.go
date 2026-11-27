@@ -182,6 +182,9 @@ func (s *Server) consumeSensors(ctx context.Context) (jetstream.ConsumeContext, 
 			// A scan report, not a periodic snapshot: it lands in Reveal's
 			// own tables rather than the per-sensor cache.
 			persistErr = s.recordRevealReport(ctx, snap)
+		} else if snap.Sensor == proto.SensorNetSurvey {
+			// Likewise a network survey's report (netsurvey_api.go).
+			persistErr = s.recordNetSurveyReport(ctx, snap)
 		} else {
 			if snap.Sensor == proto.SensorPatchStatus {
 				snap.Data = s.carryPatchFailingSince(ctx, snap.AgentID, snap.Data)

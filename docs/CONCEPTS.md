@@ -1891,6 +1891,66 @@ except managed endpoints and randomized (private) MACs, which phones rotate.
 Container- and VM-internal networks behind a host (Docker, CNI, Podman,
 libvirt, LXC, Home Assistant's `hassio`) are not the network and are skipped.
 
+### Network surveys — asking devices what they are
+
+A neighbour table says a device exists, not what it is. A **network survey**
+is the opt-in, active half: an operator with **deploy.manage** names one or
+more endpoints, the subnets they sit on and the protocols to use, and each
+endpoint identifies what answers. None exists until someone creates one, and
+a survey is saved disabled; a disabled survey sends nothing, on schedule or on
+request. Saving and running one pass the same endpoint-action gate as a
+deployment (management rights, the deploy action group, approval policies).
+A survey names its endpoints explicitly, never a group, so a deleted group
+cannot turn it into a fleet-wide sweep. Unattended runs act with the rights
+of the survey's creator and stop if that account is gone.
+
+Every probe asks a device to identify itself and nothing else:
+
+| Protocol | What is sent | Why it is safe |
+|---|---|---|
+| SNMP v2c/v3 | GET of the system group, then GETNEXT walks of `ifTable` (64 rows), Printer-MIB supplies (32) and a few ENTITY-MIB columns | GET and GETNEXT read; no SET is ever built. Retries are off. |
+| IPP | `Get-Printer-Attributes` over HTTP to port 631 | The query a print dialog sends. No job, no cancel, no setting; no redirects or proxies. |
+| Modbus TCP | function 43/14 (Read Device Identification), unit 255 then 0 | The one function that cannot reach coils, registers or files. No other function code is built. |
+| BACnet/IP | unconfirmed `Who-Is`, unicast and to the attached subnet's broadcast | Its only effect is an `I-Am`. No confirmed service, no destination network, so routers do not forward it; an `I-Am` that came through a router is ignored. |
+| EtherNet/IP | encapsulation `ListIdentity`, UDP 44818, then TCP | Answered before any session exists; carries no CIP request. |
+| Profinet | DCP `Identify All`, one multicast frame per attached network | What engineering tools send to list stations; DCP `Set` is never built. Linux only (raw socket); other endpoints report it unsupported. |
+
+**Bounds.** Each subnet is IPv4, at most a /22, and must lie inside a network
+the endpoint is directly attached to unless the operator ticks *allow
+off-link subnets*; the server checks this against the endpoint's last
+network report when the survey is saved, and the endpoint checks it again
+against its own interfaces and refuses the rest. A run probes at most 4096
+addresses and never the network, broadcast or the endpoint's own addresses.
+Every packet and connection attempt goes through one limiter (1–200 per
+second, default 20, no bursts), at most 1–32 hosts at once, each probe waits
+200 ms–10 s, and the whole run stops at its budget (10 s–1 h, default 15 min).
+Answers from outside the subnets are dropped on the endpoint and again on the
+server. An endpoint runs one survey at a time.
+
+**Credentials.** SNMP communities and v3 passphrases are sealed with the
+credential vault (`MUSTRA_CREDENTIAL_ENCRYPTION_KEY`), bound to their survey,
+and never returned by the API, which says only whether each is set. They
+reach the endpoint inside the run's command (request/reply, not stored in any
+stream), are held in memory for the run and are never logged or written to
+disk. Without an encryption key, SNMP cannot be configured.
+
+**Results.** The report travels on the durable outbox like every outcome.
+Each run records its status: *finished*, *timed out* (its budget ended it,
+or no report arrived within budget plus five minutes; what it found is
+kept), *cancelled*, *failed*, *refused* (no subnet was in scope), *no
+response* (the endpoint did not take the command; offline endpoints are not
+sent it), or *agent too old*. Devices are remembered by MAC, or by address
+until a MAC is learned (the endpoint reads its ARP table after probing),
+and merged into Discover's list by MAC, then by address. A device only a
+survey found is listed as *surveyed*. Discover shows vendor, model, firmware,
+serial, supplies, interfaces and which endpoint surveyed it, and classifies
+each device (printer, switch, router, firewall, access point, PLC, HMI,
+drive, I/O device, building controller, UPS, NAS, camera, host) on the
+server, so the rules can improve without an agent update.
+
+Endpoints in inventory-and-patching mode refuse surveys like any command not
+on their list.
+
 ## Containers — what's behind, and nothing changed for you
 
 The Containers sensor reads the host's Docker or Podman API over its local

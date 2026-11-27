@@ -82,6 +82,10 @@ func BitLockerAAD(agentID, keyID string) string { return "bitlocker/" + agentID 
 // SettingAAD binds an encrypted setting value to its key.
 func SettingAAD(key string) string { return "setting/" + key }
 
+// NetworkSurveyAAD binds a network survey's sealed SNMP secrets to the
+// survey: copied onto another survey's row, they do not open.
+func NetworkSurveyAAD(surveyID string) string { return "network_survey/snmp/" + surveyID }
+
 // Seal encrypts plaintext bound to aad (version 2). The same aad must be
 // given to Open.
 func (v *Vault) Seal(plaintext, aad string) ([]byte, error) {

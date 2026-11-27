@@ -574,6 +574,14 @@ func (s *Server) routes() http.Handler {
 	protected.Handle("PUT /api/discover/devices/{mac}", perm(auth.PermGroupsManage, hf(s.handleUpdateNetworkDevice)))
 	protected.Handle("POST /api/discover/settings", perm(auth.PermSettingsManage, hf(s.handleDiscoverSettings)))
 	protected.Handle("GET /discover", discoverPageHandler())
+	// Network surveys: reading them is open (secrets are never shown);
+	// defining or running one sends probes from endpoints, so it is an
+	// endpoint action, gated like a deployment (action_routes.go).
+	protected.HandleFunc("GET /api/discover/surveys", s.handleListNetSurveys)
+	protected.Handle("POST /api/discover/surveys", perm(auth.PermDeployManage, hf(s.handleSaveNetSurvey)))
+	protected.Handle("PUT /api/discover/surveys/{id}", perm(auth.PermDeployManage, hf(s.handleSaveNetSurvey)))
+	protected.Handle("DELETE /api/discover/surveys/{id}", perm(auth.PermDeployManage, hf(s.handleDeleteNetSurvey)))
+	protected.Handle("POST /api/discover/surveys/{id}/run", perm(auth.PermDeployManage, hf(s.handleRunNetSurvey)))
 
 	protected.Handle("GET /api/connect/exports", perm(auth.PermSettingsManage, hf(s.handleListExports)))
 	protected.Handle("POST /api/connect/exports", perm(auth.PermSettingsManage, hf(s.handleUpsertExport)))

@@ -258,6 +258,34 @@ var typeDocs = map[string]typeDoc{
 			"SourceVersion": "Source and SourceVersion are the source package a Linux package was built from (dpkg's source:Package and source:Version, apk's origin), when it differs from Name or Version or not. Security advisories for Debian, Ubuntu and Alpine are filed by source package: libssl3t64's are openssl's. Empty from older agents and other platforms; the vulnerability scan then uses Name and Version.",
 		},
 	},
+	"github.com/mustra-dev/mustra/internal/proto.NetSurveyDevice": {
+		Fields: map[string]string{
+			"BACnetInstance": "BACnetInstance is the device object's instance number; -1 or absent when there is none.",
+			"DeviceRole":     "Industrial identity: what the device says it is.\n\nProfinet: io-device, io-controller…",
+			"DeviceType":     "Industrial identity: what the device says it is.\n\nas the protocol names it",
+			"DeviceTypeCode": "Industrial identity: what the device says it is.",
+			"ObjectID":       "SNMP system group.",
+			"PrinterReasons": "Printers (Printer-MIB, IPP).",
+			"PrinterState":   "Printers (Printer-MIB, IPP).",
+			"ProductCode":    "Industrial identity: what the device says it is.",
+			"Services":       "Services is sysServices: bit 1 (2) a bridge/switch, bit 2 (4) a router, bit 6 (64) an application host. 0 when not reported.",
+			"Supplies":       "Printers (Printer-MIB, IPP).",
+			"UptimeSeconds":  "SNMP system group.",
+			"VendorID":       "Industrial identity: what the device says it is.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/proto.NetSurveyInterface": {
+		Doc: "NetSurveyInterface is one ifTable row.",
+		Fields: map[string]string{
+			"Status": "up | down | testing | unknown …",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/proto.NetSurveySupply": {
+		Doc: "NetSurveySupply is one printer supply (toner, drum, waste…).",
+		Fields: map[string]string{
+			"Percent": "Percent is 0-100, or -1 when the device does not say how much is left (Printer-MIB \"unknown\" or \"some remaining\").",
+		},
+	},
 	"github.com/mustra-dev/mustra/internal/proto.PackageFileRef": {
 		Doc: "PackageFileRef is one payload the endpoint should fetch before running a package's command.\n\nThe URL carries a per-dispatch token rather than the file being on an open path: these are installers, often licensed. SHA256 is checked after download, because a file that silently truncated is worse than one that failed to arrive — the command would run against it anyway.",
 	},
@@ -1018,15 +1046,24 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/server.discoveredHost": {
 		Fields: map[string]string{
-			"Absent":    "From the server's memory (network_devices).\n\nin no endpoint's table now",
-			"AgentID":   "set when managed",
-			"FirstSeen": "From the server's memory (network_devices).",
-			"Hostname":  "set when managed",
-			"Ignored":   "From the server's memory (network_devices).",
-			"Label":     "From the server's memory (network_devices).",
-			"Name":      "From the server's memory (network_devices).",
-			"New":       "From the server's memory (network_devices).\n\nfirst seen in the last day",
-			"SeenBy":    "hostnames of agents that know it",
+			"Absent":     "From the server's memory (network_devices).\n\nin no endpoint's table now",
+			"AgentID":    "set when managed",
+			"DeviceType": "From network surveys (netsurvey_classify.go): what the device said it is, and the kind of device that makes it.",
+			"FirstSeen":  "From the server's memory (network_devices).",
+			"Hostname":   "set when managed",
+			"Ignored":    "From the server's memory (network_devices).",
+			"Label":      "From the server's memory (network_devices).",
+			"Name":       "From the server's memory (network_devices).",
+			"New":        "From the server's memory (network_devices).\n\nfirst seen in the last day",
+			"SeenBy":     "hostnames of agents that know it",
+			"Survey":     "From network surveys (netsurvey_classify.go): what the device said it is, and the kind of device that makes it.",
+			"Surveyed":   "Surveyed marks a device only a survey found: no neighbour table lists it.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.discoveredSurvey": {
+		Doc: "discoveredSurvey is what surveys learned about a Discover device.",
+		Fields: map[string]string{
+			"SurveyedBy": "SurveyedBy is the hostname of the endpoint whose survey last saw it.",
 		},
 	},
 	"github.com/mustra-dev/mustra/internal/server.emailFunction": {
@@ -1446,6 +1483,13 @@ var typeDocs = map[string]typeDoc{
 	"github.com/mustra-dev/mustra/internal/server.listManagedCertsResponse": {
 		Doc: "listManagedCertsResponse is what GET /api/certificates/managed answers.",
 	},
+	"github.com/mustra-dev/mustra/internal/server.listNetSurveysResponse": {
+		Doc: "listNetSurveysResponse is what GET /api/discover/surveys answers.",
+		Fields: map[string]string{
+			"Runs":             "Runs are the 50 newest runs across every survey.",
+			"SecretsAvailable": "SecretsAvailable is false when the server has no credential encryption key, so SNMP secrets cannot be stored.",
+		},
+	},
 	"github.com/mustra-dev/mustra/internal/server.listNotificationsResponse": {
 		Doc: "listNotificationsResponse is what GET /api/notifications answers.",
 	},
@@ -1724,6 +1768,41 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/server.myAccessResponse": {
 		Doc: "myAccessResponse is what GET /api/access/me answers. endpoints and hostnames are there only when the caller's reach is limited.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.netSurveyRequest": {
+		Doc: "netSurveyRequest is the body of POST /api/discover/surveys and PUT /api/discover/surveys/{id}.",
+		Fields: map[string]string{
+			"AgentIDs":         "AgentIDs are the endpoints that survey, each from its own networks.",
+			"AllowOffLink":     "Subnets are IPv4 CIDRs, each no larger than /22, and each a network every surveying endpoint is directly attached to unless AllowOffLink is set.",
+			"BudgetSeconds":    "TimeoutMillis (200-10000, default 1500) is one probe's wait for an answer; BudgetSeconds (10-3600, default 900) ends the whole run.",
+			"Concurrency":      "PacketsPerSecond (1-200, default 20) caps every probe the endpoint sends; Concurrency (1-32, default 8) caps hosts probed at once.",
+			"Enabled":          "Enabled is false by default: a disabled survey never sends a packet, on schedule or on request.",
+			"IntervalHours":    "IntervalHours repeats the survey; 0 runs it only when asked.",
+			"PacketsPerSecond": "PacketsPerSecond (1-200, default 20) caps every probe the endpoint sends; Concurrency (1-32, default 8) caps hosts probed at once.",
+			"Protocols":        "Protocols: snmp, ipp, modbus, bacnet, enip, profinet.",
+			"Subnets":          "Subnets are IPv4 CIDRs, each no larger than /22, and each a network every surveying endpoint is directly attached to unless AllowOffLink is set.",
+			"TimeoutMillis":    "TimeoutMillis (200-10000, default 1500) is one probe's wait for an answer; BudgetSeconds (10-3600, default 900) ends the whole run.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.netSurveyRunView": {
+		Doc: "netSurveyRunView is one endpoint's run, with names for display.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.netSurveySNMPRequest": {
+		Doc: "netSurveySNMPRequest is the SNMP part of a survey. A secret field left out keeps the stored value; an empty string clears it.",
+		Fields: map[string]string{
+			"SecurityLevel": "User, SecurityLevel (noAuthNoPriv, authNoPriv, authPriv), and the protocols are SNMPv3's.",
+			"User":          "User, SecurityLevel (noAuthNoPriv, authNoPriv, authPriv), and the protocols are SNMPv3's.",
+			"Version":       "Version is \"2c\" or \"3\".",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.netSurveySNMPView": {
+		Doc: "netSurveySNMPView is a survey's SNMP settings as the API shows them: which secrets are set, never what they are.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.netSurveyView": {
+		Doc: "netSurveyView is one survey in GET /api/discover/surveys.",
+		Fields: map[string]string{
+			"NextRunAt": "NextRunAt is when the schedule runs it next; absent when it only runs on request or is disabled.",
+		},
 	},
 	"github.com/mustra-dev/mustra/internal/server.notificationCountResponse": {
 		Doc: "notificationCountResponse is what GET /api/notifications/count answers.",
@@ -2099,6 +2178,9 @@ var typeDocs = map[string]typeDoc{
 	"github.com/mustra-dev/mustra/internal/server.runHuntResponse": {
 		Doc: "runHuntResponse is what POST /api/hunt/run answers.",
 	},
+	"github.com/mustra-dev/mustra/internal/server.runNetSurveyResponse": {
+		Doc: "runNetSurveyResponse answers POST /api/discover/surveys/{id}/run: the runs it started, one per endpoint, as each endpoint first answered.",
+	},
 	"github.com/mustra-dev/mustra/internal/server.runPlaybookRequest": {
 		Doc: "runPlaybookRequest is the optional body of POST /api/playbooks/{id}/run.",
 		Fields: map[string]string{
@@ -2252,6 +2334,9 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/server.saveMaintenanceWindowResponse": {
 		Doc: "saveMaintenanceWindowResponse is what POST /api/maintenance-windows and PUT /api/maintenance-windows/{id} answer.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.saveNetSurveyResponse": {
+		Doc: "saveNetSurveyResponse answers a survey's create or update.",
 	},
 	"github.com/mustra-dev/mustra/internal/server.savePatchPolicyResponse": {
 		Doc: "savePatchPolicyResponse is what POST /api/patch-policies and PUT /api/patch-policies/{id} answer.",

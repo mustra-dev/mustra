@@ -26,6 +26,29 @@
   .disc-settings { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: end; margin: 4px 0 12px; font-size: 12.5px; }
   .disc-settings input[type=text] { min-width: 220px; }
   tr.ignored td { opacity: .55; }
+  .dev-type { font-size: var(--fs-meta); padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--text); white-space: nowrap; }
+  .pill.run-ok { background: var(--ok-bg); color: var(--ok); }
+  .pill.run-bad { background: color-mix(in srgb, var(--viz-danger, #e5484d) 20%, transparent); color: var(--bad); }
+  .pill.run-warn { background: color-mix(in srgb, var(--viz-warning) 22%, transparent); color: var(--warn); }
+  .pill.run-live { background: color-mix(in srgb, var(--accent, #3b82f6) 22%, transparent); color: var(--accent, #3b82f6); }
+  .survey-form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; font-size: 12.5px; }
+  .survey-form label { display: flex; flex-direction: column; gap: 4px; color: var(--text-muted); }
+  .survey-form .wide { grid-column: 1 / -1; }
+  .survey-form [hidden] { display: none; }
+  .survey-form textarea { min-height: 60px; font-family: inherit; }
+  .survey-form select[multiple] { min-height: 110px; }
+  .survey-form fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; }
+  .survey-form fieldset legend { color: var(--text-muted); margin-bottom: 4px; }
+  .survey-form .check { flex-direction: row; align-items: center; gap: 6px; color: var(--text); }
+  .survey-form .note { color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+  .survey-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+  .survey-error { color: var(--bad); font-size: 12.5px; min-height: 1em; }
+  .dev-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: 13px; margin: 0 0 12px; }
+  .dev-facts dt { color: var(--text-muted); }
+  .dev-facts dd { margin: 0; overflow-wrap: anywhere; }
+  .supply-bar { display: inline-block; width: 90px; height: 8px; border-radius: 4px; background: var(--surface-2); vertical-align: middle; margin-right: 6px; overflow: hidden; }
+  .supply-bar span { display: block; height: 100%; background: var(--accent, #3b82f6); }
+  @media (max-width: 640px) { .survey-form { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -61,12 +84,39 @@
           </label>
           <label class="u-fs-12 u-c-text-muted"><input type="checkbox" id="only-new"> only new (last 24 h)</label>
           <label class="u-fs-12 u-c-text-muted"><input type="checkbox" id="show-ignored"> show ignored and gone quiet</label>
+          <label class="u-fs-12 u-c-text-muted">type
+            <select id="type-filter" class="u-w-auto"><option value="">all types</option></select></label>
           <button class="secondary u-w-auto" id="refresh">Refresh</button>
         </div>
         <div class="table-scroll rows-10">
           <table class="table-compact">
-            <thead><tr><th>Device</th><th>Address</th><th>MAC</th><th>Vendor</th><th>Seen by</th><th>First seen</th><th>Last seen</th><th>Status</th><th></th></tr></thead>
-            <tbody id="disc-body"><tr><td class="empty" colspan="9">loading…</td></tr></tbody>
+            <thead><tr><th>Device</th><th>Address</th><th>MAC</th><th>Vendor</th><th>Type</th><th>Seen by</th><th>First seen</th><th>Last seen</th><th>Status</th><th></th></tr></thead>
+            <tbody id="disc-body"><tr><td class="empty" colspan="10">loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel" id="survey-panel">
+        <div class="panel-header"><h2>Network surveys</h2>
+          <button class="u-w-auto u-ml-auto" id="survey-new" hidden>New survey</button></div>
+        <p class="hint">
+          A survey asks chosen endpoints to identify the devices on the subnets they sit on, using read-only
+          requests only: SNMP GET, IPP printer attributes, Modbus device identification, BACnet Who-Is,
+          EtherNet/IP List Identity and Profinet DCP Identify. Nothing is written to any device. Surveys are
+          off until you create and enable one; each runs at the rate you set and stops at its time budget.
+          What answers shows up above with its model, firmware and type.
+        </p>
+        <div class="table-scroll">
+          <table class="table-compact">
+            <thead><tr><th>Survey</th><th>From</th><th>Subnets</th><th>Protocols</th><th>Schedule</th><th>Last run</th><th></th></tr></thead>
+            <tbody id="survey-body"><tr><td class="empty" colspan="7">loading…</td></tr></tbody>
+          </table>
+        </div>
+        <h3 class="u-m-16-0-8 u-fs-13">Recent runs</h3>
+        <div class="table-scroll rows-10">
+          <table class="table-compact">
+            <thead><tr><th>Survey</th><th>Endpoint</th><th>Status</th><th>Started</th><th>Hosts</th><th>Probes</th><th>Devices</th><th>Notes</th></tr></thead>
+            <tbody id="run-body"><tr><td class="empty" colspan="8">loading…</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -75,17 +125,32 @@
 
 <script src="/static/app.js"></script>
 <script>
-let hosts = [], meta = {}, canLabel = false, canSettings = false;
+let hosts = [], meta = {}, canLabel = false, canSettings = false, canSurvey = false;
+let surveys = { surveys: [], runs: [], protocols: [], secrets_available: false }, agentList = null;
+
+const TYPE_LABELS = {
+  "printer": "Printer", "switch": "Switch", "router": "Router", "firewall": "Firewall", "access-point": "Access point",
+  "plc": "PLC", "hmi": "HMI", "drive": "Drive", "io-device": "I/O device", "building-controller": "Building controller",
+  "ups": "UPS", "nas": "NAS", "camera": "Camera", "host": "Host", "industrial": "Industrial device", "other": "Other",
+};
+const PROTOCOL_LABELS = { snmp: "SNMP", ipp: "IPP", modbus: "Modbus", bacnet: "BACnet", enip: "EtherNet/IP", profinet: "Profinet" };
+const RUN_LABELS = {
+  dispatched: ["sending", "run-live"], running: ["running", "run-live"], succeeded: ["finished", "run-ok"],
+  timed_out: ["timed out", "run-warn"], cancelled: ["cancelled", "run-warn"], failed: ["failed", "run-bad"],
+  refused: ["refused", "run-bad"], no_response: ["no response", "run-warn"], unsupported: ["agent too old", "run-warn"],
+};
+const typeLabel = t => TYPE_LABELS[t] || t;
 
 document.addEventListener("mustra:user", (e) => {
   const perms = (e.detail && e.detail.permissions) || [], admin = !!(e.detail && e.detail.is_admin);
   canLabel = admin || perms.includes("groups.manage");
   canSettings = admin || perms.includes("settings.manage");
+  canSurvey = admin || perms.includes("deploy.manage");
   renderPageHead("discover-page-head", "/discover", { title: "Discover" });
   load();
 });
 document.getElementById("refresh").addEventListener("click", load);
-["only-unmanaged", "only-new", "show-ignored"].forEach(id => document.getElementById(id).addEventListener("change", render));
+["only-unmanaged", "only-new", "show-ignored", "type-filter"].forEach(id => document.getElementById(id).addEventListener("change", render));
 document.getElementById("disc-save").addEventListener("click", async () => {
   const st = document.getElementById("disc-save-status"); st.textContent = "saving…";
   const r = await fetch("/api/discover/settings", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -99,7 +164,8 @@ async function updateDevice(mac, body) {
 }
 document.getElementById("disc-body").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-act]"); if (!b) return;
-  const h = hosts.find(x => x.mac === b.dataset.mac); if (!h) return;
+  const h = hosts.find(x => b.dataset.mac ? x.mac === b.dataset.mac : x.ip === b.dataset.ip); if (!h) return;
+  if (b.dataset.act === "details") { showDevice(h); return; }
   if (b.dataset.act === "label") {
     const v = prompt(`Label for ${h.name || h.ip || h.mac}:`, h.label || ""); if (v === null) return;
     updateDevice(h.mac, { label: v });
@@ -113,13 +179,22 @@ async function load() {
   meta = await resp.json();
   hosts = meta.hosts || [];
   render();
+  loadSurveys();
 }
 
 function render() {
   const onlyUnmanaged = document.getElementById("only-unmanaged").checked;
   const onlyNew = document.getElementById("only-new").checked;
   const showIgnored = document.getElementById("show-ignored").checked;
-  const shown = hosts.filter(h => (!onlyUnmanaged || !h.managed) && (!onlyNew || h.new) && (showIgnored || (!h.ignored && !h.absent)));
+  const typeSel = document.getElementById("type-filter");
+  const wantType = typeSel.value;
+  const types = [...new Set(hosts.map(h => h.device_type).filter(Boolean))].sort((a, b) => typeLabel(a).localeCompare(typeLabel(b)));
+  typeSel.innerHTML = `<option value="">all types</option>` +
+    types.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(typeLabel(t))}</option>`).join("") +
+    (hosts.some(h => !h.device_type) ? `<option value="-">not identified</option>` : "");
+  typeSel.value = [...typeSel.options].some(o => o.value === wantType) ? wantType : "";
+  const byType = h => !typeSel.value || (typeSel.value === "-" ? !h.device_type : h.device_type === typeSel.value);
+  const shown = hosts.filter(h => (!onlyUnmanaged || !h.managed) && (!onlyNew || h.new) && (showIgnored || (!h.ignored && !h.absent)) && byType(h));
 
   document.getElementById("disc-tiles").innerHTML = [
     { label: "Devices seen", value: meta.total || 0 },
@@ -141,11 +216,12 @@ function render() {
 
   const body = document.getElementById("disc-body");
   body.innerHTML = shown.length === 0
-    ? `<tr><td class="empty" colspan="9">${hosts.length === 0
+    ? `<tr><td class="empty" colspan="10">${hosts.length === 0
         ? "no neighbour data yet — endpoints report it on their sensor interval"
         : "nothing matches these filters"}</td></tr>`
     : shown.map(h => {
-      const title = h.label || h.name || (h.managed ? h.hostname : "") || "—";
+      const sv = h.survey;
+      const title = h.label || h.name || (h.managed ? h.hostname : "") || (sv && sv.name) || "—";
       const sub = h.label && h.name ? h.name : "";
       const status = h.managed
         ? `<a href="/endpoint/${escapeHtml(h.agent_id)}"><span class="pill managed">${escapeHtml(h.hostname || "managed")}</span></a>`
@@ -155,20 +231,218 @@ function render() {
         <td><div class="dev-name">${escapeHtml(title)}</div>${sub ? `<div class="dev-sub">${escapeHtml(sub)}</div>` : ""}</td>
         <td class="mono" data-sort="${escapeHtml(h.ip)}">${escapeHtml(h.ip)}</td>
         <td class="mono">${escapeHtml(h.mac)}</td>
-        <td>${escapeHtml(h.vendor || "—")}</td>
+        <td>${escapeHtml(h.vendor || "—")}${sv && sv.model ? `<div class="dev-sub">${escapeHtml(sv.model)}</div>` : ""}</td>
+        <td data-sort="${escapeHtml(h.device_type || "")}">${h.device_type ? `<span class="dev-type">${escapeHtml(typeLabel(h.device_type))}</span>` : "—"}</td>
         <td class="seen" data-sort="${escapeHtml(h.seen_count)}" title="${escapeHtml((h.seen_by || []).join(", "))}">
           ${escapeHtml(h.seen_count)} · ${escapeHtml((h.seen_by || []).slice(0, 2).join(", "))}${(h.seen_by || []).length > 2 ? ` +${escapeHtml(h.seen_by.length - 2)}` : ""}</td>
         <td data-sort="${escapeHtml(h.first_seen || "")}">${h.first_seen ? fmtAgo(h.first_seen) : "—"}</td>
         <td data-sort="${escapeHtml(h.last_seen || "")}">${fmtAgo(h.last_seen)}</td>
-        <td>${status}${h.new ? ' <span class="pill new">new</span>' : ""}${h.ignored ? ' <span class="pill quiet">ignored</span>' : ""}</td>
-        <td>${canLabel && h.first_seen ? `<div class="row-actions">
+        <td>${status}${h.new ? ' <span class="pill new">new</span>' : ""}${h.ignored ? ' <span class="pill quiet">ignored</span>' : ""}${h.surveyed ? ' <span class="pill quiet" title="Found by a survey; no endpoint lists it in its neighbour table">surveyed</span>' : ""}</td>
+        <td><div class="row-actions">${sv ? `<button class="secondary" data-act="details" data-mac="${escapeHtml(h.mac)}" data-ip="${escapeHtml(h.ip)}">Details</button>` : ""}${canLabel && h.first_seen ? `
           <button class="secondary" data-act="label" data-mac="${escapeHtml(h.mac)}">Label</button>
-          <button class="secondary" data-act="ignore" data-mac="${escapeHtml(h.mac)}">${h.ignored ? "Unignore" : "Ignore"}</button></div>` : ""}</td>
+          <button class="secondary" data-act="ignore" data-mac="${escapeHtml(h.mac)}">${h.ignored ? "Unignore" : "Ignore"}</button>` : ""}</div></td>
       </tr>`;
     }).join("");
 
-  const dt = initDataTable(body.closest("table"), { storageKey: "discover-hosts-v2" });
+  const dt = initDataTable(body.closest("table"), { storageKey: "discover-hosts-v3" });
   if (dt) dt.refresh();
+}
+// ---- device details ---------------------------------------------------------
+
+function showDevice(h) {
+  const d = h.survey || {};
+  const row = (k, v) => v === undefined || v === null || v === "" ? "" : `<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(v)}</dd>`;
+  const up = d.uptime_seconds || 0;
+  const uptime = !up ? "" : up >= 86400 ? `${Math.floor(up / 86400)} d ${Math.floor(up % 86400 / 3600)} h`
+    : up >= 3600 ? `${Math.floor(up / 3600)} h ${Math.floor(up % 3600 / 60)} min` : `${Math.max(1, Math.floor(up / 60))} min`;
+  const facts = [
+    row("Type", h.device_type ? typeLabel(h.device_type) : ""),
+    row("Address", h.ip), row("MAC", h.mac || d.mac),
+    row("Vendor", d.vendor || h.vendor), row("Model", d.model), row("Firmware", d.firmware), row("Serial", d.serial),
+    row("Name", d.name), row("Description", d.description), row("Location", d.location),
+    row("Answered", (d.protocols || []).map(p => PROTOCOL_LABELS[p] || p).join(", ")),
+    row("Says it is", [d.device_type, d.device_role].filter(Boolean).join(", ")),
+    row("BACnet instance", d.bacnet_instance), row("Vendor id", d.vendor_id), row("Product code", d.product_code),
+    row("SNMP object id", d.object_id), row("Up for", uptime),
+    row("Printer state", [d.printer_state, (d.printer_reasons || []).join(", ")].filter(Boolean).join(" · ")),
+    row("Surveyed by", d.surveyed_by), row("First surveyed", d.first_seen ? fmtTime(d.first_seen) : ""),
+    row("Last surveyed", d.last_seen ? fmtTime(d.last_seen) : ""),
+  ].join("");
+  const supplies = (d.supplies || []).length ? `<h4 class="u-m-12-0-6 u-fs-13">Supplies</h4><dl class="dev-facts">${d.supplies.map(x =>
+    `<dt>${escapeHtml(x.name || "supply")}</dt><dd>${x.percent >= 0
+      ? `<span class="supply-bar"><span ${sx("width:" + Math.max(0, Math.min(100, x.percent)) + "%")}></span></span>${escapeHtml(x.percent)}%`
+      : "level not reported"}</dd>`).join("")}</dl>` : "";
+  const ifs = (d.interfaces || []).length ? `<h4 class="u-m-12-0-6 u-fs-13">Interfaces</h4><div class="table-scroll u-maxh-260"><table class="table-compact">
+    <thead><tr><th>Name</th><th>MAC</th><th>State</th></tr></thead><tbody>${d.interfaces.map(i =>
+      `<tr><td>${escapeHtml(i.name)}</td><td class="mono">${escapeHtml(i.mac || "—")}</td><td>${escapeHtml(i.status || "—")}</td></tr>`).join("")}</tbody></table></div>` : "";
+  openModal(h.label || h.name || d.name || h.ip || h.mac, `<dl class="dev-facts">${facts}</dl>${supplies}${ifs}`, wrap => applySx(wrap));
+}
+
+// ---- surveys ------------------------------------------------------------------
+
+async function loadSurveys() {
+  const r = await fetch("/api/discover/surveys");
+  if (!r.ok) {
+    document.getElementById("survey-body").innerHTML = `<tr><td class="empty" colspan="7">could not load surveys: ${escapeHtml(r.status)}</td></tr>`;
+    return;
+  }
+  surveys = await r.json();
+  renderSurveys();
+}
+
+function runPill(status) {
+  const [label, cls] = RUN_LABELS[status] || [status, "quiet"];
+  return `<span class="pill ${escapeHtml(cls)}">${escapeHtml(label)}</span>`;
+}
+
+function renderSurveys() {
+  document.getElementById("survey-new").hidden = !canSurvey;
+  const lastRun = {};
+  for (const r of surveys.runs) if (!lastRun[r.survey_id]) lastRun[r.survey_id] = r;
+  const body = document.getElementById("survey-body");
+  body.innerHTML = surveys.surveys.length === 0
+    ? `<tr><td class="empty" colspan="7">no surveys yet${canSurvey ? " — create one to identify printers, switches and controllers on a subnet" : ""}</td></tr>`
+    : surveys.surveys.map(sv => {
+      const lr = lastRun[sv.id];
+      const schedule = !sv.enabled ? '<span class="pill quiet">disabled</span>'
+        : sv.interval_hours ? `every ${escapeHtml(sv.interval_hours)} h` : "on request";
+      return `<tr>
+        <td><div class="dev-name">${escapeHtml(sv.name)}</div><div class="dev-sub">${escapeHtml(sv.packets_per_second)} probes/s · ${escapeHtml(sv.concurrency)} at once</div></td>
+        <td>${escapeHtml(sv.agents.map(a => a.hostname).join(", "))}</td>
+        <td class="mono">${escapeHtml(sv.subnets.join(", "))}${sv.allow_off_link ? ' <span class="pill run-warn">off-link allowed</span>' : ""}</td>
+        <td>${escapeHtml(sv.protocols.map(p => PROTOCOL_LABELS[p] || p).join(", "))}</td>
+        <td>${schedule}</td>
+        <td>${lr ? `${runPill(lr.status)} <span class="seen">${fmtAgo(lr.started_at)}</span>` : '<span class="seen">never</span>'}</td>
+        <td>${canSurvey ? `<div class="row-actions">
+          <button class="secondary" data-sact="run" data-id="${escapeHtml(sv.id)}" ${sv.enabled ? "" : "disabled title=\"Enable the survey to run it\""}>Run now</button>
+          <button class="secondary" data-sact="edit" data-id="${escapeHtml(sv.id)}">Edit</button>
+          <button class="secondary" data-sact="delete" data-id="${escapeHtml(sv.id)}">Delete</button></div>` : ""}</td>
+      </tr>`;
+    }).join("");
+
+  const runs = document.getElementById("run-body");
+  runs.innerHTML = surveys.runs.length === 0
+    ? `<tr><td class="empty" colspan="8">no runs yet</td></tr>`
+    : surveys.runs.map(r => `<tr>
+        <td>${escapeHtml(r.survey_name || r.survey_id)}</td>
+        <td>${escapeHtml(r.hostname)}</td>
+        <td>${runPill(r.status)}</td>
+        <td data-sort="${escapeHtml(r.started_at)}">${fmtAgo(r.started_at)}</td>
+        <td>${escapeHtml(r.hosts_planned)}</td><td>${escapeHtml(r.probes)}</td><td>${escapeHtml(r.devices_found)}</td>
+        <td class="seen">${escapeHtml(r.detail || "")}</td></tr>`).join("");
+  // Runs in flight: look again shortly.
+  clearTimeout(renderSurveys.timer);
+  if (surveys.runs.some(r => r.status === "dispatched" || r.status === "running")) {
+    renderSurveys.timer = setTimeout(load, 15000);
+  }
+}
+
+document.getElementById("survey-new").addEventListener("click", () => editSurvey(null));
+document.getElementById("survey-body").addEventListener("click", async (e) => {
+  const b = e.target.closest("button[data-sact]"); if (!b || b.disabled) return;
+  const sv = surveys.surveys.find(x => x.id === b.dataset.id); if (!sv) return;
+  if (b.dataset.sact === "edit") { editSurvey(sv); return; }
+  if (b.dataset.sact === "delete") {
+    if (!confirm(`Delete the survey "${sv.name}"? Devices it found stay in the list.`)) return;
+    const r = await fetch(`/api/discover/surveys/${encodeURIComponent(sv.id)}`, { method: "DELETE" });
+    if (!r.ok) { alert("failed: " + await r.text()); return; }
+    loadSurveys();
+    return;
+  }
+  if (b.dataset.sact === "run") {
+    b.disabled = true; b.textContent = "Starting…";
+    const r = await fetch(`/api/discover/surveys/${encodeURIComponent(sv.id)}/run`, { method: "POST" });
+    if (r.status === 202) alert("An approval policy covers these endpoints: the run waits for approval.");
+    else if (!r.ok) alert("failed: " + await r.text());
+    loadSurveys();
+  }
+});
+
+async function agentsForPicker() {
+  if (agentList) return agentList;
+  const r = await fetch("/api/agents");
+  agentList = r.ok ? ((await r.json()).agents || []).filter(a => a.managed !== false) : [];
+  agentList.sort((a, b) => (a.hostname || "").localeCompare(b.hostname || ""));
+  return agentList;
+}
+
+async function editSurvey(sv) {
+  const agents = await agentsForPicker();
+  const snmp = (sv && sv.snmp) || {};
+  const chosen = new Set(sv ? sv.agent_ids : []);
+  const protos = new Set(sv ? sv.protocols : ["snmp", "ipp"]);
+  const opt = (v, cur, label) => `<option value="${escapeHtml(v)}" ${v === cur ? "selected" : ""}>${escapeHtml(label || v)}</option>`;
+  const secretHint = set => set ? "set — leave empty to keep it" : "";
+  const body = `<form class="survey-form" id="survey-form" novalidate>
+    <label class="wide">Name<input type="text" name="name" maxlength="80" required value="${escapeHtml(sv ? sv.name : "")}"></label>
+    <label class="wide">Survey from these endpoints
+      <select name="agent_ids" multiple required>${agents.map(a =>
+        `<option value="${escapeHtml(a.agent_id)}" ${chosen.has(a.agent_id) ? "selected" : ""}>${escapeHtml(a.hostname)}${a.online ? "" : " (offline)"} · ${escapeHtml((a.ips || []).slice(0, 2).join(", "))}</option>`).join("")}</select></label>
+    <label class="wide">Subnets, one per line (IPv4, /22 or smaller)
+      <textarea name="subnets" required placeholder="192.168.10.0/24">${escapeHtml(sv ? sv.subnets.join("\n") : "")}</textarea></label>
+    <label class="wide check"><input type="checkbox" name="allow_off_link" ${sv && sv.allow_off_link ? "checked" : ""}>
+      Allow subnets the endpoints are not directly attached to (probes then cross a router)</label>
+    <fieldset class="wide"><legend>Protocols</legend>${surveys.protocols.map(p =>
+      `<label class="check"><input type="checkbox" name="protocols" value="${escapeHtml(p)}" ${protos.has(p) ? "checked" : ""}>${escapeHtml(PROTOCOL_LABELS[p] || p)}</label>`).join("")}</fieldset>
+    <label>Repeat every (hours, 0 = only when run)<input type="number" name="interval_hours" min="0" max="720" value="${escapeHtml(sv ? sv.interval_hours : 0)}"></label>
+    <label>Probes per second (1–200)<input type="number" name="packets_per_second" min="1" max="200" value="${escapeHtml(sv ? sv.packets_per_second : 20)}"></label>
+    <label>Hosts at once (1–32)<input type="number" name="concurrency" min="1" max="32" value="${escapeHtml(sv ? sv.concurrency : 8)}"></label>
+    <label>Wait per probe (ms, 200–10000)<input type="number" name="timeout_ms" min="200" max="10000" value="${escapeHtml(sv ? sv.timeout_ms : 1500)}"></label>
+    <label>Stop the run after (seconds, 10–3600)<input type="number" name="budget_seconds" min="10" max="3600" value="${escapeHtml(sv ? sv.budget_seconds : 900)}"></label>
+    <label>SNMP version<select name="snmp_version">${opt("", snmp.version || "", "none")}${opt("2c", snmp.version || "", "v2c")}${opt("3", snmp.version || "", "v3")}</select></label>
+    <label data-snmp="2c">Community<input type="password" name="community" autocomplete="off" placeholder="${escapeHtml(secretHint(snmp.community_set))}"></label>
+    <label data-snmp="3">User<input type="text" name="user" autocomplete="off" value="${escapeHtml(snmp.user || "")}"></label>
+    <label data-snmp="3">Security level<select name="security_level">${["noAuthNoPriv", "authNoPriv", "authPriv"].map(l => opt(l, snmp.security_level || "authPriv")).join("")}</select></label>
+    <label data-snmp="3">Authentication<select name="auth_protocol">${["SHA", "SHA224", "SHA256", "SHA384", "SHA512", "MD5"].map(l => opt(l, snmp.auth_protocol || "SHA256")).join("")}</select></label>
+    <label data-snmp="3">Authentication passphrase<input type="password" name="auth_passphrase" autocomplete="off" placeholder="${escapeHtml(secretHint(snmp.auth_passphrase_set))}"></label>
+    <label data-snmp="3">Privacy<select name="priv_protocol">${["AES", "AES192", "AES256", "AES192C", "AES256C", "DES"].map(l => opt(l, snmp.priv_protocol || "AES")).join("")}</select></label>
+    <label data-snmp="3">Privacy passphrase<input type="password" name="priv_passphrase" autocomplete="off" placeholder="${escapeHtml(secretHint(snmp.priv_passphrase_set))}"></label>
+    <p class="wide note">${surveys.secrets_available
+      ? "SNMP secrets are stored encrypted and are never shown again. Use a read-only community or user: surveys only read."
+      : "This server has no credential encryption key, so SNMP secrets cannot be saved; SNMP is unavailable until one is configured."}</p>
+    <label class="wide check"><input type="checkbox" name="enabled" ${sv && sv.enabled ? "checked" : ""}>
+      Enabled — a disabled survey sends nothing, on schedule or when asked</label>
+    <div class="wide survey-error" id="survey-error" role="alert"></div>
+    <div class="wide survey-actions"><button type="submit" class="u-w-auto">${sv ? "Save" : "Create survey"}</button></div>
+  </form>`;
+  openModal(sv ? `Edit survey: ${sv.name}` : "New network survey", body, wrap => {
+    const f = wrap.querySelector("#survey-form");
+    // Through .elements: a form's own properties (name, …) shadow its fields.
+    const F = f.elements;
+    const syncSNMP = () => {
+      const v = F.snmp_version.value;
+      f.querySelectorAll("[data-snmp]").forEach(el => { el.hidden = el.dataset.snmp !== v; });
+    };
+    F.snmp_version.addEventListener("change", syncSNMP);
+    syncSNMP();
+    f.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const num = n => parseInt(F[n].value, 10) || 0;
+      const req = {
+        name: F.name.value.trim(), enabled: F.enabled.checked,
+        agent_ids: [...F.agent_ids.selectedOptions].map(o => o.value),
+        subnets: F.subnets.value.split(/[\s,]+/).filter(Boolean),
+        allow_off_link: F.allow_off_link.checked,
+        protocols: [...f.querySelectorAll('input[name="protocols"]:checked')].map(i => i.value),
+        interval_hours: num("interval_hours"), packets_per_second: num("packets_per_second"), concurrency: num("concurrency"),
+        timeout_ms: num("timeout_ms"), budget_seconds: num("budget_seconds"),
+      };
+      const v = F.snmp_version.value;
+      if (v) {
+        // A secret left empty keeps what is stored; only typed ones are sent.
+        const secret = n => F[n].value ? F[n].value : undefined;
+        req.snmp = v === "2c" ? { version: v, community: secret("community") }
+          : { version: v, user: F.user.value.trim(), security_level: F.security_level.value, auth_protocol: F.auth_protocol.value,
+              auth_passphrase: secret("auth_passphrase"), priv_protocol: F.priv_protocol.value, priv_passphrase: secret("priv_passphrase") };
+      }
+      const err = wrap.querySelector("#survey-error"); err.textContent = "";
+      const r = await fetch(sv ? `/api/discover/surveys/${encodeURIComponent(sv.id)}` : "/api/discover/surveys", {
+        method: sv ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(req) });
+      if (!r.ok) { err.textContent = (await r.text()).trim() || `failed (${r.status})`; return; }
+      wrap.remove();
+      loadSurveys();
+    });
+  });
 }
 </script>
 </body>

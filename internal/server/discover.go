@@ -47,6 +47,13 @@ type discoveredHost struct {
 	FirstSeen *time.Time `json:"first_seen,omitempty"`
 	New       bool       `json:"new,omitempty"`    // first seen in the last day
 	Absent    bool       `json:"absent,omitempty"` // in no endpoint's table now
+	// From network surveys (netsurvey_classify.go): what the device said
+	// it is, and the kind of device that makes it.
+	DeviceType string            `json:"device_type,omitempty"`
+	Survey     *discoveredSurvey `json:"survey,omitempty"`
+	// Surveyed marks a device only a survey found: no neighbour table
+	// lists it.
+	Surveyed bool `json:"surveyed,omitempty"`
 }
 
 func (h *discoveredHost) applyMemory(d store.NetworkDevice) {
@@ -158,6 +165,7 @@ func (s *Server) handleDiscover(w http.ResponseWriter, r *http.Request) {
 		h.applyMemory(d)
 		out = append(out, h)
 	}
+	out = s.withSurveyDevices(r.Context(), out)
 	// Unmanaged first — that's the actionable half — then by how many
 	// endpoints have seen it, which is a decent proxy for how real it is.
 	sort.Slice(out, func(i, j int) bool {

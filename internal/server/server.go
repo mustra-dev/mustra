@@ -548,6 +548,7 @@ func Run(ctx context.Context, cfg Config) error {
 	s.trustKick = make(chan struct{}, 1)
 	go s.trustRootLoop(ctx)
 	go s.discoverLoop(ctx)
+	go s.netSurveyLoop(ctx)
 	go s.backupAlertLoop(ctx)
 	go s.backupSourceLoop(ctx)
 	go s.threatLoop(ctx)

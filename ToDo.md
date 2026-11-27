@@ -197,3 +197,15 @@ The first slice (#96) is macOS with user-approved enrollment, a per-device ident
 - [ ] Test against a real Mac and Apple's real APNs: the slice was tested with a stand-in Mac (signed requests built from the same libraries) and a local HTTP/2 stand-in for APNs only.
 - [ ] Use the Apple sandbox APNs for development push certificates (`UseDevelopmentAPNS`).
 - [ ] Rotate the MDM CA (issue identities from a new CA while the old one is still trusted).
+
+## Network surveys (Discover)
+
+- [ ] Cancel a running survey from the console. The agent already accepts `cancel_network_survey`; there is no route or button yet, so a run ends at its budget or when the survey's endpoint stops.
+- [ ] Profinet DCP on Windows and macOS. It needs a raw Ethernet socket (Npcap, BPF); those endpoints report Profinet as unsupported.
+- [ ] Test against real hardware: no real PLC, BACnet controller, Profinet device or managed switch has been surveyed yet, only simulators (net-snmp, pymodbus, bacpypes3, cpppo, ippeveprinter); the Profinet frame parser is tested only against a frame built from the specification.
+- [ ] BACnet `ReadProperty` (vendor name, model, firmware) of the devices that answered Who-Is; the first slice has instance and vendor ID only.
+- [ ] Label and ignore devices that only a survey found. They have no `network_devices` row, so the buttons are not offered, and they raise no new-device alert.
+- [ ] Larger vendor tables: ODVA (EtherNet/IP), ASHRAE (BACnet) and PI (Profinet) vendor IDs are named for a handful of vendors; the rest show as numbers.
+- [ ] A separate `discover` access module, so action groups and approval policies can treat surveys apart from deployments (they use `deploy` today).
+- [ ] Age out survey devices that stop answering; they stay with their last-seen time today.
+- [ ] Allow surveys in inventory-and-patching mode if operators ask for it; the mode refuses them now, like every command not on its list.
