@@ -634,6 +634,11 @@ func (a *Agent) handleCommand(ctx context.Context, data []byte, intervalChans ma
 		go a.collectAndPublishSensor(context.WithoutCancel(ctx), proto.SensorProcesses,
 			func(ctx context.Context) (any, error) { return collectProcesses(ctx) })
 		return proto.AgentCommandResult{OK: true, Output: out}
+	case "net_boot_once":
+		// OS provisioning's reimage: boot from the network once, then
+		// restart. The server has armed this machine's MAC and a second
+		// person has approved it; see netboot.go.
+		return a.runNetBootOnce(ctx, cmd.NetBoot)
 	case "update_agent":
 		// The console asking this endpoint to update itself.
 		//

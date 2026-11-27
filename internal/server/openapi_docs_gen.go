@@ -112,6 +112,7 @@ var typeDocs = map[string]typeDoc{
 		Doc: "AgentCommandResult is the reply to an AgentCommand.",
 		Fields: map[string]string{
 			"Enforced": "Enforced is the per-setting outcome of \"run_enforce\".",
+			"NetBoot":  "NetBoot is the outcome of \"net_boot_once\".",
 		},
 	},
 	"github.com/mustra-dev/mustra/internal/proto.AgentSettings": {
@@ -256,6 +257,15 @@ var typeDocs = map[string]typeDoc{
 			"LastUsed":      "LastUsed is RFC 3339, from the endpoint's own record of when the program last ran (Windows Prefetch, Spotlight's kMDItemLastUsedDate). Empty where the platform keeps no such record; the server then relies on process starts alone.",
 			"Source":        "Source and SourceVersion are the source package a Linux package was built from (dpkg's source:Package and source:Version, apk's origin), when it differs from Name or Version or not. Security advisories for Debian, Ubuntu and Alpine are filed by source package: libssl3t64's are openssl's. Empty from older agents and other platforms; the vulnerability scan then uses Name and Version.",
 			"SourceVersion": "Source and SourceVersion are the source package a Linux package was built from (dpkg's source:Package and source:Version, apk's origin), when it differs from Name or Version or not. Security advisories for Debian, Ubuntu and Alpine are filed by source package: libssl3t64's are openssl's. Empty from older agents and other platforms; the vulnerability scan then uses Name and Version.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/proto.NetBootResult": {
+		Doc: "NetBootResult says how the endpoint was set to boot from the network.",
+		Fields: map[string]string{
+			"Entry":        "Entry is the firmware boot entry chosen, e.g. \"Boot0003 UEFI PXEv4\".",
+			"Instructions": "Instructions, for \"manual\", say what to do at the console.",
+			"Method":       "Method is \"efibootmgr\" (Linux UEFI BootNext), \"bcdedit\" (Windows firmware boot sequence), or \"manual\" when neither applies.",
+			"Restarting":   "Restarting is true when a restart was scheduled.",
 		},
 	},
 	"github.com/mustra-dev/mustra/internal/proto.NetSurveyDevice": {
@@ -588,6 +598,9 @@ var typeDocs = map[string]typeDoc{
 			"DecideURL":   "How the page decides: POST to DecideURL with ApproveBody or DenyBody.",
 			"DenyBody":    "How the page decides: POST to DecideURL with ApproveBody or DenyBody.",
 		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.armProvisioningRequest": {
+		Doc: "armProvisioningRequest is the body of POST /api/provisioning/machines/{id}/arm.",
 	},
 	"github.com/mustra-dev/mustra/internal/server.auditEventsForwarding": {
 		Doc: "auditEventsForwarding is where audit events are forwarded, if anywhere.",
@@ -1535,6 +1548,20 @@ var typeDocs = map[string]typeDoc{
 	"github.com/mustra-dev/mustra/internal/server.listProcessEventsResponse": {
 		Doc: "listProcessEventsResponse is what GET /api/process-events answers.",
 	},
+	"github.com/mustra-dev/mustra/internal/server.listProvisioningImagesResponse": {
+		Doc: "listProvisioningImagesResponse is what GET /api/provisioning/images answers.",
+		Fields: map[string]string{
+			"DefaultTemplates": "DefaultTemplates are the built-in answer templates, by family.",
+			"Roles":            "Roles are the boot files each family needs.",
+			"Variables":        "Variables are the answer variables machines and images may set.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.listProvisioningInstallsResponse": {
+		Doc: "listProvisioningInstallsResponse is what GET /api/provisioning/installs answers.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.listProvisioningMachinesResponse": {
+		Doc: "listProvisioningMachinesResponse is what GET /api/provisioning/machines answers.",
+	},
 	"github.com/mustra-dev/mustra/internal/server.listRecorderEventsResponse": {
 		Doc: "listRecorderEventsResponse is what GET /api/recorder-events answers.",
 	},
@@ -1943,6 +1970,61 @@ var typeDocs = map[string]typeDoc{
 	"github.com/mustra-dev/mustra/internal/server.previewUploadResponse": {
 		Doc: "previewUploadResponse is what POST /api/certificates/upload/preview answers.",
 	},
+	"github.com/mustra-dev/mustra/internal/server.provisioningConfig": {
+		Doc: "provisioningConfig is the feature's server-wide settings.",
+		Fields: map[string]string{
+			"AllowedNetworks":  "AllowedNetworks, when set, are the only source networks (CIDR) the boot endpoints answer.",
+			"AnswerTTLMinutes": "AnswerTTLMinutes is how long after its boot script an answer file may be fetched.",
+			"ArmHours":         "ArmHours is how long \"install next boot\" stays set without a boot.",
+			"BootURL":          "BootURL is the address machines reach the boot endpoints at, written into every boot script, e.g. http://10.0.0.5:8069. Plain HTTP is allowed: iPXE's TLS does not know a private CA.",
+			"Enabled":          "Enabled turns the boot endpoints on. Off, every /boot/ path answers 404 and nothing can be armed.",
+			"EnrollTTLHours":   "EnrollTTLHours is the life of the enrollment token in an answer file, counted from the fetch: the install, then the first boot, must fit.",
+			"Site":             "Site is the site newly installed endpoints enroll into.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.provisioningImageRequest": {
+		Doc: "provisioningImageRequest is the body of POST and PUT /api/provisioning/images. Secrets are write-only: empty keeps the one stored, and the clear_ flags remove it.",
+		Fields: map[string]string{
+			"AnswerTemplate": "AnswerTemplate replaces the family's built-in answer file; empty uses the built-in one.",
+			"Assets":         "Assets are the boot files by role, each {\"url\": ...}; an uploaded file is kept by naming its {\"file_id\": ...}, and a role left out is removed.",
+			"Family":         "ubuntu | debian | windows",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.provisioningImageRow": {
+		Doc: "provisioningImageRow is an image as the console lists it.",
+		Fields: map[string]string{
+			"Missing": "Missing says what the image lacks before a machine can boot it, or is empty when it is ready.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.provisioningInstallRow": {
+		Doc: "provisioningInstallRow is one install as the console lists it.",
+		Fields: map[string]string{
+			"EnrolledHostname": "EnrolledHostname is the new agent's hostname, once it enrolled.",
+			"State":            "State is Status with time applied: a script whose answer file was never fetched in time is \"expired\", and an install whose agent has enrolled is \"enrolled\".",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.provisioningMachineRequest": {
+		Doc: "provisioningMachineRequest is the body of POST and PUT /api/provisioning/machines.",
+		Fields: map[string]string{
+			"AdminPassword":      "AdminPassword is write-only: empty keeps the stored one, and ClearAdminPassword removes it (the image's then applies).",
+			"ClearAdminPassword": "AdminPassword is write-only: empty keeps the stored one, and ClearAdminPassword removes it (the image's then applies).",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.provisioningMachineRow": {
+		Doc: "provisioningMachineRow is a machine as the console lists it.",
+		Fields: map[string]string{
+			"Armed":    "Armed is install_next_boot that has not expired.",
+			"Hostname": "Hostname is the endpoint the machine was reimaged from, if any.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.provisioningSettingsResponse": {
+		Doc: "provisioningSettingsResponse is what GET and PUT /api/provisioning/settings answer.",
+		Fields: map[string]string{
+			"BootListener": "BootListener is \"console\" when the boot endpoints share the console's listener, or the separate address they listen on.",
+			"ChainScript":  "ChainScript is the iPXE script to embed in (or chain from) the iPXE binary DHCP hands out, so it asks this server for its script.",
+			"PublicURLSet": "PublicURLSet says whether the console's public URL, which the installed systems enroll against, is configured.",
+		},
+	},
 	"github.com/mustra-dev/mustra/internal/server.publishDeployRequest": {
 		Doc: "publishDeployRequest is the body of POST /api/deploy/revisions/{revision}/publish.",
 	},
@@ -1996,6 +2078,22 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/server.recoveryKeyView": {
 		Doc: "recoveryKeyView is an entry of what GET /api/enforce/recovery-keys answers.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.reimageRequest": {
+		Doc: "reimageRequest is the body of POST /api/agents/{id}/reimage.",
+		Fields: map[string]string{
+			"ConfirmHostname": "ConfirmHostname must be the endpoint's hostname, typed.",
+			"MAC":             "MAC is the endpoint's network interface to boot from; it must be one the endpoint reports.",
+			"Restart":         "Restart, default true, restarts the endpoint once its next boot is set. False only sets it, for a restart at a time of somebody's choosing.",
+			"Variables":       "Variables override the image's defaults for this machine. The hostname defaults to the endpoint's.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.reimageResponse": {
+		Doc: "reimageResponse is what POST /api/agents/{id}/reimage answers once the approved request ran.",
+		Fields: map[string]string{
+			"Instructions": "Method is how the endpoint was set to boot from the network: \"efibootmgr\", \"bcdedit\", or \"manual\" when it could not be, with Instructions.",
+			"Method":       "Method is how the endpoint was set to boot from the network: \"efibootmgr\", \"bcdedit\", or \"manual\" when it could not be, with Instructions.",
+		},
 	},
 	"github.com/mustra-dev/mustra/internal/server.remediationImportRequest": {
 		Doc: "remediationImportRequest is the body of POST /api/remediations/{id}/import. Every field is optional.",
@@ -3322,6 +3420,20 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/store.ProcessEventSummary": {
 		Doc: "ProcessEventSummary is the headline: how much ran, how much was matched, and — the one that decides what a quiet feed means — how many endpoints are reporting from the kernel rather than from a sampler.",
+	},
+	"github.com/mustra-dev/mustra/internal/store.ProvisioningAsset": {
+		Doc: "ProvisioningAsset is one boot file of an image: fetched by the booting machine from URL, or served by mustra from an uploaded file.",
+	},
+	"github.com/mustra-dev/mustra/internal/store.ProvisioningImage": {
+		Fields: map[string]string{
+			"Family": "ubuntu | debian | windows",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/store.ProvisioningInstall": {
+		Fields: map[string]string{
+			"AgentID":    "From the agent that enrolled with this install's token, if any.",
+			"EnrolledAt": "From the agent that enrolled with this install's token, if any.",
+		},
 	},
 	"github.com/mustra-dev/mustra/internal/store.RecorderKindSummary": {
 		Doc: "RecorderKindSummary is the last-24h picture for one event kind.",

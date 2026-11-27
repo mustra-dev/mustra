@@ -209,3 +209,17 @@ The first slice (#96) is macOS with user-approved enrollment, a per-device ident
 - [ ] A separate `discover` access module, so action groups and approval policies can treat surveys apart from deployments (they use `deploy` today).
 - [ ] Age out survey devices that stop answering; they stay with their last-seen time today.
 - [ ] Allow surveys in inventory-and-patching mode if operators ask for it; the mode refuses them now, like every command not on its list.
+
+## OS provisioning
+
+- [ ] Windows from an HTTP source: WinPE has no HTTP client, so the first slice installs only from an SMB share. Options: a WinPE with curl added, or staging `install.wim` through wimboot.
+- [ ] Windows on arm64, and Linux images for arm64: the built-in templates and iPXE scripts assume x86-64.
+- [ ] Report Windows progress from WinPE (it has no HTTP client); today Windows reports only `installed`, from the first sign-in.
+- [ ] Preview a machine's rendered answer file (secrets masked) before arming it, rather than only test-rendering the template with sample values on save.
+- [ ] A built-in TFTP server, or serving the iPXE binaries, for networks without one. Documented as external for now.
+- [ ] Secure Boot: document (or automate) signing iPXE with an enrolled key, or boot shim → GRUB over HTTP for Linux instead of iPXE.
+- [ ] macOS reimage (no supported way to choose a one-time network boot; Apple silicon has none).
+- [ ] BIOS endpoints: the agent cannot choose a one-time network boot there; a temporary boot-order change with automatic restore would be possible on some firmwares.
+- [ ] Tested end to end only with Debian 12 in QEMU (BIOS, iPXE ROM): install, enrollment, and an approved reimage that fell back to manual network boot. Not yet tested: Ubuntu autoinstall end to end, any Windows install, UEFI (`efibootmgr --bootnext` on a real machine), `bcdedit` on a real Windows endpoint, real hardware, Secure Boot.
+- [ ] Link the new endpoint to the one a reimage replaced (carry over its groups, attributes and history), instead of it enrolling as a new endpoint.
+- [ ] Prune old `provisioning_installs` rows.

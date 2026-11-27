@@ -1462,7 +1462,9 @@ BEGIN
       ('sscat-security',     'Security',        'shield',   6, 'schema')
     ON CONFLICT DO NOTHING;
     INSERT INTO selfservice_categories (id, name, position, created_by)
-    SELECT 'sscat-' || md5(lower(btrim(category))), min(btrim(category)),
+    -- COLLATE "C" so the capitalised spelling wins ("Graphics" over
+    -- "graphics") whatever the database's own collation sorts first.
+    SELECT 'sscat-' || md5(lower(btrim(category))), min(btrim(category) COLLATE "C"),
            6 + row_number() OVER (ORDER BY lower(btrim(category))), 'schema'
       FROM software_packages
      WHERE btrim(category) <> ''
@@ -3517,3 +3519,75 @@ CREATE TABLE IF NOT EXISTS network_survey_devices (
     last_seen   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_network_survey_devices_ip ON network_survey_devices (ip);
+
+-- OS provisioning: network boot and reimaging (#95).
+--
+-- An image is an installer the server can boot over HTTP with iPXE: its boot
+-- files (each a URL or an uploaded file) and an answer template. A machine is
+-- a MAC address with an image, its variables and a one-shot "install next
+-- boot" flag; anything else that network-boots is told to boot its own disk.
+-- An install is one armed machine's boot: the per-assignment answer and
+-- status tokens are stored only as hashes, and the answer token is good for
+-- one fetch before its expiry.
+CREATE TABLE IF NOT EXISTS provisioning_images (
+    id              TEXT PRIMARY KEY,
+    name            TEXT NOT NULL,
+    family          TEXT NOT NULL,               -- ubuntu | debian | windows
+    assets          JSONB NOT NULL DEFAULT '{}', -- role -> {url} or {file_id, name, size_bytes, sha256}
+    install_source  TEXT NOT NULL DEFAULT '',    -- Ubuntu ISO URL, Debian mirror, Windows share
+    source_user     TEXT NOT NULL DEFAULT '',
+    source_secret   BYTEA,                       -- sealed by the server's vault
+    kernel_args     TEXT NOT NULL DEFAULT '',
+    defaults        JSONB NOT NULL DEFAULT '{}', -- default answer variables
+    admin_secret    BYTEA,                       -- sealed default administrator password
+    answer_template TEXT NOT NULL DEFAULT '',    -- empty: the built-in one for the family
+    created_by      TEXT NOT NULL DEFAULT '',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS provisioning_machines (
+    id                TEXT PRIMARY KEY,
+    mac               TEXT NOT NULL UNIQUE,      -- lower case, colon separated
+    name              TEXT NOT NULL DEFAULT '',
+    image_id          TEXT NOT NULL DEFAULT '',
+    variables         JSONB NOT NULL DEFAULT '{}',
+    admin_secret      BYTEA,                     -- sealed administrator password
+    agent_id          TEXT NOT NULL DEFAULT '',  -- the endpoint a reimage was for
+    install_next_boot BOOLEAN NOT NULL DEFAULT false,
+    armed_by          TEXT NOT NULL DEFAULT '',
+    armed_at          TIMESTAMPTZ,
+    arm_expires_at    TIMESTAMPTZ,
+    last_boot_at      TIMESTAMPTZ,
+    last_boot_ip      TEXT NOT NULL DEFAULT '',
+    created_by        TEXT NOT NULL DEFAULT '',
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS provisioning_installs (
+    id                  TEXT PRIMARY KEY,
+    machine_id          TEXT NOT NULL,
+    mac                 TEXT NOT NULL,
+    hostname            TEXT NOT NULL DEFAULT '',
+    image_id            TEXT NOT NULL DEFAULT '',
+    image_name          TEXT NOT NULL DEFAULT '',
+    family              TEXT NOT NULL DEFAULT '',
+    answer_token_hash   TEXT NOT NULL UNIQUE,
+    status_token_hash   TEXT NOT NULL UNIQUE,
+    answer_expires_at   TIMESTAMPTZ NOT NULL,
+    status_expires_at   TIMESTAMPTZ NOT NULL,
+    script_ip           TEXT NOT NULL DEFAULT '',
+    answer_fetched_at   TIMESTAMPTZ,
+    answer_ip           TEXT NOT NULL DEFAULT '',
+    enroll_token_id     TEXT NOT NULL DEFAULT '',
+    -- script_served | answer_served | installing | installed | failed | superseded
+    status              TEXT NOT NULL DEFAULT 'script_served',
+    detail              TEXT NOT NULL DEFAULT '',
+    armed_by            TEXT NOT NULL DEFAULT '',
+    reimage_of          TEXT NOT NULL DEFAULT '',
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_provisioning_installs_created ON provisioning_installs (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_provisioning_installs_machine ON provisioning_installs (machine_id, created_at DESC);

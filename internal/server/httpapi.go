@@ -90,6 +90,13 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("PUT /mdm/checkin", s.handleMDMCheckin)
 	mux.HandleFunc("PUT /mdm/connect", s.handleMDMConnect)
 
+	// OS provisioning's boot endpoints (provisioning_boot.go): firmware has
+	// no session. Off until provisioning is turned on; on a listener of
+	// their own instead when one is configured.
+	if s.cfg.BootHTTPAddr == "" {
+		s.registerBootRoutes(mux)
+	}
+
 	// Everything else requires a session.
 	protected := s.newRouteTable()
 	protected.HandleFunc("GET /api/agents", s.handleListAgents)
@@ -906,6 +913,26 @@ func (s *Server) routes() http.Handler {
 	protected.Handle("GET /api/mdm/profiles/{id}/download", perm(auth.PermDeployManage, hf(s.handleDownloadMDMProfile)))
 	protected.Handle("DELETE /api/mdm/profiles/{id}", perm(auth.PermDeployManage, hf(s.handleDeleteMDMProfile)))
 	protected.Handle("GET /mdm", mdmPageHandler())
+
+	// OS provisioning (provisioning*.go). The boot server's settings and
+	// the image catalog are administration; machines, installs and
+	// reimaging are deployment, and a reimage always waits for a second
+	// person's approval (approvals.decide).
+	protected.Handle("GET /api/provisioning/settings", perm(auth.PermSettingsManage, hf(s.handleGetProvisioningSettings)))
+	protected.Handle("PUT /api/provisioning/settings", perm(auth.PermSettingsManage, hf(s.handlePutProvisioningSettings)))
+	protected.Handle("GET /api/provisioning/images", perm(auth.PermDeployManage, hf(s.handleListProvisioningImages)))
+	protected.Handle("POST /api/provisioning/images", perm(auth.PermSettingsManage, hf(s.handleSaveProvisioningImage)))
+	protected.Handle("PUT /api/provisioning/images/{id}", perm(auth.PermSettingsManage, hf(s.handleSaveProvisioningImage)))
+	protected.Handle("DELETE /api/provisioning/images/{id}", perm(auth.PermSettingsManage, hf(s.handleDeleteProvisioningImage)))
+	protected.Handle("POST /api/provisioning/images/{id}/files", perm(auth.PermSettingsManage, hf(s.handleUploadProvisioningFile)))
+	protected.Handle("GET /api/provisioning/machines", perm(auth.PermDeployManage, hf(s.handleListProvisioningMachines)))
+	protected.Handle("POST /api/provisioning/machines", perm(auth.PermDeployManage, hf(s.handleSaveProvisioningMachine)))
+	protected.Handle("PUT /api/provisioning/machines/{id}", perm(auth.PermDeployManage, hf(s.handleSaveProvisioningMachine)))
+	protected.Handle("DELETE /api/provisioning/machines/{id}", perm(auth.PermDeployManage, hf(s.handleDeleteProvisioningMachine)))
+	protected.Handle("POST /api/provisioning/machines/{id}/arm", perm(auth.PermDeployManage, hf(s.handleArmProvisioningMachine)))
+	protected.Handle("GET /api/provisioning/installs", perm(auth.PermDeployManage, hf(s.handleListProvisioningInstalls)))
+	protected.Handle("POST /api/agents/{id}/reimage", perm(auth.PermDeployManage, hf(s.handleReimage)))
+	protected.Handle("GET /provisioning", perm(auth.PermDeployManage, staticPageHandler("static/provisioning.html")))
 
 	protected.Handle("GET /endpoint/{id}", endpointPageHandler())
 	protected.Handle("GET /", consoleUIHandler())

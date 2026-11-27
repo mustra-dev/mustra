@@ -365,6 +365,7 @@ var bodyExamples = map[string]string{
 		"attr-5e9c1a7d3b2f46e8a0c4d6b8f2e1a3c7": "Finance"
 	}`,
 	"POST /api/agents/{id}/kill-process":    `{"pid": 48213, "name": "xmrig"}`,
+	"POST /api/agents/{id}/reimage":         `{"image_id": "pim-6c1e9a3f7b2d48e5a0c4f8b2d6e1a9c3", "mac": "52:54:00:3a:7c:91", "confirm_hostname": "web-01", "variables": {"hostname": "web-01"}, "restart": true}`,
 	"POST /api/agents/{id}/managed":         `{"managed": false, "reason": "Decommissioned; replaced by web-02"}`,
 	"POST /api/agents/{id}/sensor-interval": `{"sensor": "processes", "interval_seconds": 300}`,
 
@@ -376,6 +377,33 @@ var bodyExamples = map[string]string{
 		"reason": "Nightly batch jobs fork hundreds of workers during the migration",
 		"days": 7
 	}`,
+
+	// provisioning
+	"POST /api/provisioning/images": `{
+		"name": "Ubuntu 24.04 server",
+		"family": "ubuntu",
+		"assets": {
+			"kernel": {"url": "http://mirror.example.com/ubuntu/24.04/casper/vmlinuz"},
+			"initrd": {"url": "http://mirror.example.com/ubuntu/24.04/casper/initrd"}
+		},
+		"install_source": "http://mirror.example.com/ubuntu/24.04/ubuntu-24.04.1-live-server-amd64.iso",
+		"admin_password": "<administrator password>",
+		"defaults": {"locale": "en_US.UTF-8", "timezone": "Etc/UTC", "admin_user": "localadmin"}
+	}`,
+	"PUT /api/provisioning/images/{id}": `{
+		"name": "Ubuntu 24.04 server",
+		"family": "ubuntu",
+		"assets": {
+			"kernel": {"url": "http://mirror.example.com/ubuntu/24.04/casper/vmlinuz"},
+			"initrd": {"url": "http://mirror.example.com/ubuntu/24.04/casper/initrd"}
+		},
+		"install_source": "http://mirror.example.com/ubuntu/24.04/ubuntu-24.04.1-live-server-amd64.iso",
+		"kernel_args": "console=ttyS0",
+		"defaults": {"locale": "en_US.UTF-8", "timezone": "Europe/Berlin", "admin_user": "localadmin"}
+	}`,
+	"POST /api/provisioning/machines":          `{"mac": "52:54:00:9e:41:07", "name": "lab-07", "image_id": "pim-6c1e9a3f7b2d48e5a0c4f8b2d6e1a9c3", "variables": {"hostname": "lab-07", "disk": "/dev/sda"}}`,
+	"PUT /api/provisioning/machines/{id}":      `{"mac": "52:54:00:9e:41:07", "name": "lab-07", "image_id": "pim-6c1e9a3f7b2d48e5a0c4f8b2d6e1a9c3", "variables": {"hostname": "lab-07", "disk": "/dev/nvme0n1"}}`,
+	"POST /api/provisioning/machines/{id}/arm": `{"install_next_boot": false}`,
 
 	// approval-policies
 	"POST /api/approval-policies": `{

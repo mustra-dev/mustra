@@ -43,6 +43,7 @@ func Main(name string) {
 		allowPlaceholders = fs.Bool("allow-placeholder-secrets", envBoolOr("MUSTRA_ALLOW_PLACEHOLDER_SECRETS", false), "start even if a secret still has its example value (local development only)")
 		postgresDS        = fs.String("postgres-dsn", envSecretOr("MUSTRA_POSTGRES_DSN", "postgres://mustra:mustra@127.0.0.1:5432/mustra?sslmode=disable"), "Postgres connection string")
 		httpAddr          = fs.String("http-addr", envOr("MUSTRA_HTTP_ADDR", ":8080"), "HTTP listen address for the API/console")
+		bootAddr          = fs.String("boot-http-addr", envOr("MUSTRA_BOOT_HTTP_ADDR", ""), "separate listen address for the OS provisioning boot endpoints (default: served with the console)")
 		staleAfter        = fs.Duration("stale-after", envDurationOr("MUSTRA_STALE_AFTER", 30*time.Second), "time since last heartbeat before an agent is considered offline")
 		offlineExpiry     = fs.Duration("offline-expiry", envDurationOr("MUSTRA_OFFLINE_EXPIRY", 1*time.Hour), "time an agent may stay offline before it's dropped from inventory entirely")
 		logLevel          = fs.String("log-level", envOr("MUSTRA_LOG_LEVEL", "info"), "log level: debug, info, warn, error")
@@ -129,6 +130,7 @@ func Main(name string) {
 		AgentBuildsDir:     *agentBuilds,
 		PostgresDSN:        *postgresDS,
 		HTTPAddr:           *httpAddr,
+		BootHTTPAddr:       *bootAddr,
 		StaleAfter:         *staleAfter,
 		OfflineExpiry:      *offlineExpiry,
 		CookieSecure:       *cookieSecure,

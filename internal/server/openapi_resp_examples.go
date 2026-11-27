@@ -1590,6 +1590,66 @@ const (
 		"expires_at": "2026-10-23T08:00:00Z", "created_by": "alice", "created_at": "2026-10-20T08:00:00Z"`
 )
 
+// OS provisioning: an Ubuntu image, the lab machine it installs on and
+// the install that did.
+const (
+	provisioningImageExample = `{
+		"id": "pim-6c1e9a3f7b2d48e5a0c4f8b2d6e1a9c3",
+		"name": "Ubuntu 24.04 server",
+		"family": "ubuntu",
+		"assets": {
+			"kernel": {"url": "http://mirror.example.com/ubuntu/24.04/casper/vmlinuz"},
+			"initrd": {"file_id": "pbf-2e8a4c6f1b3d49e7a5c0d8f2b6e4a1c9", "name": "initrd", "size_bytes": 74811392, "sha256": "9b1c4e7a2f5d8c3b6e0a9f4d7c2b5e8a1f3d6c9b2e5a8f1d4c7b0e3a6f9c2d5b"}
+		},
+		"install_source": "http://mirror.example.com/ubuntu/24.04/ubuntu-24.04.1-live-server-amd64.iso",
+		"source_user": "",
+		"has_source_secret": false,
+		"kernel_args": "",
+		"defaults": {"locale": "en_US.UTF-8", "timezone": "Etc/UTC", "admin_user": "localadmin"},
+		"has_admin_password": true,
+		"answer_template": "",
+		"created_by": "admin",
+		"created_at": "2026-11-02T09:14:00Z",
+		"updated_at": "2026-11-02T09:20:41Z",
+		"missing": ""
+	}`
+
+	provisioningMachineExample = `{
+		"id": "pmc-8d2f6a1c4e9b47d3a0c5e7b1f3d9a2c6",
+		"mac": "52:54:00:9e:41:07",
+		"name": "lab-07",
+		"image_id": "pim-6c1e9a3f7b2d48e5a0c4f8b2d6e1a9c3",
+		"variables": {"hostname": "lab-07", "disk": "/dev/sda"},
+		"has_admin_password": false,
+		"agent_id": "",
+		"install_next_boot": true,
+		"armed_by": "jdoe",
+		"armed_at": "2026-11-03T08:00:12Z",
+		"arm_expires_at": "2026-11-04T08:00:12Z",
+		"last_boot_ip": "",
+		"created_by": "jdoe",
+		"created_at": "2026-11-03T07:58:40Z",
+		"updated_at": "2026-11-03T08:00:12Z",
+		"image_name": "Ubuntu 24.04 server",
+		"armed": true
+	}`
+
+	provisioningSettingsExample = `{
+		"config": {
+			"enabled": true,
+			"boot_url": "http://10.20.0.5:8069",
+			"allowed_networks": ["10.20.0.0/24"],
+			"answer_ttl_minutes": 60,
+			"arm_hours": 24,
+			"enroll_ttl_hours": 6,
+			"site": "lab"
+		},
+		"boot_listener": ":8069",
+		"public_url_set": true,
+		"chain_script": "#!ipxe\ndhcp\nchain http://10.20.0.5:8069/boot/ipxe?mac=${netX/mac} || exit\n"
+	}`
+)
+
 var respExamples = map[string]string{
 	// about
 	"GET /api/about": `{
@@ -1716,7 +1776,57 @@ var respExamples = map[string]string{
 	}`,
 	"POST /api/agents/{id}/intune/{action}": `{"message": "Intune accepted sync for FIN-LT-0142", "ok": true}`,
 	"POST /api/agents/{id}/kill-process":    `{"message": "killed xmrig (pid 48213) on linux", "ok": true, "run_id": "run-1f5b9d3e7a2c48e6b0a4c8d2f6e1a3b5"}`,
-	"POST /api/agents/{id}/managed":         `{"agent_id": "agt-4f2a9c1e7b3d48e6a05c9d2f81b7e3a4", "managed": false}`,
+	"POST /api/agents/{id}/reimage": `{
+		"ok": true,
+		"machine_id": "pmc-3b7e1a9c5d2f46e8b0a4c6d8f2e1b3a5",
+		"run_id": "run-7c3e9a1f5b2d48e6a0c4b8d2f6e1a3c9",
+		"method": "efibootmgr",
+		"entry": "Boot0003 UEFI PXEv4 (MAC:5254003a7c91)",
+		"restarting": true,
+		"message": "Next boot set to the network with efibootmgr; the endpoint restarts in a minute and installs Ubuntu 24.04 server"
+	}`,
+
+	// provisioning
+	"GET /api/provisioning/settings": provisioningSettingsExample,
+	"PUT /api/provisioning/settings": provisioningSettingsExample,
+	"GET /api/provisioning/images": `{
+		"images": [` + provisioningImageExample + `],
+		"roles": {"ubuntu": ["kernel", "initrd"], "debian": ["kernel", "initrd"], "windows": ["wimboot", "bcd", "boot.sdi", "boot.wim"]},
+		"default_templates": {"ubuntu": "#cloud-config\n…", "debian": "# mustra answer file …", "windows": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n…"},
+		"variables": ["admin_user", "disk", "hostname", "image_index", "keyboard", "locale", "product_key", "ssh_key", "timezone"]
+	}`,
+	"POST /api/provisioning/images":            provisioningImageExample,
+	"PUT /api/provisioning/images/{id}":        provisioningImageExample,
+	"POST /api/provisioning/images/{id}/files": provisioningImageExample,
+	"GET /api/provisioning/machines":           `{"machines": [` + provisioningMachineExample + `]}`,
+	"POST /api/provisioning/machines":          provisioningMachineExample,
+	"PUT /api/provisioning/machines/{id}":      provisioningMachineExample,
+	"POST /api/provisioning/machines/{id}/arm": provisioningMachineExample,
+	"GET /api/provisioning/installs": `{"installs": [{
+		"id": "pin-5a9c3e7b1d2f48a6c0e4b8d2f6a1c9e3",
+		"machine_id": "pmc-8d2f6a1c4e9b47d3a0c5e7b1f3d9a2c6",
+		"mac": "52:54:00:9e:41:07",
+		"hostname": "lab-07",
+		"image_id": "pim-6c1e9a3f7b2d48e5a0c4f8b2d6e1a9c3",
+		"image_name": "Ubuntu 24.04 server",
+		"family": "ubuntu",
+		"answer_expires_at": "2026-11-03T09:02:30Z",
+		"script_ip": "10.20.0.41",
+		"answer_fetched_at": "2026-11-03T08:03:55Z",
+		"answer_ip": "10.20.0.41",
+		"enroll_token_id": "etk-1d7b3f9a5c2e48d6b0a4c8e2f6d1b3a7",
+		"status": "installed",
+		"detail": "",
+		"armed_by": "jdoe",
+		"reimage_of": "",
+		"created_at": "2026-11-03T08:02:30Z",
+		"updated_at": "2026-11-03T08:19:12Z",
+		"agent_id": "agt-9e3c7a1f5b2d48e6a0c4d8b2f6e1a3c7",
+		"enrolled_at": "2026-11-03T08:21:47Z",
+		"state": "enrolled",
+		"enrolled_hostname": "lab-07"
+	}]}`,
+	"POST /api/agents/{id}/managed": `{"agent_id": "agt-4f2a9c1e7b3d48e6a05c9d2f81b7e3a4", "managed": false}`,
 	// The agent had one live connection, closed at once.
 	"POST /api/agents/{id}/revoke-credential": `{"ok": true, "disconnected": 1}`,
 	"POST /api/agents/{id}/sensor-interval":   `{"ok": true}`,

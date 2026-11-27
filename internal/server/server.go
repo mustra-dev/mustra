@@ -55,6 +55,12 @@ type Config struct {
 	// Empty means the container's path.
 	AgentBuildsDir string
 	HTTPAddr       string
+	// BootHTTPAddr, when set, serves the OS provisioning boot endpoints
+	// (/boot/...) on a listener of their own and not on HTTPAddr: plain
+	// HTTP on the provisioning network for iPXE, without exposing them
+	// wherever the console is published. Empty: they share HTTPAddr. Either
+	// way they answer only once provisioning is turned on.
+	BootHTTPAddr string
 	// ScriptToolsURL points to the isolated analysis and completion service.
 	ScriptToolsURL string
 	// StaleAfter is how long since the last heartbeat before an agent is
@@ -188,6 +194,11 @@ type Server struct {
 	gatedRoutes map[string]*actionGate
 	// mdmRT is Apple MDM's in-memory state (mdm_setup_api.go).
 	mdmRT mdmRuntime
+	// bootLimiter rate-limits the unauthenticated boot endpoints
+	// (provisioning_boot.go).
+	bootLimiter *bootLimiter
+	// bootSrv is the boot endpoints' own listener, when configured.
+	bootSrv *http.Server
 	// setupToken is the one-time first-run token (a string); see setup.go.
 	setupToken atomic.Value
 	// One run at a time per policy and per playbook — a schedule and a
@@ -582,7 +593,7 @@ func Run(ctx context.Context, cfg Config) error {
 		IdleTimeout:       2 * time.Minute,
 		MaxHeaderBytes:    64 << 10,
 	}
-	serveErr := make(chan error, 1)
+	serveErr := make(chan error, 2)
 	go func() {
 		logger.Info("http server listening", "addr", cfg.HTTPAddr)
 		if err := s.httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -592,6 +603,23 @@ func Run(ctx context.Context, cfg Config) error {
 		serveErr <- nil
 	}()
 
+	if cfg.BootHTTPAddr != "" {
+		s.bootSrv = &http.Server{
+			Addr:              cfg.BootHTTPAddr,
+			Handler:           s.bootRoutes(),
+			ReadHeaderTimeout: 10 * time.Second,
+			ReadTimeout:       time.Minute,
+			IdleTimeout:       2 * time.Minute,
+			MaxHeaderBytes:    16 << 10,
+		}
+		go func() {
+			logger.Info("boot server listening", "addr", cfg.BootHTTPAddr)
+			if err := s.bootSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				serveErr <- fmt.Errorf("boot listener: %w", err)
+			}
+		}()
+	}
+
 	select {
 	case <-ctx.Done():
 		logger.Info("shutting down")
@@ -599,6 +627,9 @@ func Run(ctx context.Context, cfg Config) error {
 		defer cancel()
 		if err := s.httpSrv.Shutdown(shutdownCtx); err != nil {
 			logger.Warn("http shutdown error", "error", err)
+		}
+		if s.bootSrv != nil {
+			_ = s.bootSrv.Shutdown(shutdownCtx)
 		}
 		return nil
 	case err := <-serveErr:

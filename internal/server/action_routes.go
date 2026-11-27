@@ -62,9 +62,12 @@ func (s *Server) endpointActionRoutes() map[string]actionSpec {
 		"POST /api/sensors/custom/test":       {Module: "deploy", Resolve: bodyAgentsOrFleet([]string{"agent_id"}, nil, false)},
 		// The endpoint's own record and settings: management rights only.
 		"POST /api/agents/{id}/sensor-interval": {Resolve: pathAgent("id")},
-		"DELETE /api/agents/{id}":               {Resolve: pathAgent("id")},
-		"POST /api/agents/{id}/managed":         {Resolve: pathAgent("id")},
-		"PUT /api/agents/{id}/attributes":       {Resolve: pathAgent("id")},
+		// Reimaging erases the endpoint: exactly the one in the URL, and the
+		// handler always parks it for approval (provisioning_reimage.go).
+		"POST /api/agents/{id}/reimage":   {Module: "provisioning", Resolve: resolveReimage},
+		"DELETE /api/agents/{id}":         {Resolve: pathAgent("id")},
+		"POST /api/agents/{id}/managed":   {Resolve: pathAgent("id")},
+		"PUT /api/agents/{id}/attributes": {Resolve: pathAgent("id")},
 		// Revoking a credential cuts the endpoint off the bus until it is
 		// re-enrolled, and criticality reweights its risk for everyone: both
 		// are acts on that endpoint, so both stay inside management rights.

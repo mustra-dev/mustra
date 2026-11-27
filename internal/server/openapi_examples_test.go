@@ -46,6 +46,7 @@ var noBodyExample = map[string]string{
 	"POST /api/admin/settings":         "the server's settings",
 	"PUT /api/deploy/settings":         "the deployment log and cache limits of every agent",
 	"PUT /api/preferences":             "the caller's own preferences, replaced whole",
+	"PUT /api/provisioning/settings":   "whether the boot server answers, and where machines reach it",
 	"PUT /api/selfservice/branding":    "the Self Service window's look",
 	"PUT /api/mdm/settings":            "whether Apple MDM is on",
 	"POST /api/mdm/push-csr":           "Apple MDM's pending push certificate request",

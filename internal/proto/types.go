@@ -738,7 +738,7 @@ type AgentCommand struct {
 	Deploy          *DeployJob       `json:"deploy,omitempty"`
 	Force           bool             `json:"force,omitempty"`
 	CustomSensor    *CustomSensorDef `json:"custom_sensor,omitempty"`
-	Cmd             string           `json:"cmd"` // "set_sensor_interval" | "apply_patches" | "run_software" | "notify_user" | "ask_user" | "kill_process"
+	Cmd             string           `json:"cmd"` // "set_sensor_interval" | "apply_patches" | "run_software" | "notify_user" | "ask_user" | "kill_process" | "net_boot_once"
 	Sensor          SensorKind       `json:"sensor,omitempty"`
 	IntervalSeconds int              `json:"interval_seconds,omitempty"`
 
@@ -853,6 +853,12 @@ type AgentCommand struct {
 	// DNS cache and installing an office suite, so it belongs with the
 	// package rather than baked into the agent.
 	TimeoutSeconds int `json:"timeout_seconds,omitempty"`
+
+	// NetBoot carries "net_boot_once": boot from the network at the next
+	// start, once, then restart (OS provisioning's reimage). Agents that
+	// predate it answer "unknown command", and the server falls back to
+	// telling the operator to pick network boot at the console.
+	NetBoot *NetBootJob `json:"net_boot,omitempty"`
 
 	// RunID and ActionID name the deployment record this command belongs
 	// to. They exist so an agent can report the *real* outcome of a job
@@ -1184,6 +1190,33 @@ type AgentCommandResult struct {
 
 	// Enforced is the per-setting outcome of "run_enforce".
 	Enforced []EnforceResult `json:"enforced,omitempty"`
+
+	// NetBoot is the outcome of "net_boot_once".
+	NetBoot *NetBootResult `json:"net_boot,omitempty"`
+}
+
+// NetBootJob asks an endpoint to boot from the network once.
+type NetBootJob struct {
+	// MAC is the interface the server armed; the agent prefers a firmware
+	// boot entry for it when the firmware names one.
+	MAC string `json:"mac"`
+	// Restart restarts the endpoint once the next boot is set, after
+	// RestartMinutes (at least 1, so this reply reaches the server first).
+	Restart        bool `json:"restart"`
+	RestartMinutes int  `json:"restart_minutes,omitempty"`
+}
+
+// NetBootResult says how the endpoint was set to boot from the network.
+type NetBootResult struct {
+	// Method is "efibootmgr" (Linux UEFI BootNext), "bcdedit" (Windows
+	// firmware boot sequence), or "manual" when neither applies.
+	Method string `json:"method"`
+	// Entry is the firmware boot entry chosen, e.g. "Boot0003 UEFI PXEv4".
+	Entry string `json:"entry,omitempty"`
+	// Restarting is true when a restart was scheduled.
+	Restarting bool `json:"restarting"`
+	// Instructions, for "manual", say what to do at the console.
+	Instructions string `json:"instructions,omitempty"`
 }
 
 // Self Service: the window a person opens on their own machine. The agent

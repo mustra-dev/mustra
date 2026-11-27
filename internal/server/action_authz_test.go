@@ -22,7 +22,7 @@ var dispatchingRoutes = []string{
 	"POST /api/deploy/run", "POST /api/deploy/preview", "POST /api/deploy/test",
 	"POST /api/software/deploy", "POST /api/software-inventory/product/{key}/remove-unused",
 	"POST /api/patches/deploy", "POST /api/agents/{id}/apply-patches",
-	"POST /api/agents/{id}/kill-process", "POST /api/agents/{id}/update", "POST /api/agents/update-outdated",
+	"POST /api/agents/{id}/kill-process", "POST /api/agents/{id}/update", "POST /api/agents/update-outdated", "POST /api/agents/{id}/reimage",
 	"POST /api/clients/upgrade", "POST /api/clients/profiles/apply",
 	"POST /api/enforce/policies/{id}/run", "POST /api/reveal/rules/{id}/run", "POST /api/reveal/search",
 	"POST /api/schedules", "PUT /api/schedules/{id}", "POST /api/schedules/{id}/run",

@@ -96,6 +96,7 @@ var routeDocs = map[string]routeDoc{
 	"GET /api/agents/{id}/attributes":         {Resp: agentAttributesView{}, Errors: []int{500}},
 	"PUT /api/agents/{id}/attributes":         {Body: map[string]string{}, Resp: agentAttributesResponse{}, Errors: []int{400, 500}},
 	"POST /api/agents/{id}/intune/{action}":   {NoBody: true, Resp: intuneActionResponse{}, Errors: []int{400, 404, 409, 422, 500}},
+	"POST /api/agents/{id}/reimage":           {Body: reimageRequest{}, Resp: reimageResponse{}, Also: []int{202}, Errors: []int{400, 403, 404, 409, 500}},
 	"POST /api/agents/{id}/kill-process":      {Body: killProcessRequest{}, Resp: killProcessResponse{}, Errors: []int{400, 404, 500, 502, 504}},
 	"POST /api/agents/{id}/managed":           {Body: setAgentManagedRequest{}, Resp: setAgentManagedResponse{}, Errors: []int{400, 500}},
 	"POST /api/agents/{id}/revoke-credential": {NoBody: true, Resp: revokeAgentCredentialResponse{}, Errors: []int{400, 404, 500}},
@@ -645,6 +646,21 @@ var routeDocs = map[string]routeDoc{
 
 	// process-events
 	"GET /api/process-events": {Query: []queryParam{{Name: "agent", Desc: "only this endpoint"}, {Name: "limit", Type: "integer", Desc: "at most this many"}, {Name: "matched", Desc: "any value: only events that matched a rule"}, {Name: "q", Desc: "search text"}}, Resp: listProcessEventsResponse{}, Errors: []int{500}},
+
+	// provisioning
+	"GET /api/provisioning/settings":           {Resp: provisioningSettingsResponse{}, Errors: []int{500}},
+	"PUT /api/provisioning/settings":           {Body: provisioningConfig{}, Resp: provisioningSettingsResponse{}, Errors: []int{400, 500}},
+	"GET /api/provisioning/images":             {Resp: listProvisioningImagesResponse{}, Errors: []int{500}},
+	"POST /api/provisioning/images":            {Body: provisioningImageRequest{}, Resp: provisioningImageRow{}, Errors: []int{400, 404, 500}},
+	"PUT /api/provisioning/images/{id}":        {Body: provisioningImageRequest{}, Resp: provisioningImageRow{}, Errors: []int{400, 404, 500}},
+	"DELETE /api/provisioning/images/{id}":     {Status: 204, Errors: []int{404, 500}},
+	"POST /api/provisioning/images/{id}/files": {Upload: []formField{{Name: "role", Required: true, Desc: "the boot file's role (kernel, initrd; wimboot, bcd, boot.sdi, boot.wim); sent before the file"}, {Name: "file", File: true, Required: true}}, Resp: provisioningImageRow{}, Errors: []int{400, 404, 500}},
+	"GET /api/provisioning/machines":           {Resp: listProvisioningMachinesResponse{}, Errors: []int{500}},
+	"POST /api/provisioning/machines":          {Body: provisioningMachineRequest{}, Resp: provisioningMachineRow{}, Errors: []int{400, 404, 409, 500}},
+	"PUT /api/provisioning/machines/{id}":      {Body: provisioningMachineRequest{}, Resp: provisioningMachineRow{}, Errors: []int{400, 404, 409, 500}},
+	"DELETE /api/provisioning/machines/{id}":   {Status: 204, Errors: []int{404, 500}},
+	"POST /api/provisioning/machines/{id}/arm": {Body: armProvisioningRequest{}, Resp: provisioningMachineRow{}, Errors: []int{400, 404, 409, 500}},
+	"GET /api/provisioning/installs":           {Resp: listProvisioningInstallsResponse{}, Errors: []int{500}},
 
 	// query
 	"POST /api/query":            {Body: startQueryRequest{}, BodyOptional: true, Resp: startQueryResponse{}, Errors: []int{400, 403, 500}},

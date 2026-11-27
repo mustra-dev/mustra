@@ -199,6 +199,10 @@ services:
       # cookie over plain HTTP and the login silently does not stick.
       # The host side follows MUSTRA_CONSOLE_PORT (see init.sh).
       - "${MUSTRA_CONSOLE_PORT:-8080}:8080"
+      # OS provisioning's boot endpoints on a listener of their own (set
+      # MUSTRA_BOOT_HTTP_ADDR=:8069 in .env), published only on the host
+      # address that faces the provisioning network. See README.md.
+      # - "10.0.20.5:8069:8069"
     depends_on:
       data-owner:
         condition: service_completed_successfully
@@ -218,6 +222,30 @@ services:
       retries: 12
       start_period: 40s
     restart: unless-stopped
+
+  # Optional, for OS provisioning: proxy-DHCP with dnsmasq, which answers
+  # only the PXE part of DHCP and leaves addresses to your DHCP server. It
+  # hands PXE firmware an iPXE binary over TFTP, and iPXE the boot server's
+  # script URL. It needs the host's network and the ipxe.efi/undionly.kpxe
+  # binaries in ./provisioning/tftp (from ipxe.org or your distribution's
+  # ipxe package). Replace 10.0.20.0 with the provisioning subnet and
+  # 10.0.20.5:8069 with the boot URL. See README.md, "OS provisioning".
+  #
+  # pxe-proxydhcp:
+  #   image: alpine:3.24
+  #   network_mode: host
+  #   cap_add: [NET_ADMIN]
+  #   volumes:
+  #     - ./provisioning/tftp:/tftp:ro
+  #   command: >-
+  #     sh -c "apk add --no-cache dnsmasq && exec dnsmasq --no-daemon --port=0
+  #     --dhcp-range=10.0.20.0,proxy --enable-tftp --tftp-root=/tftp
+  #     --dhcp-userclass=set:ipxe,iPXE
+  #     --dhcp-match=set:efi64,option:client-arch,7
+  #     --dhcp-boot=tag:ipxe,http://10.0.20.5:8069/boot/ipxe
+  #     --pxe-service=tag:!ipxe,tag:efi64,x86-64_EFI,iPXE,ipxe.efi
+  #     --pxe-service=tag:!ipxe,tag:!efi64,x86PC,iPXE,undionly.kpxe"
+  #   restart: unless-stopped
 
   # Optional: public HTTPS via a Cloudflare Tunnel. Off unless you ask for
   # it (`docker compose --profile tunnel up -d`), because it needs a tunnel
