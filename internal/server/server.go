@@ -563,6 +563,7 @@ func Run(ctx context.Context, cfg Config) error {
 	go s.jumpExpiryLoop(ctx)
 	go s.healthSampleLoop(ctx)
 	go s.playbookPauseExpiryLoop(ctx)
+	go s.deviceReplacementLoop(ctx)
 
 	s.httpSrv = &http.Server{
 		Addr:    cfg.HTTPAddr,

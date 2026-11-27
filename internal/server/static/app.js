@@ -511,6 +511,7 @@ const NAV_TREE = [
       { label: "Schedules", hash: "schedules", icon: "clock", desc: "Run a package on a cadence — nightly, weekly, or once at a set time." },
       { label: "Maintenance Windows", hash: "windows", icon: "clock", desc: "When the endpoints in a group may be touched; deployments outside a window wait." },
       { label: "Templates", hash: "templates", icon: "book", desc: "Saved deployment forms — package, plan, reboot and expiry — to fill in with one pick." },
+      { label: "Device Replacement", href: "/device-replacement", hash: "", icon: "deploy", desc: "Move an old laptop's software to its replacement, with a report per package." },
       { label: "Self Service", href: "/catalog", hash: "items", icon: "bag", desc: "What endpoints may install themselves, and the requests waiting on you." },
     ] },
 

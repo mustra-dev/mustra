@@ -102,6 +102,18 @@ agents. No manual migration is needed: the server adds its new tables and column
 - A schedule with a rollout plan skips a firing, with a notification, while its last rollout is
   running or halted or when its plan is gone; it never falls back to patching everything at once.
   A plan used by a patch schedule cannot be deleted.
+- **Device replacement.** Deploy → Device Replacement compares an old endpoint's installed
+  software with its replacement's and matches what the new one lacks to Software Catalog
+  packages by each package's own detection. The preview lists what will be installed (each
+  package can be unticked), what is already there, and what has no matching package, with the
+  reason. Installs run as ordinary software deployments to the new endpoint only, with the usual
+  management rights, action groups, content sets, approval policies, maintenance windows and
+  audit; the job page reports each package as installed, failed, timed out or no response.
+  `POST /api/device-replacements` starts one with an API token holding `deploy.manage`, naming
+  the endpoints by agent ID, hostname or hardware serial; a name that matches more than one
+  endpoint is refused. Given a ServiceNow ticket number (INC, RITM, REQ, SCTASK, CHG) or an
+  incident's sys_id, the final report is added to the ticket as a work note through the
+  ServiceNow integration. Server only; no agent upgrade. The schema adds one table.
 
 ### Changed
 - An approval request records the person behind it and, when a token asked, the token. The

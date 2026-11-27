@@ -775,19 +775,11 @@ func (s *Server) installedAppsByAgent(ctx context.Context) (map[string]agentApps
 	}
 	out := make(map[string]agentApps, len(rows))
 	for _, row := range rows {
-		var apps []proto.InstalledApp
-		if err := json.Unmarshal(row.Data, &apps); err != nil {
+		_, apps, err := parseAgentApps(row.Data)
+		if err != nil {
 			continue
 		}
-		byName := make(map[string]string, len(apps))
-		for _, app := range apps {
-			byName[strings.ToLower(app.Name)] = app.Version
-		}
-		var raw []map[string]any
-		if json.Unmarshal(row.Data, &raw) != nil {
-			raw = nil
-		}
-		out[row.AgentID] = agentApps{byName: byName, rows: raw}
+		out[row.AgentID] = apps
 	}
 	return out, nil
 }

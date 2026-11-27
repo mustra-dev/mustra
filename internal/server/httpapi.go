@@ -599,6 +599,16 @@ func (s *Server) routes() http.Handler {
 	protected.Handle("DELETE /api/tracked-products/{id}", perm(auth.PermDeployManage, hf(s.handleDeleteTrackedProduct)))
 	protected.HandleFunc("GET /api/software/{id}/applicability", s.handleSoftwareApplicability)
 	protected.Handle("POST /api/software/deploy", perm(auth.PermDeployManage, hf(s.handleDeploySoftware)))
+	// Device replacement: an old endpoint's software, installed on its
+	// replacement through the deployment above (device_replacement.go).
+	// Reading jobs shows what was installed where, so it takes the same
+	// permission as starting one; starting one is gated like a deployment
+	// to the new endpoint.
+	protected.Handle("GET /device-replacement", perm(auth.PermDeployManage, staticPageHandler("static/device-replacement.html")))
+	protected.Handle("GET /api/device-replacements", perm(auth.PermDeployManage, hf(s.handleListDeviceReplacements)))
+	protected.Handle("GET /api/device-replacements/{id}", perm(auth.PermDeployManage, hf(s.handleGetDeviceReplacement)))
+	protected.Handle("POST /api/device-replacements/preview", perm(auth.PermDeployManage, hf(s.handleDeviceReplacementPreview)))
+	protected.Handle("POST /api/device-replacements", perm(auth.PermDeployManage, hf(s.handleStartDeviceReplacement)))
 	// Package files: the payload staged to the endpoint before the command
 	// runs. Uploading one is authoring what will execute, so it takes the
 	// same permission as writing the command.

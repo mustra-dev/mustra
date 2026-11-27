@@ -1388,6 +1388,37 @@ const (
 		"grant_id": "jg-7c1e5a9f3b2d48e6a0c4b8d2f6e1a3c5",
 		"approved_by": "jdoe",
 		"command_count": 3`
+
+	// A laptop refresh half done: 7-Zip is installed, Firefox is still
+	// on its way, two products had no package.
+	deviceReplacementExample = `{
+		"id": "drp-6c1e9a4f2b7d48e3a0c5f8b1d9e2a7c4",
+		"old_agent_id": "agt-2c7e4a9f1b3d46e8a0c5f7b9d1e3a6c8",
+		"old_hostname": "FIN-LT-0087",
+		"old_os": "windows",
+		"new_agent_id": "agt-9b1d7e3a5c2f48d0a6e4b8c1f3d5a7e9",
+		"new_hostname": "FIN-LT-0142",
+		"new_os": "windows",
+		"ticket": "RITM0012345",
+		"allow_cross_os": false,
+		"requested_by": "jsmith",
+		"source": "console",
+		"items": [
+			{"package_id": "sw-3e8b1d6f9a2c47e5b0d4c8a1f6e2b9d7", "package_name": "7-Zip", "version": "24.08", "products": ["7-Zip"], "run_id": "run-8a2d6f1c9e3b47a5b0c4d8e2f6a1b3c7", "status": "installed"},
+			{"package_id": "sw-5a9c2e7f1b4d48a6c0e3f9b2d7a1c5e8", "package_name": "Mozilla Firefox", "version": "2026-10-02", "products": ["Mozilla Firefox"], "run_id": "run-1f7b3d9a5c2e48b6a0d4e8c2f6b1a9d3", "status": "running", "detail": "installing"}
+		],
+		"already_present": [
+			{"product_key": "microsoft teams", "name": "Microsoft Teams", "vendor": "Microsoft", "old_version": "24295.605.3225.8804", "new_version": "25031.805.3440.5290", "reason": "In the new endpoint's inventory"}
+		],
+		"no_match": [
+			{"product_key": "sap gui for windows", "name": "SAP GUI for Windows", "vendor": "SAP", "old_version": "8.00", "reason": "No catalog package detects it"},
+			{"product_key": "notepad", "name": "Notepad++", "vendor": "Notepad++ Team", "old_version": "8.6.9", "package_id": "sw-0b4e8c2a6f1d49e7a3c5b9d1f7e2a4c6", "package_name": "Notepad++", "reason": "Notepad++ is not in a content set your roles grant"}
+		],
+		"created_at": "2026-10-20T09:12:04Z",
+		"note_status": "pending",
+		"status": "running",
+		"counts": {"installed": 1, "running": 1}
+	}`
 )
 
 // respExamples are success responses, one per route, keyed like
@@ -3578,6 +3609,26 @@ var respExamples = map[string]string{
 				"checked_at": "2026-10-20T08:16:31Z"
 			}
 		]
+	}`,
+
+	// device-replacements
+	"GET /api/device-replacements":      `{"jobs": [` + deviceReplacementExample + `]}`,
+	"POST /api/device-replacements":     deviceReplacementExample,
+	"GET /api/device-replacements/{id}": deviceReplacementExample,
+	"POST /api/device-replacements/preview": `{
+		"old": {"agent_id": "agt-2c7e4a9f1b3d46e8a0c5f7b9d1e3a6c8", "hostname": "FIN-LT-0087", "os": "windows", "platform": "Microsoft Windows 10 Pro", "online": false, "managed": true, "inventory_at": "2026-10-18T16:40:11Z"},
+		"new": {"agent_id": "agt-9b1d7e3a5c2f48d0a6e4b8c1f3d5a7e9", "hostname": "FIN-LT-0142", "os": "windows", "platform": "Microsoft Windows 11 Pro", "online": true, "managed": true, "inventory_at": "2026-10-20T08:55:37Z"},
+		"will_install": [
+			{"package_id": "sw-3e8b1d6f9a2c47e5b0d4c8a1f6e2b9d7", "package_name": "7-Zip", "version": "24.08", "products": ["7-Zip"]},
+			{"package_id": "sw-5a9c2e7f1b4d48a6c0e3f9b2d7a1c5e8", "package_name": "Mozilla Firefox", "version": "2026-10-02", "products": ["Mozilla Firefox"], "detail": "Fresh detection and requirements run on the endpoint"}
+		],
+		"already_present": [
+			{"product_key": "microsoft teams", "name": "Microsoft Teams", "vendor": "Microsoft", "old_version": "24295.605.3225.8804", "new_version": "25031.805.3440.5290", "reason": "In the new endpoint's inventory"}
+		],
+		"no_match": [
+			{"product_key": "sap gui for windows", "name": "SAP GUI for Windows", "vendor": "SAP", "old_version": "8.00", "reason": "No catalog package detects it"}
+		],
+		"warnings": ["FIN-LT-0087's installed software was last reported 2 days ago."]
 	}`,
 
 	// directory

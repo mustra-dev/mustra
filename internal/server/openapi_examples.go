@@ -541,6 +541,17 @@ var bodyExamples = map[string]string{
 	"POST /api/deployment-plans":     deploymentPlanExample,
 	"PUT /api/deployment-plans/{id}": deploymentPlanExample,
 
+	// device-replacements
+	// The old laptop by hostname, its replacement by agent ID, leaving one
+	// matched package out; the report goes to the request item.
+	"POST /api/device-replacements": `{
+		"old_hostname": "FIN-LT-0087",
+		"new_agent_id": "agt-9b1d7e3a5c2f48d0a6e4b8c1f3d5a7e9",
+		"ticket": "RITM0012345",
+		"exclude_package_ids": ["sw-5a9c2e7f1b4d48a6c0e3f9b2d7a1c5e8"]
+	}`,
+	"POST /api/device-replacements/preview": `{"old_serial": "PF2RX8KD", "new_serial": "PF4KX2QZ"}`,
+
 	// directory
 	"POST /api/directory/test": `{
 		"url": "ldap://dc01.corp.example.com",

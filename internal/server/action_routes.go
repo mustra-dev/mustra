@@ -122,6 +122,12 @@ func (s *Server) endpointActionRoutes() map[string]actionSpec {
 		"PUT /api/sensors/custom/{id}":   {Resolve: definition(fleetOnly)},
 		"POST /api/clients/profiles":     {Resolve: definition(bodyAgentsOrFleet(nil, []string{"group_ids"}, false))},
 		"PUT /api/clients/profiles/{id}": {Resolve: definition(bodyAgentsOrFleet(nil, []string{"group_ids"}, false))},
+
+		// --- device replacement -------------------------------------------
+		// Exactly one target, the new endpoint, and one approval for the
+		// job; each package then goes through POST /api/software/deploy's
+		// own checks, as the requester.
+		"POST /api/device-replacements": {Module: "deploy", Resolve: resolveDeviceReplacement},
 	}
 }
 

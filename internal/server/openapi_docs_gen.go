@@ -797,6 +797,41 @@ var typeDocs = map[string]typeDoc{
 			"ConsoleOutput": "ConsoleOutput is set when the run queued catalog deploy jobs, whose per-endpoint console output is kept under Software → Deployment progress (keyed by the same ID as the endpoint's action). Legacy package runs keep only the detail on the action itself.",
 		},
 	},
+	"github.com/mustra-dev/mustra/internal/server.deviceReplacementPreviewRequest": {
+		Doc: "deviceReplacementPreviewRequest names the two endpoints of a device replacement. Each is named by exactly one of its agent ID, hostname or hardware serial number; a hostname or serial that matches more than one endpoint is refused, never guessed at.",
+		Fields: map[string]string{
+			"AllowCrossOS": "AllowCrossOS permits endpoints of different operating systems (Windows to macOS, say); otherwise that is refused.",
+			"NewAgentID":   "NewAgentID names the replacement endpoint by its agent ID.",
+			"NewHostname":  "NewHostname names the replacement endpoint by its hostname. Retired endpoints are not considered.",
+			"NewSerial":    "NewSerial names the replacement endpoint by its hardware serial.",
+			"OldAgentID":   "OldAgentID names the endpoint being replaced by its agent ID.",
+			"OldHostname":  "OldHostname names the endpoint being replaced by its hostname (case-insensitive; a short name matches a fully qualified one).",
+			"OldSerial":    "OldSerial names the endpoint being replaced by the serial number its hardware sensor reports.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.deviceReplacementPreviewResponse": {
+		Doc: "deviceReplacementPreviewResponse is what a replacement would do, without doing it.",
+		Fields: map[string]string{
+			"AlreadyPresent": "AlreadyPresent are the old endpoint's products the new one already has, by inventory or by a package's detection.",
+			"NoMatch":        "NoMatch are the old endpoint's products no usable catalog package installs on the new endpoint, each with the reason.",
+			"WillInstall":    "WillInstall are the catalog packages that would be installed on the new endpoint, each with the old endpoint's products it covers.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.deviceReplacementRequest": {
+		Doc: "deviceReplacementRequest starts a device replacement job.",
+		Fields: map[string]string{
+			"ExcludePackageIDs": "ExcludePackageIDs leaves these packages out.",
+			"PackageIDs":        "PackageIDs limits the job to these packages, each of which must be in the preview's will_install list. Empty means all of them.",
+			"Ticket":            "Ticket is the external ticket this replacement answers: a ServiceNow number (INC…, RITM…, REQ…, SCTASK…, CHG…) or an incident's sys_id. When a ServiceNow integration is enabled, the final report is added to it as a work note.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.deviceReplacementView": {
+		Doc: "deviceReplacementView is a job with its derived state.",
+		Fields: map[string]string{
+			"Counts": "Counts are the items per status.",
+			"Status": "Status is running until every item has an outcome, then completed (everything installed), partial, no_response or failed.",
+		},
+	},
 	"github.com/mustra-dev/mustra/internal/server.directoryTestFailure": {
 		Doc: "directoryTestFailure is what POST /api/directory/test answers when the bind fails: still a 200, since the test itself ran.",
 	},
@@ -1184,6 +1219,9 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/server.listDeploymentsResponse": {
 		Doc: "listDeploymentsResponse is what GET /api/patches/deployments answers.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.listDeviceReplacementsResponse": {
+		Doc: "listDeviceReplacementsResponse is what GET /api/device-replacements answers: the newest 200 jobs.",
 	},
 	"github.com/mustra-dev/mustra/internal/server.listEUNResponse": {
 		Doc: "listEUNResponse is what GET /api/eun answers.",
@@ -1653,6 +1691,12 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/server.removeUnusedSoftwareResponse": {
 		Doc: "removeUnusedSoftwareResponse is what POST /api/software-inventory/product/{key}/remove-unused answers with dry_run: the endpoints it would remove the package from.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.replacementEndpoint": {
+		Doc: "replacementEndpoint is one side of a device replacement.",
+		Fields: map[string]string{
+			"InventoryAt": "InventoryAt is when the endpoint last reported its installed software; absent when it never has.",
+		},
 	},
 	"github.com/mustra-dev/mustra/internal/server.reportRequest": {
 		Fields: map[string]string{
@@ -2521,6 +2565,31 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/store.DeploymentTemplate": {
 		Doc: "DeploymentTemplate remembers a deployment form.",
+	},
+	"github.com/mustra-dev/mustra/internal/store.DeviceReplacement": {
+		Fields: map[string]string{
+			"NoteStatus": "NoteStatus is what became of the report to the ticket: \"\" (no ticket), \"pending\", \"posted\", \"failed\", \"not_configured\" or \"skipped\" (a ticket reference that is not a ServiceNow one).",
+			"Source":     "Source is \"console\" or \"api\" (an API token started it).",
+			"Ticket":     "Ticket is the external ticket the job answers (a ServiceNow incident or request number, or a sys_id), if one was given.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/store.DeviceReplacementItem": {
+		Doc: "DeviceReplacementItem is one catalog package a device replacement installs on the new endpoint, with the deployment that carries it.",
+		Fields: map[string]string{
+			"ApprovalID": "ApprovalID is set when the deployment was parked for approval.",
+			"Products":   "Products are the names of the old endpoint's products this package matched there.",
+			"RunID":      "RunID is the ordinary software deployment that installs it; the item's status is derived from that run's result on the new endpoint.",
+			"Status":     "Status: pending, running, awaiting_approval, installed, failed, timed_out, no_response, skipped or refused. Stored once the job finishes; while it runs it is derived on every read.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/store.DeviceReplacementProduct": {
+		Doc: "DeviceReplacementProduct is one product found on the old endpoint of a device replacement, and what became of it: already on the new endpoint, or with no catalog package that installs it there.",
+		Fields: map[string]string{
+			"Key":         "Key is the product's normalised identity (the Inventory & Usage key).",
+			"PackageID":   "PackageID and PackageName name the catalog package that matched the product, when one did but does not install it on the new endpoint.",
+			"PackageName": "PackageID and PackageName name the catalog package that matched the product, when one did but does not install it on the new endpoint.",
+			"Reason":      "Reason says why the product is in its list, in words.",
+		},
 	},
 	"github.com/mustra-dev/mustra/internal/store.DirectoryCounts": {
 		Doc: "DirectoryCounts is what the settings page shows after a sync.",
