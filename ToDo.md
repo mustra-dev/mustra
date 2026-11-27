@@ -179,3 +179,21 @@ Open work, kept here so it can be picked up. Add to it when deferring something,
 - [ ] Alerts and Guide items when an app's score falls, fleet-wide or for a site.
 - [ ] Firefox and Safari.
 - [ ] Run the extension and the native host on real Windows and macOS desktops with Chrome and Edge installed by policy; tested so far in headless Chromium on Linux with a stand-in agent listener.
+
+## Apple MDM
+
+The first slice (#96) is macOS with user-approved enrollment, a per-device identity from mustra's own CA, and nine commands. Left for later:
+
+- [ ] iOS and iPadOS: their commands, supervision, Lost Mode, the unlock token (TokenUpdate's `UnlockToken`, not stored today) and ClearPasscode.
+- [ ] Automated Device Enrollment through Apple Business Manager (the DEP API, its OAuth token, assigning profiles, `AwaitingConfiguration` and `DeviceConfigured`).
+- [ ] Declarative device management (the `DeclarativeManagement` check-in is refused today) and status channel reporting.
+- [ ] Apps and books from Apple Business Manager (VPP): the content token, licences, `InstallApplication`.
+- [ ] Android Enterprise and ChromeOS management.
+- [ ] Bootstrap token escrow (`SetBootstrapToken`/`GetBootstrapToken`), and with it macOS software updates through this MDM rather than Fleet (`ScheduleOSUpdate`, `AvailableOSUpdates`).
+- [ ] Renew a device identity before it expires (about 13 months): an ACME or SCEP payload, or a re-enrollment command, instead of re-enrolling by hand. Show identities that expire soon.
+- [ ] The macOS user channel (`UserAuthenticate` answers 410 today) and per-user profiles.
+- [ ] Commands to groups and filters rather than one Mac at a time, for the read-only and profile commands (never for erase).
+- [ ] Profile library: per-profile change history, and showing which Macs have each profile from ProfileList.
+- [ ] Test against a real Mac and Apple's real APNs: the slice was tested with a stand-in Mac (signed requests built from the same libraries) and a local HTTP/2 stand-in for APNs only.
+- [ ] Use the Apple sandbox APNs for development push certificates (`UseDevelopmentAPNS`).
+- [ ] Rotate the MDM CA (issue identities from a new CA while the old one is still trusted).

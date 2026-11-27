@@ -82,6 +82,13 @@ func (s *Server) routes() http.Handler {
 	// Both are the operator's own signed package, nothing secret.
 	mux.HandleFunc("GET "+saasUpdatePath, s.handleSaaSUpdateManifest)
 	mux.HandleFunc("GET "+saasCRXPath, s.handleSaaSCRX)
+	// Apple MDM's device endpoints: no session, by design. The enrollment
+	// link carries its token; check-in and command requests are signed by
+	// the device identity the profile installed (mdm_protocol.go). All
+	// three answer 404 while the MDM is off.
+	mux.HandleFunc("GET /mdm/enroll/{token}", s.handleMDMEnroll)
+	mux.HandleFunc("PUT /mdm/checkin", s.handleMDMCheckin)
+	mux.HandleFunc("PUT /mdm/connect", s.handleMDMConnect)
 
 	// Everything else requires a session.
 	protected := s.newRouteTable()
@@ -863,6 +870,34 @@ func (s *Server) routes() http.Handler {
 	protected.Handle("PUT /api/admin/roles/{id}", perm(auth.PermUsersManage, hf(s.handleUpdateRole)))
 	protected.Handle("DELETE /api/admin/roles/{id}", perm(auth.PermUsersManage, hf(s.handleDeleteRole)))
 	protected.Handle("GET /admin", perm(auth.PermUsersManage, adminPageHandler()))
+
+	// Apple MDM (mdm_api.go, mdm_setup_api.go). Its setup is a server-wide
+	// integration: settings.manage, and integrations.manage (checked in the
+	// handlers) to change it. Enrollment tokens admit Macs, as agent
+	// enrollment tokens admit agents, so they take deploy.manage; sending a
+	// command is an act on the endpoint, gated (action_routes.go); reading
+	// a lock or erase PIN unlocks a Mac, like a recovery key.
+	protected.Handle("GET /api/mdm/settings", perm(auth.PermSettingsManage, hf(s.handleGetMDMSettings)))
+	protected.Handle("PUT /api/mdm/settings", perm(auth.PermSettingsManage, hf(s.handleSaveMDMSettings)))
+	protected.Handle("POST /api/mdm/push-csr", perm(auth.PermSettingsManage, hf(s.handleMDMPushCSR)))
+	protected.Handle("POST /api/mdm/push-certificate", perm(auth.PermSettingsManage, hf(s.handleMDMPushCert)))
+	protected.Handle("POST /api/mdm/ca", perm(auth.PermSettingsManage, hf(s.handleMDMCreateCA)))
+	protected.Handle("PUT /api/mdm/signing-identity", perm(auth.PermSettingsManage, hf(s.handleMDMSetSigning)))
+	protected.Handle("DELETE /api/mdm/signing-identity", perm(auth.PermSettingsManage, hf(s.handleMDMClearSigning)))
+	protected.Handle("GET /api/mdm/enroll-tokens", perm(auth.PermDeployManage, hf(s.handleListMDMEnrollTokens)))
+	protected.Handle("POST /api/mdm/enroll-tokens", perm(auth.PermDeployManage, hf(s.handleCreateMDMEnrollToken)))
+	protected.Handle("DELETE /api/mdm/enroll-tokens/{id}", perm(auth.PermDeployManage, hf(s.handleRevokeMDMEnrollToken)))
+	protected.HandleFunc("GET /api/mdm/devices", s.handleListMDMDevices)
+	protected.HandleFunc("GET /api/mdm/devices/{id}", s.handleGetMDMDevice)
+	protected.Handle("POST /api/mdm/devices/{id}/commands", perm(auth.PermDeployManage, hf(s.handleMDMCommand)))
+	protected.Handle("POST /api/mdm/devices/{id}/commands/{command}/cancel", perm(auth.PermDeployManage, hf(s.handleCancelMDMCommand)))
+	protected.Handle("DELETE /api/mdm/devices/{id}", perm(auth.PermDeployManage, hf(s.handleDeleteMDMDevice)))
+	protected.Handle("POST /api/mdm/commands/{id}/reveal-pin", perm(auth.PermRecoveryKeys, hf(s.handleRevealMDMPIN)))
+	protected.Handle("GET /api/mdm/profiles", perm(auth.PermDeployManage, hf(s.handleListMDMProfiles)))
+	protected.Handle("POST /api/mdm/profiles", perm(auth.PermDeployManage, hf(s.handleUploadMDMProfile)))
+	protected.Handle("GET /api/mdm/profiles/{id}/download", perm(auth.PermDeployManage, hf(s.handleDownloadMDMProfile)))
+	protected.Handle("DELETE /api/mdm/profiles/{id}", perm(auth.PermDeployManage, hf(s.handleDeleteMDMProfile)))
+	protected.Handle("GET /mdm", mdmPageHandler())
 
 	protected.Handle("GET /endpoint/{id}", endpointPageHandler())
 	protected.Handle("GET /", consoleUIHandler())

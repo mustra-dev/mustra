@@ -34,7 +34,7 @@ import (
 
 // Modules that can be scoped and gated. Keys are stable: they appear in
 // action_groups.module and approval_policies.module.
-var accessModules = []string{"deploy", "patches", "playbooks", "shell", "enforce", "reveal"}
+var accessModules = []string{"deploy", "patches", "playbooks", "shell", "enforce", "reveal", "mdm"}
 
 func validModule(m string) bool {
 	for _, v := range accessModules {

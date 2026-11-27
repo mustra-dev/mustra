@@ -186,6 +186,8 @@ type Server struct {
 	// gatedRoutes are the endpoint-action routes, by pattern; see
 	// action_authz.go. Approvals replay through them.
 	gatedRoutes map[string]*actionGate
+	// mdmRT is Apple MDM's in-memory state (mdm_setup_api.go).
+	mdmRT mdmRuntime
 	// setupToken is the one-time first-run token (a string); see setup.go.
 	setupToken atomic.Value
 	// One run at a time per policy and per playbook — a schedule and a
@@ -539,6 +541,7 @@ func Run(ctx context.Context, cfg Config) error {
 	go s.patchWaitLoop(ctx)
 	go s.patchRestartWatchLoop(ctx)
 	go s.macOSMDMWatchLoop(ctx)
+	go s.mdmLoop(ctx)
 	go s.certRenewLoop(ctx)
 	go s.appCredLoop(ctx)
 	go s.expiryAlertLoop(ctx)

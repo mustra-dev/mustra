@@ -203,6 +203,22 @@ the server adds its new tables and columns on start.
   and shows force-install policies for Windows, Linux and macOS. Data is kept 30 days by default.
   Needs the new server and the new agent on each endpoint to be measured; older agents are not
   affected and report nothing.
+- **Apple MDM: mustra as your Macs' own MDM server** (#96, first slice: macOS). Off until an
+  administrator sets it up under **Apple MDM → Setup**: upload an APNs MDM push certificate
+  (mustra makes the certificate request; an MDM vendor has to sign it, see Help → Apple MDM),
+  create the MDM CA, and turn it on. Macs enroll by opening an enrollment link (limited in uses
+  and time) and approving the profile; each gets its own identity certificate and signs every
+  message (`Mdm-Signature`), so the server can sit behind a TLS-terminating proxy. Commands:
+  device information, security information, installed applications and profiles, install and
+  remove a profile from a new profile library, restart, and lock or erase, which always wait for
+  a second person's approval (erase also asks for the Mac's serial number, one Mac at a time,
+  and the PIN is readable only with `enforce.recovery_keys`). Commands are queued per Mac and
+  the Mac is woken through APNs; what it reports appears on its page and on the linked
+  endpoint's page when it runs the mustra agent too. Every command, enrollment and PIN read is
+  audited. Approval policies and action groups can name the new **mdm** module. The push
+  certificate's expiry is announced like other expiring certificates. Server only: no agent
+  update is needed, and Fleet and Intune keep working as before. The database gains the
+  `mdm_*` tables on first start.
 
 ### Changed
 - An approval request records the person behind it and, when a token asked, the token. The
