@@ -135,3 +135,39 @@ func TestParseMacUpdateProgress(t *testing.T) {
 		t.Error("no progress line, no progress")
 	}
 }
+
+// A Raspberry Pi OS update in which libcamera's soname moved from 0.7 to
+// 0.8: the old library must go for the camera packages to upgrade.
+func TestAptLibraryTransitions(t *testing.T) {
+	sim := `The following additional packages will be installed:
+  libcamera0.8
+The following packages will be REMOVED:
+  libcamera0.7
+The following NEW packages will be installed:
+  libcamera0.8
+The following packages will be upgraded:
+  libcamera-ipa librpicam-app1 rpicam-apps-core
+3 upgraded, 1 newly installed, 1 to remove and 0 not upgraded.
+Remv libcamera0.7 [0.7.0+rpt20260301-1]
+Inst libcamera0.8 (0.8.0+rpt20261101-1 Raspberry Pi Foundation:stable [arm64])
+`
+	if got := aptLibraryTransitions(sim); len(got) != 1 || got[0] != "libcamera0.7" {
+		t.Fatalf("got %v", got)
+	}
+	t64 := "The following packages will be REMOVED:\n  libssl3:arm64*\nThe following NEW packages will be installed:\n  libssl3t64:arm64\n"
+	if got := aptLibraryTransitions(t64); len(got) != 1 || got[0] != "libssl3" {
+		t.Fatalf("t64: got %v", got)
+	}
+	for name, out := range map[string]string{
+		"not a library":         "The following packages will be REMOVED:\n  pihole-meta\nThe following NEW packages will be installed:\n  pihole-meta2\n",
+		"no replacement":        "The following packages will be REMOVED:\n  libcamera0.7\nThe following NEW packages will be installed:\n  libpisp1\n",
+		"one of two replaced":   "The following packages will be REMOVED:\n  libcamera0.7 libfoo1\nThe following NEW packages will be installed:\n  libcamera0.8\n",
+		"unversioned library":   "The following packages will be REMOVED:\n  libfoo-dev\nThe following NEW packages will be installed:\n  libfoo-dev\n",
+		"nothing removed":       "The following NEW packages will be installed:\n  libcamera0.8\n",
+		"replaced by different": "The following packages will be REMOVED:\n  libcamera0.7\nThe following NEW packages will be installed:\n  libcamera-ipa\n",
+	} {
+		if got := aptLibraryTransitions(out); got != nil {
+			t.Errorf("%s: got %v, want the removal refused", name, got)
+		}
+	}
+}
