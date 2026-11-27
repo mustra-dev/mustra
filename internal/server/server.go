@@ -562,6 +562,7 @@ func Run(ctx context.Context, cfg Config) error {
 	go s.approvalExpiryLoop(ctx)
 	go s.jumpExpiryLoop(ctx)
 	go s.healthSampleLoop(ctx)
+	go s.anomalyLoop(ctx)
 	go s.playbookPauseExpiryLoop(ctx)
 	go s.deviceReplacementLoop(ctx)
 

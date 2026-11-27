@@ -1646,6 +1646,85 @@ Resolving an item from ServiceNow writes a work note on its ticket through
 the ServiceNow integration's URL and credentials, and the item records
 whether it arrived (with a retry). The ticket's state is left to ServiceNow.
 
+## Anomalies — each endpoint against its own normal
+
+A threshold says "CPU over 90% is bad", which is wrong for a build server
+and too late for a file server that idles at 5%. **Anomalies**
+(Performance → Anomalies) instead compare each endpoint with its own last
+two weeks, and say when it has moved well outside them.
+
+**What is judged.** Six numbers the fleet already reports, so nothing new
+is collected and no agent update is needed: CPU, memory and system-disk use
+from the performance sensor (every minute), how many processes the
+processes sensor listed, failed services from the services sensor (systemd
+units in `failed` on Linux, automatic-start services that are stopped on
+Windows; macOS's `launchctl list` does not say, so it stays at zero), and
+how many times the endpoint booted in the last 24 hours, from the boot time
+in its facts. A metric whose sensor a role's content sets do not grant is
+not shown to that role, and management rights bound which endpoints a
+person sees.
+
+**The baseline.** Every five minutes the server samples those values; each
+hour becomes the median of its samples, and an endpoint's baseline for a
+metric is the median of its hourly medians over 14 days, with the median
+absolute deviation (MAD) as its spread. Medians rather than averages,
+because a mean is dragged by the very outliers this looks for: one bad
+night would widen the band enough to hide the next. The normal band is the
+median ± 4 robust standard deviations (1.4826 × MAD), never narrower than a
+floor per metric (15 points of CPU, 10 of memory, 5 of disk, 25 processes
+or a quarter of the usual count, 2 failed services, 2 restarts), so a
+machine that sits at exactly 3% CPU is not "infinitely" anomalous at 5%.
+An endpoint with fewer than 48 hourly medians is **learning**: it is never
+anomalous, and the page says how many are.
+
+**When one opens and closes.** The value judged is the median of the last
+hour's samples, so one spike is not a value. An anomaly opens when that
+stays outside the band, the same way, for **two hours** (a gap of more than
+two hours in the samples breaks the run, so a laptop asleep overnight was
+not out of band all night); it closes once the value has been back inside
+a narrower band (± 3) for an hour. The two bands are what stops a value
+hovering at the edge from opening and closing all afternoon. One that stops
+arriving for a day closes as *stopped reporting*: offline is the Guide's
+business. A lasting change becomes the new normal once it fills about half
+the window, about a week; acknowledge it in the meantime. CPU, memory and
+processes are judged both ways (a service that died stops using CPU);
+disk, failed services and restarts only when they rise.
+
+**Severity** comes from how far out the value went, in robust standard
+deviations, and how long it has lasted: low from 4, medium from 6, high
+from 10, critical from 20, one level higher after a day. Its score (the
+deviation, capped at 50, times one plus a day's worth of duration, up to
+three days) orders anomalies.
+
+**Across the fleet.** The same metric moving the same way on several
+endpoints is one row, ranked by severity times endpoints affected (the
+members' scores summed). When an anomaly opens, the server notes the newest
+deployment, patch run or action that succeeded on the endpoint, or the
+agent moving to a new version, in the day before it began; when at least
+two and at least half of a row's endpoints share one, the row names it —
+which is how "everything that took Contoso Sync 4.1 is now burning CPU"
+reads at a glance. Each group has a stable address (`/anomalies?group=cpu-high`)
+and each anomaly its own (`/anomalies?id=anom-…`), so they can be linked.
+
+**Acting on one.** An anomaly links to its endpoint page, to Investigate
+(the endpoint tab where the metric shows: processes, disks, services or
+activity), and hands its endpoints to Deploy (a package or action) or
+Patch with them already chosen, the way Interact does; the dispatch,
+approvals and maintenance windows stay where they are. Playbooks run on
+their own targets. **Acknowledge** (with a note) keeps an anomaly listed but
+takes it out of its group's rank; **suppress** hides one metric's anomalies
+on a computer group, for a day, a week, a month or until lifted, while
+detection carries on underneath. Both hide evidence from everybody, so they
+take `alerts.triage` (or `settings.manage`), are limited to endpoints the
+person manages (a suppression on every endpoint needs management of the
+whole fleet), and are audited. A suppression whose group is deleted covers
+nothing rather than everything.
+
+**Storage** stays the size of an inventory, not a metrics store:
+five-minute samples are kept for a day, hourly medians for fifteen days,
+one baseline per endpoint and metric, boot times for 30 days, and closed
+anomalies for 90 days. Raw history is never kept past the day.
+
 ## Reveal — sensitive data where it lives
 
 Which endpoints hold card numbers, Social Security numbers, private keys,

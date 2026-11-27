@@ -3141,3 +3141,97 @@ CREATE INDEX IF NOT EXISTS idx_triage_rollouts_item ON triage_rollouts (item_id,
 -- An item's page lists the recent deployments on its endpoint; without this
 -- that read scans every job of every endpoint.
 CREATE INDEX IF NOT EXISTS idx_deploy_jobs_agent ON deploy_jobs (agent_id, created_at DESC);
+
+-- Anomaly detection (internal/anomaly): each endpoint judged against its
+-- own normal, from data agents already send. Server-only; nothing new is
+-- collected on the endpoint.
+--
+-- Storage is tiered so it stays bounded: anomaly_samples holds one value
+-- per metric per five minutes for a day (what detection and the detail
+-- chart read), anomaly_hourly the median of each hour for fifteen days
+-- (what the baseline is computed from), anomaly_baselines one row per
+-- endpoint and metric. Raw history is never kept past the day.
+CREATE TABLE IF NOT EXISTS anomaly_samples (
+    agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    metric   TEXT NOT NULL,
+    at       TIMESTAMPTZ NOT NULL,
+    value    DOUBLE PRECISION NOT NULL,
+    PRIMARY KEY (agent_id, metric, at)
+);
+CREATE INDEX IF NOT EXISTS idx_anomaly_samples_at ON anomaly_samples (at);
+
+CREATE TABLE IF NOT EXISTS anomaly_hourly (
+    agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    metric   TEXT NOT NULL,
+    hour     TIMESTAMPTZ NOT NULL,
+    median   DOUBLE PRECISION NOT NULL,
+    lo       DOUBLE PRECISION NOT NULL,
+    hi       DOUBLE PRECISION NOT NULL,
+    n        INT NOT NULL,
+    PRIMARY KEY (agent_id, metric, hour)
+);
+CREATE INDEX IF NOT EXISTS idx_anomaly_hourly_hour ON anomaly_hourly (hour);
+
+CREATE TABLE IF NOT EXISTS anomaly_baselines (
+    agent_id    TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    metric      TEXT NOT NULL,
+    median      DOUBLE PRECISION NOT NULL,
+    mad         DOUBLE PRECISION NOT NULL,
+    hours       INT NOT NULL,
+    computed_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (agent_id, metric)
+);
+
+-- Boot times as the agent's facts reported them, one row per boot. Facts
+-- derive the boot time from uptime, so it wobbles by a second between
+-- reports; a boot within five minutes of a recorded one is the same boot.
+CREATE TABLE IF NOT EXISTS anomaly_boots (
+    agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    at       TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (agent_id, at)
+);
+
+-- An anomaly: one endpoint, one metric, one direction, from when it left
+-- its band until it settled back. At most one is open per endpoint and
+-- metric. Closed ones are kept 90 days. change is the deployment, patch
+-- run or agent update that finished on the endpoint in the day before it
+-- began, which is how the same change across many endpoints shows up.
+CREATE TABLE IF NOT EXISTS anomalies (
+    id              TEXT PRIMARY KEY,
+    agent_id        TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE CASCADE,
+    metric          TEXT NOT NULL,
+    direction       TEXT NOT NULL,
+    started_at      TIMESTAMPTZ NOT NULL,
+    last_seen_at    TIMESTAMPTZ NOT NULL,
+    ended_at        TIMESTAMPTZ,
+    no_data         BOOLEAN NOT NULL DEFAULT false,
+    baseline_median DOUBLE PRECISION NOT NULL,
+    baseline_mad    DOUBLE PRECISION NOT NULL,
+    value           DOUBLE PRECISION NOT NULL,
+    peak_value      DOUBLE PRECISION NOT NULL,
+    peak_z          DOUBLE PRECISION NOT NULL,
+    severity        TEXT NOT NULL,
+    score           DOUBLE PRECISION NOT NULL,
+    change          TEXT NOT NULL DEFAULT '',
+    change_at       TIMESTAMPTZ,
+    acknowledged_at TIMESTAMPTZ,
+    acknowledged_by TEXT NOT NULL DEFAULT '',
+    ack_note        TEXT NOT NULL DEFAULT ''
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_anomalies_open ON anomalies (agent_id, metric) WHERE ended_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_anomalies_started ON anomalies (started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_anomalies_ended ON anomalies (ended_at) WHERE ended_at IS NOT NULL;
+
+-- A suppression hides one metric's anomalies on one computer group (or on
+-- every endpoint when group_id is empty) until it expires or is removed.
+-- Detection carries on underneath: a suppressed anomaly is still recorded,
+-- only kept out of the ranked list.
+CREATE TABLE IF NOT EXISTS anomaly_suppressions (
+    id         TEXT PRIMARY KEY,
+    metric     TEXT NOT NULL,
+    group_id   TEXT NOT NULL DEFAULT '',
+    reason     TEXT NOT NULL DEFAULT '',
+    created_by TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at TIMESTAMPTZ
+);

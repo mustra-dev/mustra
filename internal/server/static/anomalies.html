@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anomalies — mustra</title>
+<link rel="icon" href="/static/brand/favicon.ico" sizes="any">
+<link rel="icon" href="/static/brand/app-icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/brand/app-icon-256.png">
+<link rel="stylesheet" href="/static/app.css">
+<script src="/static/theme.js"></script>
+<style>
+  .hint { font-size: 12px; color: var(--text-muted); margin: -6px 0 12px; line-height: 1.55; max-width: 100ch; }
+  .filters { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; margin-bottom: 10px; }
+  .filters .field { margin: 0; }
+  .filters label.inline { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--text-muted); }
+  .sev { font-size: var(--fs-meta); padding: 2px 8px; border-radius: 999px; font-weight: 700; white-space: nowrap; width: fit-content; flex: none; }
+  .sev.critical, .sev.high { background: var(--off-bg); color: var(--off); }
+  .sev.medium { background: color-mix(in srgb, var(--viz-warning) 22%, transparent); color: var(--warn); }
+  .sev.low { background: var(--surface-2); color: var(--text-muted); }
+  .state { font-size: var(--fs-meta); color: var(--text-muted); white-space: nowrap; }
+  .num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  .sub { font-size: var(--fs-meta); color: var(--text-muted); }
+  .what { font-weight: 600; }
+  tr.quiet td { opacity: .62; }
+  .crumbs { font-size: 13px; margin: 0 0 10px; color: var(--text-muted); }
+  .crumbs a { color: var(--accent); text-decoration: none; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0 14px; }
+  .actions a.link { color: var(--accent); text-decoration: none; font-size: 13px; }
+  .change { font-size: 13px; margin: 0 0 12px; padding: 8px 12px; border-radius: var(--radius-sm); background: var(--surface-2); }
+  .facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px 18px; margin: 4px 0 16px; }
+  .facts div span { display: block; font-size: var(--fs-meta); color: var(--text-muted); }
+  .facts div strong { font-size: 15px; font-variant-numeric: tabular-nums; }
+  .chart { display: grid; grid-template-columns: auto 1fr; gap: 0 8px; margin: 6px 0 4px; }
+  .chart .yaxis { display: flex; flex-direction: column; justify-content: space-between; font-size: var(--fs-meta);
+    color: var(--text-muted); text-align: right; font-variant-numeric: tabular-nums; min-width: 36px; }
+  .chart svg { width: 100%; height: 220px; display: block; background: var(--surface); border-radius: var(--radius-sm); }
+  .chart .xaxis { grid-column: 2; display: flex; justify-content: space-between; font-size: var(--fs-meta); color: var(--text-muted); margin-top: 4px; }
+  .an-band { fill: color-mix(in srgb, var(--viz-good) 16%, transparent); }
+  .an-inner { fill: none; stroke: color-mix(in srgb, var(--viz-good) 45%, transparent); stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; }
+  .an-median { stroke: color-mix(in srgb, var(--viz-good) 70%, transparent); stroke-width: 1; vector-effect: non-scaling-stroke; }
+  .an-range { fill: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .an-line { fill: none; stroke: var(--accent); stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+  .an-out { fill: var(--off); }
+  .an-start { stroke: var(--off); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+  .an-hit { fill: transparent; }
+  .an-hit:hover { fill: color-mix(in srgb, var(--text) 8%, transparent); }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: var(--fs-meta); color: var(--text-muted); margin: 6px 0 12px; }
+  .legend i { display: inline-block; width: 14px; height: 10px; margin-right: 6px; vertical-align: -1px; border-radius: 2px; }
+  .legend .k-line { background: var(--accent); height: 3px; vertical-align: 2px; }
+  .legend .k-band { background: color-mix(in srgb, var(--viz-good) 30%, transparent); }
+  .legend .k-out { background: var(--off); width: 8px; height: 8px; border-radius: 50%; }
+  .seg { display: inline-flex; gap: 4px; }
+  .seg button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+  .modal-body textarea, .modal-body select, .modal-body input { width: 100%; box-sizing: border-box; }
+  .pick-list { max-height: 50vh; overflow: auto; }
+</style>
+</head>
+<body>
+  <div class="app-shell">
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+    <aside class="sidebar-rail" id="sidebar-rail"></aside>
+    <aside class="sidebar-flyout" id="sidebar-flyout"></aside>
+    <aside class="module-subnav" id="module-subnav"></aside>
+    <main>
+
+    <div class="module-section" id="section-anomalies" hidden>
+      <div id="an-page-head"></div>
+      <div class="stat-tiles" id="an-tiles"></div>
+      <div id="an-view"></div>
+    </div>
+
+    <div class="module-section" id="section-history" hidden>
+      <div class="panel">
+        <div class="panel-header"><h2>Closed anomalies</h2><span class="scan-status" id="hist-status"></span></div>
+        <p class="hint" id="hist-hint">Anomalies that settled back inside their band, newest first.</p>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Endpoint</th><th>What</th><th>Severity</th><th>Started</th><th>Lasted</th><th class="num">Peak</th><th class="num">Normal</th><th>Ended</th></tr></thead>
+            <tbody id="hist-body"><tr><td class="empty" colspan="8">loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="module-section" id="section-suppressions" hidden>
+      <div class="panel">
+        <div class="panel-header"><h2>Suppressions</h2><span class="scan-status" id="sup-status"></span></div>
+        <p class="hint">A suppression keeps one metric's anomalies on a computer group out of the ranked list, for a while or until it is lifted.
+          Detection carries on underneath: suppressed anomalies are still recorded, and <em>Show suppressed</em> lists them. Every suppression and its removal is in the audit log.</p>
+        <div class="actions" id="sup-actions"></div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>Metric</th><th>Computer group</th><th>Reason</th><th>By</th><th>Until</th><th></th></tr></thead>
+            <tbody id="sup-body"><tr><td class="empty" colspan="6">loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    </main>
+  </div>
+
+<script src="/static/app.js"></script>
+<script>
+let me = null, data = null, groupsCache = null;
+const can = p => hasPermission(me, p);
+const canTriage = () => can("alerts.triage") || can("settings.manage");
+const DIR_WORDS = { high: "above normal", low: "below normal" };
+
+// Which endpoint tab says most about each metric: where Investigate goes.
+const INVESTIGATE_TAB = { cpu: "processes", memory: "processes", processes: "processes", disk: "disks", services_failed: "services", reboots: "activity" };
+
+document.addEventListener("mustra:user", (e) => {
+  me = e.detail || {};
+  renderPageHead("an-page-head", "/anomalies", { title: "Anomalies", icon: "performance",
+    sub: "Endpoints that moved well outside their own normal, the same change across the fleet ranked first." });
+  initModuleSections([
+    { hash: "anomalies", label: "Anomalies" },
+    { hash: "history", label: "History" },
+    { hash: "suppressions", label: "Suppressions" },
+    { href: "/health", hash: "health", label: "Endpoint Health" },
+  ]);
+  loadList();
+  loadHistory();
+  loadSuppressions();
+});
+window.addEventListener("popstate", renderView);
+
+function params() { return new URLSearchParams(location.search); }
+function go(q) {
+  const p = new URLSearchParams(q);
+  history.pushState(null, "", "/anomalies" + (p.toString() ? "?" + p : "") + "#anomalies");
+  renderView();
+  window.scrollTo(0, 0);
+}
+
+function fmtVal(v, unit) {
+  if (v == null || isNaN(v)) return "—";
+  const n = Math.abs(v) >= 100 ? Math.round(v) : Math.round(v * 10) / 10;
+  return unit === "%" ? n + "%" : String(n);
+}
+function band(a) { return `${fmtVal(a.band_lo, a.unit)}–${fmtVal(a.band_hi, a.unit)}`; }
+function duration(from, to) {
+  const s = Math.max(0, ((to ? new Date(to) : new Date()) - new Date(from)) / 1000);
+  const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+  return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`;
+}
+function what(label, dir) { return `${label} ${DIR_WORDS[dir] || dir}`; }
+
+async function loadList() {
+  const show = document.getElementById("an-show-sup");
+  const resp = await fetch(`/api/anomalies${show && show.checked ? "?suppressed=1" : ""}`);
+  if (resp.status === 401) { window.location.href = "/login"; return; }
+  if (!resp.ok) { document.getElementById("an-view").innerHTML = `<div class="panel"><div class="empty">${escapeHtml(await resp.text())}</div></div>`; return; }
+  data = await resp.json();
+  const open = data.anomalies.filter(a => !a.ended_at);
+  const active = open.filter(a => !a.acknowledged_at && !a.suppressed);
+  const endpoints = new Set(active.map(a => a.agent_id)).size;
+  const worst = active.filter(a => a.severity === "critical" || a.severity === "high").length;
+  document.getElementById("an-tiles").innerHTML = [
+    { label: "Needs a look", value: active.length, cls: active.length ? "" : "ok" },
+    { label: "High or critical", value: worst, cls: worst ? "off" : "ok" },
+    { label: "Endpoints affected", value: endpoints },
+    { label: "Fleet patterns", value: data.groups.filter(g => g.active > 1).length },
+    { label: "Learning", value: `${data.learning} of ${data.tracked}` },
+  ].map(t => `<div class="stat-tile"><div class="stat-tile-label">${escapeHtml(t.label)}</div><div class="stat-tile-value ${escapeHtml(t.cls || "")}">${escapeHtml(t.value)}</div></div>`).join("");
+  renderView();
+}
+
+function renderView() {
+  if (!data) return;
+  const p = params();
+  if (p.get("id")) return renderDetail(p.get("id"));
+  if (p.get("group")) return renderGroup(p.get("group"));
+  renderRanked();
+}
+
+function renderRanked() {
+  const el = document.getElementById("an-view");
+  const sup = document.getElementById("an-show-sup");
+  const supChecked = sup ? sup.checked : false;
+  const rows = data.groups;
+  el.innerHTML = `<div class="panel">
+    <div class="panel-header"><h2>Ranked across the fleet</h2><span class="scan-status">${escapeHtml(rows.length)} pattern(s)</span></div>
+    <p class="hint">Each endpoint is judged against its own last two weeks: the median of its hourly values, give or take four robust standard deviations.
+      An anomaly opens when a value stays outside that band for ${escapeHtml(Math.round(data.sustain_minutes / 60))} hours and closes an hour after it settles back.
+      The same metric moving the same way on several endpoints is one row, ranked by severity times the endpoints showing it.
+      A new endpoint is learning for its first ${escapeHtml(data.min_hours)} hours and is never anomalous meanwhile.</p>
+    <div class="filters">
+      <label class="inline"><input type="checkbox" id="an-show-sup" ${supChecked ? "checked" : ""}> Show suppressed${data.suppressed ? ` (${escapeHtml(data.suppressed)})` : ""}</label>
+    </div>
+    <div class="table-scroll"><table>
+      <thead><tr><th>What</th><th>Severity</th><th class="num">Endpoints</th><th>Shared change</th><th class="num">Rank</th><th></th></tr></thead>
+      <tbody>${rows.length === 0
+        ? `<tr><td class="empty" colspan="6">${data.tracked
+            ? "No anomalies. Every endpoint with a baseline is inside it."
+            : "No baselines yet. Endpoints are learning their normal from the performance, processes and services sensors and their boot times; judging starts after " + escapeHtml(data.min_hours) + " hours of data."}</td></tr>`
+        : rows.map(g => `<tr class="${g.active ? "" : "quiet"}">
+          <td><a class="what" href="/anomalies?group=${encodeURIComponent(g.id)}#anomalies" data-group="${escapeHtml(g.id)}">${escapeHtml(what(g.metric_label, g.direction))}</a></td>
+          <td><span class="sev ${escapeHtml(g.severity)}">${escapeHtml(g.severity)}</span></td>
+          <td class="num">${escapeHtml(g.active)}${g.endpoints !== g.active ? ` <span class="sub">of ${escapeHtml(g.endpoints)}</span>` : ""}</td>
+          <td>${g.change ? `${escapeHtml(g.change)} <span class="sub">on ${escapeHtml(g.change_endpoints)}</span>` : '<span class="sub">—</span>'}</td>
+          <td class="num">${escapeHtml(g.rank)}</td>
+          <td class="row-actions"><button class="tiny" data-group="${escapeHtml(g.id)}">Open</button></td>
+        </tr>`).join("")}</tbody>
+    </table></div></div>`;
+  el.querySelectorAll("[data-group]").forEach(b => b.addEventListener("click", ev => { ev.preventDefault(); go({ group: b.dataset.group }); }));
+  document.getElementById("an-show-sup").addEventListener("change", loadList);
+}
+
+function crumbs(parts) {
+  return `<p class="crumbs"><a href="/anomalies#anomalies" data-home>Anomalies</a>${parts.map(p => p.group
+    ? ` › <a href="/anomalies?group=${encodeURIComponent(p.group)}#anomalies" data-crumb-group="${escapeHtml(p.group)}">${escapeHtml(p.label)}</a>`
+    : ` › ${escapeHtml(p.label)}`).join("")}</p>`;
+}
+function wireCrumbs(el) {
+  el.querySelector("[data-home]")?.addEventListener("click", ev => { ev.preventDefault(); go({}); });
+  el.querySelectorAll("[data-crumb-group]").forEach(a => a.addEventListener("click", ev => { ev.preventDefault(); go({ group: a.dataset.crumbGroup }); }));
+}
+
+// The hand-offs: the dispatch stays on the page that owns it (Deploy,
+// Patch), with these endpoints already chosen, the way Interact hands off.
+function actionButtons(agentIDs, ids, metric) {
+  const out = [];
+  if (canTriage() && ids.length) out.push(`<button class="tiny" data-ack="${escapeHtml(ids.join(","))}">Acknowledge${ids.length > 1 ? ` all ${escapeHtml(ids.length)}` : ""}</button>`);
+  if (canTriage() && metric) out.push(`<button class="tiny" data-suppress="${escapeHtml(metric)}">Suppress on a group…</button>`);
+  if (can("deploy.manage") && agentIDs.length) out.push(`<button class="tiny" data-deploy="${escapeHtml(agentIDs.join(","))}">Run a package or action…</button>`);
+  if (can("patches.manage") && agentIDs.length) out.push(`<a class="link" href="/patches?agents=${encodeURIComponent(agentIDs.join(","))}#deploy">Apply patches →</a>`);
+  if (can("deploy.manage")) out.push(`<a class="link" href="/playbooks#playbooks">Playbooks →</a>`);
+  return out.join("");
+}
+function wireActions(el) {
+  el.querySelectorAll("[data-ack]").forEach(b => b.addEventListener("click", () => acknowledge(b.dataset.ack.split(","))));
+  el.querySelectorAll("[data-suppress]").forEach(b => b.addEventListener("click", () => suppressDialog(b.dataset.suppress)));
+  el.querySelectorAll("[data-deploy]").forEach(b => b.addEventListener("click", () => deployDialog(b.dataset.deploy.split(","))));
+}
+
+function renderGroup(key) {
+  const el = document.getElementById("an-view");
+  const g = data.groups.find(x => x.id === key);
+  if (!g) {
+    el.innerHTML = `<div class="panel">${crumbs([{ label: key }])}<div class="empty">Nothing open in this group now. It may have settled, or be suppressed.</div></div>`;
+    wireCrumbs(el);
+    return;
+  }
+  const members = data.anomalies.filter(a => g.anomaly_ids.includes(a.id))
+    .sort((a, b) => (!!a.acknowledged_at - !!b.acknowledged_at) || b.score - a.score);
+  const metric = data.metrics.find(m => m.metric === g.metric) || {};
+  const unacked = members.filter(a => !a.acknowledged_at).map(a => a.id);
+  el.innerHTML = `<div class="panel">
+    ${crumbs([{ label: what(g.metric_label, g.direction) }])}
+    <div class="panel-header"><h2>${escapeHtml(what(g.metric_label, g.direction))} on ${escapeHtml(g.endpoints)} endpoint(s)</h2><span class="sev ${escapeHtml(g.severity)}">${escapeHtml(g.severity)}</span></div>
+    <p class="hint">${escapeHtml(metric.source || "")}</p>
+    ${g.change ? `<p class="change"><strong>${escapeHtml(g.change_endpoints)} of ${escapeHtml(g.endpoints)}</strong> had <strong>${escapeHtml(g.change)}</strong> finish in the day before their anomaly began.</p>` : ""}
+    <div class="actions">${actionButtons(g.agent_ids, unacked, g.metric)}</div>
+    <div class="table-scroll"><table>
+      <thead><tr><th>Endpoint</th><th>Severity</th><th>Since</th><th class="num">Now</th><th class="num">Peak</th><th class="num">Normal</th><th>Change before</th><th>State</th><th></th></tr></thead>
+      <tbody>${members.map(a => `<tr class="${a.acknowledged_at || a.suppressed ? "quiet" : ""}">
+        <td><a href="/endpoint/${encodeURIComponent(a.agent_id)}">${escapeHtml(a.hostname)}</a><div class="sub">${escapeHtml(osLabel(a.os))}</div></td>
+        <td><span class="sev ${escapeHtml(a.severity)}">${escapeHtml(a.severity)}</span></td>
+        <td data-sort="${escapeHtml(a.started_at)}">${escapeHtml(fmtTime(a.started_at))}<div class="sub">for ${escapeHtml(duration(a.started_at))}</div></td>
+        <td class="num">${escapeHtml(fmtVal(a.value, a.unit))}</td>
+        <td class="num">${escapeHtml(fmtVal(a.peak_value, a.unit))}</td>
+        <td class="num">${escapeHtml(band(a))}</td>
+        <td>${a.change ? escapeHtml(a.change) : '<span class="sub">—</span>'}</td>
+        <td class="state">${a.suppressed ? "suppressed" : a.acknowledged_at ? `acknowledged by ${escapeHtml(a.acknowledged_by)}` : "open"}</td>
+        <td class="row-actions"><button class="tiny" data-id="${escapeHtml(a.id)}">Details</button></td>
+      </tr>`).join("")}</tbody>
+    </table></div></div>`;
+  wireCrumbs(el);
+  wireActions(el);
+  el.querySelectorAll("[data-id]").forEach(b => b.addEventListener("click", () => go({ id: b.dataset.id })));
+}
+
+let chartRange = "day";
+async function renderDetail(id) {
+  const el = document.getElementById("an-view");
+  const resp = await fetch(`/api/anomalies/${encodeURIComponent(id)}`);
+  if (!resp.ok) {
+    el.innerHTML = `<div class="panel">${crumbs([{ label: "Not found" }])}<div class="empty">${escapeHtml(await resp.text())}</div></div>`;
+    wireCrumbs(el);
+    return;
+  }
+  const d = await resp.json(), a = d.anomaly;
+  const metric = data.metrics.find(m => m.metric === a.metric) || {};
+  const tab = INVESTIGATE_TAB[a.metric] || "overview";
+  const open = !a.ended_at;
+  el.innerHTML = `<div class="panel">
+    ${crumbs([{ label: what(a.metric_label, a.direction), group: a.group }, { label: a.hostname }])}
+    <div class="panel-header"><h2>${escapeHtml(a.hostname)}: ${escapeHtml(what(a.metric_label, a.direction))}</h2><span class="sev ${escapeHtml(a.severity)}">${escapeHtml(a.severity)}</span></div>
+    <div class="facts">
+      <div><span>${open ? "Since" : "Lasted"}</span><strong>${escapeHtml(open ? fmtTime(a.started_at) : duration(a.started_at, a.ended_at))}</strong></div>
+      <div><span>${open ? "Now (hour median)" : "Ended"}</span><strong>${escapeHtml(open ? fmtVal(a.value, a.unit) : fmtTime(a.ended_at))}</strong></div>
+      <div><span>Peak</span><strong>${escapeHtml(fmtVal(a.peak_value, a.unit))}</strong></div>
+      <div><span>Normal when it opened</span><strong>${escapeHtml(band(a))}</strong></div>
+      <div><span>Deviation at peak</span><strong>${escapeHtml(Math.round(a.peak_z * 10) / 10)}σ</strong></div>
+      <div><span>State</span><strong>${a.suppressed ? "suppressed" : a.acknowledged_at ? "acknowledged" : open ? "open" : a.no_data ? "closed: stopped reporting" : "closed"}</strong></div>
+    </div>
+    ${a.change ? `<p class="change">Shortly before: <strong>${escapeHtml(a.change)}</strong>, ${escapeHtml(fmtTime(a.change_at))}.</p>` : ""}
+    ${a.acknowledged_at ? `<p class="change">Acknowledged by <strong>${escapeHtml(a.acknowledged_by)}</strong> ${escapeHtml(fmtAgo(a.acknowledged_at))}${a.ack_note ? `: ${escapeHtml(a.ack_note)}` : ""}</p>` : ""}
+    <div class="actions">
+      <a class="link" href="/endpoint/${encodeURIComponent(a.agent_id)}">Endpoint page →</a>
+      <a class="link" href="/endpoint/${encodeURIComponent(a.agent_id)}#${escapeHtml(tab)}">Investigate →</a>
+      ${tab !== "activity" ? `<a class="link" href="/endpoint/${encodeURIComponent(a.agent_id)}#activity">Activity →</a>` : ""}
+      ${can("deploy.manage") ? `<a class="link" href="/shell?agent=${encodeURIComponent(a.agent_id)}">Direct Connect →</a>` : ""}
+      ${actionButtons([a.agent_id], open && !a.acknowledged_at ? [a.id] : [], a.metric)}
+    </div>
+    <div class="panel-header"><h2>${escapeHtml(a.metric_label)} against its normal</h2>
+      <span class="seg"><button class="tiny" data-range="day" aria-pressed="${chartRange === "day"}">24 hours</button><button class="tiny" data-range="weeks" aria-pressed="${chartRange === "weeks"}">2 weeks</button></span></div>
+    <div id="an-chart"></div>
+    <p class="hint">${escapeHtml(metric.source || "")}</p>
+    ${d.others.length ? `<h2 class="u-m-16-0-8">Also open on ${escapeHtml(a.hostname)}</h2><ul>${d.others.map(o =>
+      `<li><a href="/anomalies?id=${encodeURIComponent(o.id)}#anomalies" data-id="${escapeHtml(o.id)}">${escapeHtml(what(o.metric_label, o.direction))}</a> <span class="sev ${escapeHtml(o.severity)}">${escapeHtml(o.severity)}</span> <span class="sub">since ${escapeHtml(fmtAgo(o.started_at))}</span></li>`).join("")}</ul>` : ""}
+  </div>`;
+  wireCrumbs(el);
+  wireActions(el);
+  el.querySelectorAll("a[data-id]").forEach(x => x.addEventListener("click", ev => { ev.preventDefault(); go({ id: x.dataset.id }); }));
+  el.querySelectorAll("[data-range]").forEach(b => b.addEventListener("click", () => {
+    chartRange = b.dataset.range;
+    el.querySelectorAll("[data-range]").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.range === chartRange)));
+    drawChart(d);
+  }));
+  drawChart(d);
+}
+
+// The chart: the endpoint's values as one line in the data hue, its normal
+// band behind it, the anomaly's start as a dashed mark. Points outside
+// the band are dotted in the alarm colour; nothing else is coloured.
+function drawChart(d) {
+  const el = document.getElementById("an-chart");
+  const a = d.anomaly, W = 800, H = 220;
+  const pts = chartRange === "day"
+    ? d.samples.map(s => ({ t: new Date(s.at).getTime(), v: s.value }))
+    : d.hours.map(h => ({ t: new Date(h.hour).getTime(), v: h.median, lo: h.lo, hi: h.hi }));
+  if (pts.length === 0) { el.innerHTML = `<div class="empty">No values in this range.</div>`; return; }
+  const b = d.ready ? d.band : { lo: a.band_lo, hi: a.band_hi, inner_lo: a.band_lo, inner_hi: a.band_hi };
+  const med = d.ready ? d.baseline.median : a.baseline_median;
+  let vmin = Math.min(b.lo, ...pts.map(p => p.lo ?? p.v)), vmax = Math.max(b.hi, ...pts.map(p => p.hi ?? p.v));
+  if (a.unit === "%") { vmin = Math.max(0, vmin); vmax = Math.min(100, vmax); }
+  if (vmax - vmin < 1) vmax = vmin + 1;
+  const pad = (vmax - vmin) * 0.06; vmin = Math.max(0, vmin - pad); vmax += pad;
+  const t0 = pts[0].t, t1 = Math.max(pts[pts.length - 1].t, t0 + 1);
+  const x = t => ((t - t0) / (t1 - t0)) * W, y = v => H - ((v - vmin) / (vmax - vmin)) * H;
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join("");
+  const range = chartRange === "weeks"
+    ? `<path class="an-range" d="${pts.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${y(p.hi).toFixed(1)}`).join("")}${[...pts].reverse().map(p => `L${x(p.t).toFixed(1)},${y(p.lo).toFixed(1)}`).join("")}Z"/>` : "";
+  const start = new Date(a.started_at).getTime();
+  const startMark = start >= t0 && start <= t1 ? `<line class="an-start" x1="${x(start).toFixed(1)}" x2="${x(start).toFixed(1)}" y1="0" y2="${H}"/>` : "";
+  const outs = pts.filter(p => p.v > b.hi || p.v < b.lo).map(p => `<circle class="an-out" cx="${x(p.t).toFixed(1)}" cy="${y(p.v).toFixed(1)}" r="2"/>`).join("");
+  const step = W / pts.length;
+  const hits = pts.map(p => `<rect class="an-hit" x="${(x(p.t) - step / 2).toFixed(1)}" y="0" width="${step.toFixed(1)}" height="${H}" data-hint="${escapeHtml(fmtTime(new Date(p.t).toISOString()) + ": " + fmtVal(p.v, a.unit) + (p.lo != null ? ` (hour ${fmtVal(p.lo, a.unit)}–${fmtVal(p.hi, a.unit)})` : ""))}"/>`).join("");
+  el.innerHTML = `<div class="chart">
+      <div class="yaxis"><span>${escapeHtml(fmtVal(vmax, a.unit))}</span><span>${escapeHtml(fmtVal((vmax + vmin) / 2, a.unit))}</span><span>${escapeHtml(fmtVal(vmin, a.unit))}</span></div>
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(a.metric_label)} on ${escapeHtml(a.hostname)} against its normal band ${escapeHtml(fmtVal(b.lo, a.unit))} to ${escapeHtml(fmtVal(b.hi, a.unit))}">
+        <rect class="an-band" x="0" width="${W}" y="${y(b.hi).toFixed(1)}" height="${Math.max(0, y(b.lo) - y(b.hi)).toFixed(1)}"/>
+        <rect class="an-inner" x="0" width="${W}" y="${y(b.inner_hi).toFixed(1)}" height="${Math.max(0, y(b.inner_lo) - y(b.inner_hi)).toFixed(1)}"/>
+        <line class="an-median" x1="0" x2="${W}" y1="${y(med).toFixed(1)}" y2="${y(med).toFixed(1)}"/>
+        ${range}${startMark}<path class="an-line" d="${line}"/>${outs}${hits}
+      </svg>
+      <div class="xaxis"><span>${escapeHtml(fmtTime(new Date(t0).toISOString()))}</span><span>${escapeHtml(fmtTime(new Date(t1).toISOString()))}</span></div>
+    </div>
+    <div class="legend"><span><i class="k-line"></i>${chartRange === "day" ? "five-minute values" : "hourly median, with the hour's low and high"}</span>
+      <span><i class="k-band"></i>normal band (dashed: where it must settle to close)</span><span><i class="k-out"></i>outside the band</span>
+      ${d.ready ? "" : `<span>Baseline still learning (${escapeHtml(d.baseline.hours)} of ${escapeHtml(data.min_hours)} hours): the band shown is the one the anomaly opened on.</span>`}</div>`;
+  attachVizTooltips(el);
+}
+
+async function acknowledge(ids) {
+  openModal(`Acknowledge ${ids.length} anomal${ids.length === 1 ? "y" : "ies"}`, `
+    <p class="hint">Acknowledged anomalies stay listed and stop counting toward their group's rank. They close as usual when the value settles; a new occurrence is a new anomaly.</p>
+    <div class="field"><label for="ack-note">What you found (optional)</label><textarea id="ack-note" rows="3" maxlength="1000"></textarea></div>
+    <div class="actions"><button class="primary" id="ack-go">Acknowledge</button></div>`, (wrap, close) => {
+    wrap.querySelector("#ack-go").addEventListener("click", async () => {
+      const resp = await fetch("/api/anomalies/ack", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, note: wrap.querySelector("#ack-note").value }) });
+      if (!resp.ok) { showToast(await resp.text(), "error"); return; }
+      const r = await resp.json();
+      showToast(`${r.acknowledged.length} acknowledged`, "ok");
+      document.getElementById("mustra-modal")?.remove();
+      await loadList();
+    });
+  });
+}
+
+async function computerGroups() {
+  if (groupsCache) return groupsCache;
+  const resp = await fetch("/api/groups");
+  groupsCache = resp.ok ? ((await resp.json()).groups || []) : [];
+  return groupsCache;
+}
+
+async function suppressDialog(metric) {
+  const groups = await computerGroups();
+  const metrics = data ? data.metrics : [];
+  openModal("Suppress anomalies", `
+    <p class="hint">Keeps this metric's anomalies on the group's endpoints out of the ranked list. They are still recorded. Choose a group whose endpoints you all manage.</p>
+    <div class="field"><label for="sup-metric">Metric</label><select id="sup-metric">${metrics.map(m => `<option value="${escapeHtml(m.metric)}" ${m.metric === metric ? "selected" : ""}>${escapeHtml(m.label)}</option>`).join("")}</select></div>
+    <div class="field"><label for="sup-group">Computer group</label><select id="sup-group">${groups.map(g => `<option value="${escapeHtml(g.id)}">${escapeHtml(g.name)}</option>`).join("")}<option value="">Every endpoint</option></select></div>
+    <div class="field"><label for="sup-reason">Reason</label><input id="sup-reason" maxlength="500" placeholder="Why these are expected"></div>
+    <div class="field"><label for="sup-days">For</label><select id="sup-days"><option value="1">1 day</option><option value="7" selected>7 days</option><option value="30">30 days</option><option value="0">until lifted</option></select></div>
+    <div class="actions"><button class="primary" id="sup-go">Suppress</button></div>`, (wrap) => {
+    wrap.querySelector("#sup-go").addEventListener("click", async () => {
+      const body = { metric: wrap.querySelector("#sup-metric").value, group_id: wrap.querySelector("#sup-group").value,
+        reason: wrap.querySelector("#sup-reason").value.trim(), days: Number(wrap.querySelector("#sup-days").value) };
+      if (!body.reason) { showToast("Give a reason: it is what the next person reads.", "error"); return; }
+      const resp = await fetch("/api/anomalies/suppressions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!resp.ok) { showToast(await resp.text(), "error"); return; }
+      showToast("Suppressed", "ok");
+      document.getElementById("mustra-modal")?.remove();
+      await Promise.all([loadList(), loadSuppressions()]);
+    });
+  });
+}
+
+// Pick a package, then hand the endpoints to Deploy with them chosen, as
+// Interact's Deploy Action does. The dispatch stays on the Deploy page.
+let deployPackages = null;
+async function deployDialog(agentIDs) {
+  if (!deployPackages) {
+    const resp = await fetch("/api/software");
+    if (!resp.ok) { showToast(await resp.text(), "error"); return; }
+    deployPackages = ((await resp.json()).packages || []).filter(p => p.enabled !== false);
+  }
+  openModal(`Run on ${agentIDs.length} endpoint(s)`, `
+    <p class="hint">Choose a package or action. Deploy opens with these endpoints already chosen; its review, parameters and rollout plan apply as usual.</p>
+    <div class="field"><label for="dep-filter">Filter</label><input id="dep-filter" placeholder="name or vendor"></div>
+    <div class="pick-list" id="dep-list"></div>`, (wrap) => {
+    const list = wrap.querySelector("#dep-list");
+    const draw = () => {
+      const q = wrap.querySelector("#dep-filter").value.trim().toLowerCase();
+      const shown = deployPackages.filter(p => !q || (p.name || "").toLowerCase().includes(q) || (p.vendor || "").toLowerCase().includes(q));
+      list.innerHTML = shown.length === 0 ? '<p class="empty">no enabled packages match</p>'
+        : `<table><thead><tr><th>Package</th><th>Kind</th><th></th></tr></thead><tbody>${shown.map(p => `<tr>
+            <td><strong>${escapeHtml(p.name)}</strong> <span class="sub">${escapeHtml(p.vendor || "")}</span></td>
+            <td>${escapeHtml(p.kind === "action" ? "action" : "software")}</td>
+            <td class="row-actions"><button class="tiny" data-pkg="${escapeHtml(p.id)}" data-kind="${escapeHtml(p.kind || "")}">choose</button></td></tr>`).join("")}</tbody></table>`;
+      list.querySelectorAll("[data-pkg]").forEach(b => b.addEventListener("click", () => {
+        const q = new URLSearchParams({ package: b.dataset.pkg, agents: agentIDs.join(",") });
+        window.location.href = `/software?${q}${b.dataset.kind === "action" ? "#actions" : "#catalog"}`;
+      }));
+    };
+    wrap.querySelector("#dep-filter").addEventListener("input", draw);
+    draw();
+  });
+}
+
+async function loadHistory() {
+  const resp = await fetch("/api/anomalies?state=closed&suppressed=1");
+  if (!resp.ok) return;
+  const d = await resp.json();
+  const rows = d.anomalies;
+  document.getElementById("hist-status").textContent = `${rows.length} closed`;
+  document.getElementById("hist-hint").textContent = `Anomalies that settled back inside their band, or whose endpoint stopped reporting the metric for a day, newest first. Kept ${d.closed_retention_days} days.`;
+  document.getElementById("hist-body").innerHTML = rows.map(a => `<tr>
+    <td><a href="/endpoint/${encodeURIComponent(a.agent_id)}">${escapeHtml(a.hostname)}</a></td>
+    <td><a href="/anomalies?id=${encodeURIComponent(a.id)}#anomalies">${escapeHtml(what(a.metric_label, a.direction))}</a>${a.change ? `<div class="sub">after ${escapeHtml(a.change)}</div>` : ""}</td>
+    <td><span class="sev ${escapeHtml(a.severity)}">${escapeHtml(a.severity)}</span></td>
+    <td data-sort="${escapeHtml(a.started_at)}">${escapeHtml(fmtTime(a.started_at))}</td>
+    <td>${escapeHtml(duration(a.started_at, a.ended_at))}</td>
+    <td class="num">${escapeHtml(fmtVal(a.peak_value, a.unit))}</td>
+    <td class="num">${escapeHtml(band(a))}</td>
+    <td class="state">${a.no_data ? "stopped reporting" : "settled"}${a.acknowledged_by ? ` · acknowledged by ${escapeHtml(a.acknowledged_by)}` : ""}</td>
+  </tr>`).join("") || '<tr><td class="empty" colspan="8">Nothing has closed yet.</td></tr>';
+}
+
+async function loadSuppressions() {
+  const resp = await fetch("/api/anomalies/suppressions");
+  if (!resp.ok) return;
+  const rows = (await resp.json()).suppressions;
+  document.getElementById("sup-status").textContent = `${rows.filter(x => !x.expired).length} active`;
+  document.getElementById("sup-actions").innerHTML = canTriage() ? `<button class="tiny" id="sup-new">New suppression…</button>` : "";
+  document.getElementById("sup-new")?.addEventListener("click", () => suppressDialog(""));
+  document.getElementById("sup-body").innerHTML = rows.map(x => `<tr class="${x.expired ? "quiet" : ""}">
+    <td>${escapeHtml(x.metric_label || x.metric)}</td>
+    <td>${x.group_id ? (x.group_name ? escapeHtml(x.group_name) : '<span class="sub">deleted group: covers nothing</span>') : "Every endpoint"}</td>
+    <td class="u-ws-normal">${escapeHtml(x.reason)}</td>
+    <td>${escapeHtml(x.created_by)}<div class="sub">${escapeHtml(fmtAgo(x.created_at))}</div></td>
+    <td>${x.expires_at ? (x.expired ? "expired " : "") + escapeHtml(fmtTime(x.expires_at)) : "until lifted"}</td>
+    <td class="row-actions">${canTriage() ? `<button class="tiny danger" data-lift="${escapeHtml(x.id)}">Lift</button>` : ""}</td>
+  </tr>`).join("") || '<tr><td class="empty" colspan="6">No suppressions.</td></tr>';
+  document.querySelectorAll("[data-lift]").forEach(b => b.addEventListener("click", async () => {
+    const resp = await fetch(`/api/anomalies/suppressions/${encodeURIComponent(b.dataset.lift)}`, { method: "DELETE" });
+    if (!resp.ok) { showToast(await resp.text(), "error"); return; }
+    showToast("Suppression lifted", "ok");
+    await Promise.all([loadList(), loadSuppressions()]);
+  }));
+}
+
+setInterval(() => { if (!document.hidden && !params().get("id") && !document.getElementById("mustra-modal")) loadList(); }, 120000);
+</script>
+</body>
+</html>

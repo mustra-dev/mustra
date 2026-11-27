@@ -1470,6 +1470,80 @@ const (
 	}`
 )
 
+// Anomalies: the same CPU climb on web-01 and the finance laptop, both
+// within the hour after the same package was installed on each. Bands
+// and peaks follow from the baselines: web-01's MAD of 2.5 is below the
+// 15-point floor, so its band is 18 ± 15; the laptop's MAD of 4 gives a
+// robust deviation of 5.93 and a band of 12 ± 23.72.
+const (
+	anomalyWeb01Example = `{
+		"id": "anom-6e2a9c4f1b7d43e8a0c5f9b3d1e7a2c6",
+		"agent_id": "agt-4f2a9c1e7b3d48e6a05c9d2f81b7e3a4",
+		"hostname": "web-01",
+		"os": "linux",
+		"metric": "cpu",
+		"direction": "high",
+		"started_at": "2026-10-20T03:10:00Z",
+		"last_seen_at": "2026-10-20T08:40:00Z",
+		"no_data": false,
+		"baseline_median": 18,
+		"baseline_mad": 2.5,
+		"value": 87,
+		"peak_value": 92,
+		"peak_z": 19.733333333333334,
+		"severity": "high",
+		"score": 24.3,
+		"change": "Install Example Agent 7.2",
+		"change_at": "2026-10-20T02:31:07Z",
+		"acknowledged_by": "",
+		"ack_note": "",
+		"metric_label": "CPU use",
+		"unit": "%",
+		"group": "cpu-high",
+		"band_lo": 3,
+		"band_hi": 33,
+		"suppressed": false
+	}`
+	anomalyLaptopExample = `{
+		"id": "anom-1d8b3f5a7c9e42b6a4d0e2f8c6b1a3e5",
+		"agent_id": "agt-9b1d7e3a5c2f48d0a6e4b8c1f3d5a7e9",
+		"hostname": "FIN-LT-0142",
+		"os": "windows",
+		"metric": "cpu",
+		"direction": "high",
+		"started_at": "2026-10-20T03:40:00Z",
+		"last_seen_at": "2026-10-20T08:40:00Z",
+		"no_data": false,
+		"baseline_median": 12,
+		"baseline_mad": 4,
+		"value": 71,
+		"peak_value": 78,
+		"peak_z": 11.129,
+		"severity": "high",
+		"score": 13.4,
+		"change": "Install Example Agent 7.2",
+		"change_at": "2026-10-20T03:02:44Z",
+		"acknowledged_at": "2026-10-20T08:52:13Z",
+		"acknowledged_by": "jdoe",
+		"ack_note": "Known: the new agent's first full scan; check again tomorrow",
+		"metric_label": "CPU use",
+		"unit": "%",
+		"group": "cpu-high",
+		"band_lo": 0,
+		"band_hi": 35.72,
+		"suppressed": false
+	}`
+	anomalySuppressionExample = `{
+		"id": "asup-3c7e1a9d5b2f48e6a0c4d8b2f6e1a9c3",
+		"metric": "processes",
+		"group_id": "cgrp-1c8e4a2f6b9d43e7a5c0f2b8d6e4a1c3",
+		"reason": "Nightly batch jobs fork hundreds of workers during the migration",
+		"created_by": "jdoe",
+		"created_at": "2026-10-20T09:05:41Z",
+		"expires_at": "2026-10-27T09:05:41Z"
+	}`
+)
+
 // respExamples are success responses, one per route, keyed like
 // routeDocs. The spec gives each as the example of its route's JSON
 // success response, so a reader sees real values: IDs in the form mustra
@@ -1628,6 +1702,74 @@ var respExamples = map[string]string{
 			{"agent_id": "agt-4f2a9c1e7b3d48e6a05c9d2f81b7e3a4", "version": "0.57.40", "first_seen": "2026-10-02T21:03:12Z"}
 		]
 	}`,
+
+	// anomalies
+	// One group: the laptop is acknowledged, so only web-01's score
+	// counts toward the rank. Both installed the same package in the
+	// day before, which is the group's shared change.
+	"GET /api/anomalies": `{
+		"groups": [
+			{
+				"id": "cpu-high",
+				"metric": "cpu",
+				"metric_label": "CPU use",
+				"direction": "high",
+				"endpoints": 2,
+				"active": 1,
+				"rank": 24.3,
+				"severity": "high",
+				"change": "Install Example Agent 7.2",
+				"change_endpoints": 2,
+				"anomaly_ids": ["anom-6e2a9c4f1b7d43e8a0c5f9b3d1e7a2c6", "anom-1d8b3f5a7c9e42b6a4d0e2f8c6b1a3e5"],
+				"agent_ids": ["agt-4f2a9c1e7b3d48e6a05c9d2f81b7e3a4", "agt-9b1d7e3a5c2f48d0a6e4b8c1f3d5a7e9"]
+			}
+		],
+		"anomalies": [` + anomalyWeb01Example + `, ` + anomalyLaptopExample + `],
+		"metrics": [
+			{"metric": "cpu", "label": "CPU use", "unit": "%", "sensor": "performance", "source": "The performance sensor's current CPU reading, reported every minute on every platform."},
+			{"metric": "reboots", "label": "Restarts in 24 hours", "unit": "/24h", "sensor": "", "source": "Boot times from the agent's facts, counted over the last 24 hours, on every platform. A machine that restarts on its own keeps showing up here."}
+		],
+		"tracked": 41,
+		"learning": 3,
+		"suppressed": 1,
+		"acknowledged": 1,
+		"min_hours": 48,
+		"sustain_minutes": 120,
+		"closed_retention_days": 90
+	}`,
+	"GET /api/anomalies/{id}": `{
+		"anomaly": ` + anomalyWeb01Example + `,
+		"baseline": {"median": 18, "mad": 2.5, "hours": 336},
+		"band": {"lo": 3, "hi": 33, "inner_lo": 6.75, "inner_hi": 29.25, "scale": 3.75},
+		"ready": true,
+		"samples": [
+			{"at": "2026-10-20T08:30:00Z", "value": 88.4},
+			{"at": "2026-10-20T08:35:00Z", "value": 85.1}
+		],
+		"hours": [
+			{"hour": "2026-10-20T06:00:00Z", "median": 19.2, "lo": 11.5, "hi": 41, "n": 12},
+			{"hour": "2026-10-20T07:00:00Z", "median": 88.9, "lo": 71.3, "hi": 97.2, "n": 12}
+		],
+		"others": []
+	}`,
+	"POST /api/anomalies/ack": `{"acknowledged": ["anom-1d8b3f5a7c9e42b6a4d0e2f8c6b1a3e5"]}`,
+	"GET /api/anomalies/suppressions": `{
+		"suppressions": [
+			{
+				"id": "asup-3c7e1a9d5b2f48e6a0c4d8b2f6e1a9c3",
+				"metric": "processes",
+				"group_id": "cgrp-1c8e4a2f6b9d43e7a5c0f2b8d6e4a1c3",
+				"reason": "Nightly batch jobs fork hundreds of workers during the migration",
+				"created_by": "jdoe",
+				"created_at": "2026-10-20T09:05:41Z",
+				"expires_at": "2026-10-27T09:05:41Z",
+				"metric_label": "Running processes",
+				"group_name": "Web servers",
+				"expired": false
+			}
+		]
+	}`,
+	"POST /api/anomalies/suppressions": anomalySuppressionExample,
 
 	// approval-policies: the first enabled policy that covers an
 	// operation holds it, in name order. The body examples' policy waits

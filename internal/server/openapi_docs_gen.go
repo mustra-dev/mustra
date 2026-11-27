@@ -5,6 +5,15 @@ package server
 // typeDocs are the doc comments of the types the routes declare, by
 // docKey, copied from the source by TestOpenAPIDocCommentsAreGenerated.
 var typeDocs = map[string]typeDoc{
+	"github.com/mustra-dev/mustra/internal/anomaly.Band": {
+		Doc: "Band is the range a value is judged against.",
+		Fields: map[string]string{
+			"Scale": "Scale is one robust standard deviation, floored, in the metric's unit: deviations are measured in it.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/anomaly.Baseline": {
+		Doc: "Baseline is one endpoint's normal for one metric: the median of its hourly medians over BaselineWindow, their MAD, and how many hours that covers.",
+	},
 	"github.com/mustra-dev/mustra/internal/enforcekinds.Info": {
 		Doc: "Info describes a kind for the editor.",
 	},
@@ -348,6 +357,18 @@ var typeDocs = map[string]typeDoc{
 	"github.com/mustra-dev/mustra/internal/server.ScanResult": {
 		Doc: "ScanResult is one host found reachable during a subnet scan. AgentInstalled/AgentVersion are filled in by the caller (see deploy_api.go's annotateWithKnownAgents), not scanSubnet itself — this package only does the TCP-22 sweep and has no store access.",
 	},
+	"github.com/mustra-dev/mustra/internal/server.ackAnomaliesRequest": {
+		Doc: "ackAnomaliesRequest is the body of POST /api/anomalies/ack.",
+		Fields: map[string]string{
+			"Note": "what was found, for whoever looks next",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.ackAnomaliesResponse": {
+		Doc: "ackAnomaliesResponse is what POST /api/anomalies/ack answers.",
+		Fields: map[string]string{
+			"Acknowledged": "Acknowledged are the ids this call acknowledged; one already acknowledged, or one the caller may not see, is left out.",
+		},
+	},
 	"github.com/mustra-dev/mustra/internal/server.ackIOCFindingRequest": {
 		Doc: "ackIOCFindingRequest is the body of POST /api/hunt/findings/{id}/ack.",
 		Fields: map[string]string{
@@ -447,6 +468,52 @@ var typeDocs = map[string]typeDoc{
 		Doc: "aiToolCallView is one tool the model called, as the page lists it.",
 		Fields: map[string]string{
 			"Action": "Action marks a request_* tool: it filed an approval request.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.anomalyDetailResponse": {
+		Doc: "anomalyDetailResponse is what GET /api/anomalies/{id} answers: the anomaly, and what to draw it against.",
+		Fields: map[string]string{
+			"Band":     "Baseline is the endpoint's current baseline for the metric, and Band the normal range it gives (Ready false while learning).",
+			"Baseline": "Baseline is the endpoint's current baseline for the metric, and Band the normal range it gives (Ready false while learning).",
+			"Hours":    "Samples are the last day's five-minute values; Hours the hourly medians, lows and highs over the baseline window.",
+			"Others":   "Others are the endpoint's other open anomalies.",
+			"Ready":    "Baseline is the endpoint's current baseline for the metric, and Band the normal range it gives (Ready false while learning).",
+			"Samples":  "Samples are the last day's five-minute values; Hours the hourly medians, lows and highs over the baseline window.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.anomalyGroupView": {
+		Doc: "anomalyGroupView is the same anomaly on several endpoints.",
+		Fields: map[string]string{
+			"Active": "Active is how many are neither acknowledged nor suppressed.",
+			"Change": "Change is a change most of the group went through in the day before, when at least two and at least half did.",
+			"ID":     "ID is the metric and direction (\"cpu-high\"): stable, so a group has a URL (/anomalies?group=cpu-high) whatever its members.",
+			"Rank":   "Rank is the active members' severity scores summed: average severity times endpoints affected.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.anomalyMetricView": {
+		Doc: "anomalyMetricView describes one judged metric for the page.",
+		Fields: map[string]string{
+			"Sensor": "empty for the endpoint's own facts",
+			"Source": "Source says where the value comes from on each platform.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.anomalyPoint": {
+		Doc: "anomalyPoint is one point of a chart.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.anomalySuppressionView": {
+		Doc: "anomalySuppressionView is a suppression with its group's name.",
+		Fields: map[string]string{
+			"GroupName": "GroupName is the computer group's name; empty with GroupID set means the group was deleted and the suppression covers nothing.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.anomalyView": {
+		Doc: "anomalyView is one anomaly as the console shows it.",
+		Fields: map[string]string{
+			"BandHi":        "BandLo and BandHi are the normal range at the baseline the anomaly opened on.",
+			"BandLo":        "BandLo and BandHi are the normal range at the baseline the anomaly opened on.",
+			"Group":         "Group is the fleet group this anomaly belongs to (its metric and direction, \"cpu-high\"), as in /anomalies?group=.",
+			"Suppressed":    "Suppressed is set when a suppression covers this anomaly; SuppressionID names it.",
+			"SuppressionID": "Suppressed is set when a suppression covers this anomaly; SuppressionID names it.",
 		},
 	},
 	"github.com/mustra-dev/mustra/internal/server.applyClientProfilesResponse": {
@@ -632,6 +699,14 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/server.createAPITokenResponse": {
 		Doc: "createAPITokenResponse is what POST /api/admin/tokens answers.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.createAnomalySuppressionRequest": {
+		Doc: "createAnomalySuppressionRequest is the body of POST /api/anomalies/suppressions.",
+		Fields: map[string]string{
+			"Days":    "Days until it lapses; 0 keeps it until removed.",
+			"GroupID": "GroupID is the computer group to suppress on; empty means every endpoint, which only someone whose management rights cover the whole fleet may do.",
+			"Metric":  "a metric key from GET /api/anomalies",
+		},
 	},
 	"github.com/mustra-dev/mustra/internal/server.createBackupRequest": {
 		Doc: "createBackupRequest is the body of POST /api/backups.",
@@ -1209,6 +1284,17 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/server.listAgentIdentitiesResponse": {
 		Doc: "listAgentIdentitiesResponse is what GET /api/agent-identities answers.",
+	},
+	"github.com/mustra-dev/mustra/internal/server.listAnomaliesResponse": {
+		Doc: "listAnomaliesResponse is what GET /api/anomalies answers.",
+		Fields: map[string]string{
+			"Learning":   "Tracked is how many endpoints have a baseline for at least one metric; Learning how many of those have none ready yet.",
+			"Suppressed": "Suppressed is how many anomalies a suppression hides (listed only with suppressed=1).",
+			"Tracked":    "Tracked is how many endpoints have a baseline for at least one metric; Learning how many of those have none ready yet.",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/server.listAnomalySuppressionsResponse": {
+		Doc: "listAnomalySuppressionsResponse is what GET /api/anomalies/suppressions answers.",
 	},
 	"github.com/mustra-dev/mustra/internal/server.listAppCredsResponse": {
 		Doc: "listAppCredsResponse is what GET /api/certificates/apps answers.",
@@ -2579,6 +2665,20 @@ var typeDocs = map[string]typeDoc{
 	},
 	"github.com/mustra-dev/mustra/internal/store.AgentVersionChange": {
 		Doc: "AgentVersionChange is one recorded transition — see schema.sql's agent_version_history table.",
+	},
+	"github.com/mustra-dev/mustra/internal/store.Anomaly": {
+		Fields: map[string]string{
+			"Change":    "Change is the deployment, patch run or agent update that finished on the endpoint in the day before the anomaly began.",
+			"Direction": "high | low",
+			"NoData":    "closed because the metric stopped arriving",
+			"Severity":  "low | medium | high | critical",
+		},
+	},
+	"github.com/mustra-dev/mustra/internal/store.AnomalyHour": {
+		Doc: "AnomalyHour is one hourly rollup.",
+	},
+	"github.com/mustra-dev/mustra/internal/store.AnomalySuppression": {
+		Doc: "AnomalySuppression hides one metric's anomalies on one computer group, or on every endpoint when GroupID is empty.",
 	},
 	"github.com/mustra-dev/mustra/internal/store.AppCredConnection": {
 		Doc: "AppCredConnection is an API login to one identity provider.",

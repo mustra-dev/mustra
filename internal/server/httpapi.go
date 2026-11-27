@@ -234,6 +234,18 @@ func (s *Server) routes() http.Handler {
 	protected.Handle("POST /api/risk/criticality", perm(auth.PermPatchesManage, hf(s.handleSetCriticality)))
 	protected.Handle("GET /health", healthPageHandler())
 
+	// Anomalies: endpoints outside their own baseline. Reading takes
+	// fleet.read (bounded by management rights and content sets in the
+	// handlers); acknowledging and suppressing hide them from everyone's
+	// ranked list, so they take triage rights, like dismissing a Guide item.
+	protected.HandleFunc("GET /api/anomalies", s.handleListAnomalies)
+	protected.HandleFunc("GET /api/anomalies/suppressions", s.handleListAnomalySuppressions)
+	protected.HandleFunc("GET /api/anomalies/{id}", s.handleGetAnomaly)
+	protected.Handle("POST /api/anomalies/ack", permAny(auth.PermAlertsTriage, auth.PermSettingsManage, hf(s.handleAckAnomalies)))
+	protected.Handle("POST /api/anomalies/suppressions", permAny(auth.PermAlertsTriage, auth.PermSettingsManage, hf(s.handleCreateAnomalySuppression)))
+	protected.Handle("DELETE /api/anomalies/suppressions/{id}", permAny(auth.PermAlertsTriage, auth.PermSettingsManage, hf(s.handleDeleteAnomalySuppression)))
+	protected.Handle("GET /anomalies", staticPageHandler("static/anomalies.html"))
+
 	// A live shell is the same authority a software package already
 	// carries, reached faster — so it takes the same permission, and
 	// every command is logged with who ran it.

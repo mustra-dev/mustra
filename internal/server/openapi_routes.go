@@ -104,6 +104,18 @@ var routeDocs = map[string]routeDoc{
 	"POST /api/agents/{id}/update":            {NoBody: true, Query: []queryParam{flag("allow_downgrade", "install the served build even when the endpoint runs a newer one")}, Resp: updateAgentsResponse{}, Errors: []int{404, 500}},
 	"GET /api/agents/{id}/versions":           {Resp: agentVersionHistoryResponse{}, Errors: []int{500}},
 
+	// anomalies
+	"GET /api/anomalies": {Query: []queryParam{
+		{Name: "state", Enum: []string{"open", "closed", "all"}, Desc: "open (the default), closed in the last 90 days, or all"},
+		flag("suppressed", "also list anomalies a suppression hides"),
+		{Name: "agent", Desc: "only this endpoint's anomalies"},
+	}, Resp: listAnomaliesResponse{}, Errors: []int{400, 500}},
+	"GET /api/anomalies/{id}":                 {Resp: anomalyDetailResponse{}, Errors: []int{404, 500}},
+	"POST /api/anomalies/ack":                 {Body: ackAnomaliesRequest{}, Resp: ackAnomaliesResponse{}, Errors: []int{400, 500}},
+	"GET /api/anomalies/suppressions":         {Resp: listAnomalySuppressionsResponse{}, Errors: []int{500}},
+	"POST /api/anomalies/suppressions":        {Body: createAnomalySuppressionRequest{}, Resp: store.AnomalySuppression{}, Status: 201, Errors: []int{400, 403, 404, 500}},
+	"DELETE /api/anomalies/suppressions/{id}": {Status: 204, Errors: []int{403, 404, 500}},
+
 	// approval-policies
 	"GET /api/approval-policies":         {Resp: listApprovalPoliciesResponse{}, Errors: []int{500}},
 	"POST /api/approval-policies":        {Body: saveApprovalPolicyRequest{}, Resp: store.ApprovalPolicy{}, Errors: []int{400, 404, 500}},

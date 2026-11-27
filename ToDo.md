@@ -149,3 +149,12 @@ Open work, kept here so it can be picked up. Add to it when deferring something,
   not move its item yet; the inbound API only refreshes the text and adds notes.
 - [ ] Apply to similar endpoints for patches and Enforce runs directly; today they go
   through a playbook step.
+
+## Anomalies
+
+- [ ] Crash and service-restart counts as metrics. Agents report no crash events (Windows Error Reporting, systemd-coredump, macOS diagnostic reports) and only the services' state now, not how often they restarted; both need agent collection and a sensor catalog entry.
+- [ ] Time-of-day baselines, so a workstation idle at night and busy by day has a band per part of the day rather than one wide band for both.
+- [ ] A Guide observation, a playbook trigger and an integration event when a fleet pattern opens.
+- [ ] Open anomalies on the endpoint page, and in the triage queue once it exists (link by `/anomalies?id=`).
+- [ ] Per-metric tuning (band width, sustain time) in settings; the defaults are fixed in internal/anomaly today.
+- [ ] Use Telemetry's node_exporter series as a source where it is turned on (load, network, pressure stall), without making anomaly detection depend on it.
