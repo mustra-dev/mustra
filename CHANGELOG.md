@@ -6,8 +6,9 @@ rather than a page that can drift from it.
 
 ## Unreleased
 
-Server and agent: the Self Service category column needs this agent release; everything else
-is server only and works with current agents.
+Server and agent: the Self Service category column and Enforce's `u:` rules (Linux Firewall
+policies) need this agent release; everything else is server only and works with current
+agents.
 
 ### Added
 - **The fleet over MCP, with changes that wait for approval.** The MCP endpoint at
@@ -59,6 +60,21 @@ is server only and works with current agents.
   Server and agent: the window is part of the agent, so endpoints need this agent release to
   show the category column. An older agent keeps filtering by one category per package (the
   first in the list's order).
+- **Enforce: a typed Linux Firewall policy.** A fifth policy type, next to Windows
+  Firewall, BitLocker, Defender and AppLocker, holds a Linux host firewall: active now and
+  enabled at boot, a default inbound policy (drop, or deny with a reset/ICMP error), and the
+  inbound services to allow (TCP or UDP, a port or range, optionally from one source address
+  or CIDR). It works on firewalld (default zone), ufw and plain nftables (a table of its own,
+  `inet mustra`), detected on each endpoint or chosen in the policy. SSH stays allowed unless
+  the policy turns that off, with a warning in the editor; replies to outbound connections,
+  the agent's own among them, are always allowed, and outbound traffic is never touched. The
+  form compiles to ordinary settings shown read-only, so report mode, dry run, the give-up
+  counter and the audit trail apply unchanged. A host with none of the three firewalls, or
+  one whose configuration cannot be read, reports `unknown` and is never changed.
+- Compliance and Enforce rules gain a `u:` form: a command whose first line may answer
+  `unknown: <reason>`, which makes the rule unknown instead of failed. **Needs agent
+  upgrade:** older agents read `u:` rules — and so Linux Firewall policies — as unknown,
+  and change nothing.
 
 ### Changed
 - An approval request records the person behind it and, when a token asked, the token. The

@@ -1,11 +1,11 @@
 // Package enforcekinds turns a typed policy -- Windows Firewall, BitLocker,
-// Defender, AppLocker -- into the rule-plus-fix settings the Enforce engine
+// Defender, AppLocker, Linux Firewall -- into the rule-plus-fix settings the Enforce engine
 // already runs. The engine never learns about the types: an editor fills a
 // form, this package compiles it, and what reaches the endpoint is the same
 // "check, fix, check again" setting a hand-written policy would carry.
 //
 // That is deliberate. Each of these is often its own engine; here
-// they are four compilers over one engine, which keeps report mode, the
+// they are five compilers over one engine, which keeps report mode, the
 // give-up counter, the audit trail and the dry run identical across them.
 package enforcekinds
 
@@ -47,6 +47,7 @@ func Kinds() []Info {
 		{Kind: KindBitLocker, Label: "BitLocker", OS: "windows", Description: "Full-volume encryption with a recovery password protector; recovery keys are escrowed to mustra by the security posture sensor.", Defaults: DefaultBitLocker()},
 		{Kind: KindDefender, Label: "Microsoft Defender", OS: "windows", Description: "Real-time protection, cloud-delivered protection, PUA blocking, signature freshness and scheduled scans.", Defaults: DefaultDefender()},
 		{Kind: KindAppLocker, Label: "AppLocker", OS: "windows", Description: "Application control: audit or enforce, default allow rules for Windows and Program Files, and your own path, publisher or hash rules.", Defaults: DefaultAppLocker()},
+		{Kind: KindLinuxFirewall, Label: "Linux Firewall", OS: "linux", Description: "Host firewall active and enabled at boot, a default inbound policy and the inbound services to allow, on firewalld, ufw or plain nftables — detected on each endpoint.", Defaults: DefaultLinuxFirewall()},
 	}
 }
 
@@ -89,6 +90,12 @@ func Compile(kind Kind, config json.RawMessage) ([]proto.EnforceSetting, error) 
 			return nil, err
 		}
 		return compileAppLocker(c)
+	case KindLinuxFirewall:
+		var c LinuxFirewallConfig
+		if err := decode(config, &c); err != nil {
+			return nil, err
+		}
+		return compileLinuxFirewall(c)
 	}
 	return nil, fmt.Errorf("unknown policy kind %q", kind)
 }

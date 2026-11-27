@@ -158,8 +158,8 @@ func (s *Server) handleSaveEnforcePolicy(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if req.Kind != "" {
-		// A typed policy is its form, compiled. The kinds are all Windows
-		// today, and the platform follows the kind rather than the form.
+		// A typed policy is its form, compiled. Each kind belongs to one
+		// platform, and the platform follows the kind rather than the form.
 		compiled, err := enforcekinds.Compile(enforcekinds.Kind(req.Kind), req.Config)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)

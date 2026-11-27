@@ -34,7 +34,18 @@ import (
 //	                            a line of such a file satisfies the matcher
 //	c:<command> -> <matcher>    a line of the command's output satisfies it
 //	p:<name>                    a process by that name is running
+//	u:<command> -> <matcher>    like c:, for a command that can say it
+//	                            does not know: output whose first line
+//	                            starts "unknown:" makes the rule unknown
 //	not <rule>                  negation of any of the above
+//
+// u: is mustra's own, not Wazuh's. A c: rule is always a definite answer,
+// so a check written as a script had no way to report "this host has none
+// of the things I know how to read" except as a failure -- and a failure
+// is a reason to remediate. Agents that predate u: read it as an
+// unrecognized rule, which is unknown: the safe direction. The first
+// output line of a u: rule also becomes the result's detail, so a typed
+// policy's drift says what was wrong rather than quoting its script.
 //
 // A matcher is r:<regex>, !r:<regex> (the line does not match), n:<regex
 // with one capture> compare <op> <number>, or several of those joined with
@@ -60,14 +71,21 @@ func evaluateCheck(ctx context.Context, check proto.ComplianceCheck) proto.Compl
 
 	passed, unknown := 0, 0
 	var failedRules []string
+	unknownNote := ""
 	for _, rule := range check.Rules {
-		ok, known := evaluateRule(ctx, rule)
+		ok, known, note := evaluateRuleNote(ctx, rule)
 		switch {
 		case !known:
 			unknown++
+			if unknownNote == "" {
+				unknownNote = note
+			}
 		case ok:
 			passed++
 		default:
+			if note != "" {
+				rule = note
+			}
 			failedRules = append(failedRules, rule)
 		}
 	}
@@ -77,6 +95,9 @@ func evaluateCheck(ctx context.Context, check proto.ComplianceCheck) proto.Compl
 	if unknown > 0 && passed+len(failedRules) == 0 {
 		result.State = "unknown"
 		result.Detail = "none of this check's rules could be evaluated on this platform"
+		if unknownNote != "" {
+			result.Detail = unknownNote
+		}
 		if checkCommandsDisabled(ctx) {
 			result.Detail = "this check needs commands, which this endpoint doesn't run in inventory-and-patching mode"
 		}
@@ -107,6 +128,9 @@ func evaluateCheck(ctx context.Context, check proto.ComplianceCheck) proto.Compl
 		result.Pass = false
 		result.State = "unknown"
 		result.Detail = "some of this check's rules could not be evaluated, and they decide the result"
+		if unknownNote != "" {
+			result.Detail += ": " + unknownNote
+		}
 		if checkCommandsDisabled(ctx) {
 			result.Detail = "this check needs commands, which this endpoint doesn't run in inventory-and-patching mode"
 		}
@@ -129,11 +153,65 @@ func evaluateCheck(ctx context.Context, check proto.ComplianceCheck) proto.Compl
 // evaluateRule returns (satisfied, understood). The second value is what
 // keeps an unparsed rule from counting as a pass.
 func evaluateRule(ctx context.Context, rule string) (bool, bool) {
+	ok, known, _ := evaluateRuleNote(ctx, rule)
+	return ok, known
+}
+
+// evaluateRuleNote is evaluateRule plus what the rule had to say about
+// itself, which only u: rules do; blank for every other form.
+func evaluateRuleNote(ctx context.Context, rule string) (bool, bool, string) {
 	rule = strings.TrimSpace(rule)
 	if rest, negated := strings.CutPrefix(rule, "not "); negated {
-		ok, known := evaluateRule(ctx, rest)
-		return !ok, known
+		ok, known, note := evaluateRuleNote(ctx, rest)
+		return !ok, known, note
 	}
+	if target, matcher, hasMatcher := strings.Cut(rule, " -> "); strings.HasPrefix(strings.TrimSpace(target), "u:") {
+		return evaluateUnsureCommand(ctx, strings.TrimPrefix(strings.TrimSpace(target), "u:"), strings.TrimSpace(matcher), hasMatcher)
+	}
+	ok, known := evaluateKnownRule(ctx, rule)
+	return ok, known, ""
+}
+
+// evaluateUnsureCommand handles u:<command> [-> <matcher>].
+func evaluateUnsureCommand(ctx context.Context, command, matcher string, hasMatcher bool) (bool, bool, string) {
+	if hasMatcher && !matcherUnderstood(matcher) {
+		return false, false, ""
+	}
+	if checkCommandsDisabled(ctx) {
+		return false, false, ""
+	}
+	out := runCheckCommand(ctx, command)
+	first := firstLine(out)
+	if reason, ok := strings.CutPrefix(first, "unknown:"); ok {
+		reason = strings.TrimSpace(reason)
+		if reason == "" {
+			reason = "the check could not tell"
+		}
+		return false, false, reason
+	}
+	if !hasMatcher {
+		return out != "", true, first
+	}
+	ok, known := applyContentMatcher(out, matcher)
+	return ok, known, first
+}
+
+// firstLine is the first non-blank line of command output, bounded so a
+// chatty command cannot fill a result's detail.
+func firstLine(out string) string {
+	for _, line := range strings.Split(out, "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			if len(line) > 300 {
+				line = line[:300] + "…"
+			}
+			return line
+		}
+	}
+	return ""
+}
+
+// evaluateKnownRule evaluates the Wazuh rule forms.
+func evaluateKnownRule(ctx context.Context, rule string) (bool, bool) {
 
 	// A registry rule carries two arrows — r:KEY -> VALUE -> matcher — so
 	// it is split before the generic one-arrow form, which would otherwise

@@ -34,7 +34,7 @@ func TestDefaultsCompile(t *testing.T) {
 			}
 			ids[s.ID] = true
 			for _, r := range s.Rules {
-				if !strings.HasPrefix(r, "c:") || !strings.Contains(r, " -> ") {
+				if !(strings.HasPrefix(r, "c:") || strings.HasPrefix(r, "u:")) || !strings.Contains(r, " -> ") {
 					t.Errorf("%s: rule is not a command rule with a matcher: %q", k.Kind, r)
 				}
 			}
