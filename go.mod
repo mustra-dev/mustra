@@ -9,10 +9,10 @@ require (
 	github.com/go-ldap/ldap/v3 v3.4.15
 	github.com/google/uuid v1.6.0
 	github.com/gosnmp/gosnmp v1.47.0
-	github.com/jackc/pgx/v5 v5.12.0
-	github.com/klauspost/compress v1.20.3
+	github.com/jackc/pgx/v5 v5.13.0
+	github.com/klauspost/compress v1.20.5
 	github.com/nats-io/jwt/v2 v2.8.3
-	github.com/nats-io/nats.go v1.55.0
+	github.com/nats-io/nats.go v1.56.0
 	github.com/nats-io/nkeys v0.4.17
 	github.com/shirou/gopsutil/v4 v4.26.10
 	github.com/smallstep/pkcs7 v0.2.3
