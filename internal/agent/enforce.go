@@ -43,6 +43,9 @@ func runEnforce(ctx context.Context, spec *proto.EnforcePolicySpec) []proto.Enfo
 }
 
 func enforceSetting(ctx context.Context, setting proto.EnforceSetting) proto.EnforceResult {
+	if setting.Ansible != nil {
+		return enforceAnsible(ctx, setting)
+	}
 	res := proto.EnforceResult{SettingID: setting.ID, Name: setting.Name}
 	check := proto.ComplianceCheck{
 		ID: setting.ID, Title: setting.Name,

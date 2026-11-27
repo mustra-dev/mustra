@@ -173,6 +173,14 @@ func (s *Server) handleSaveEnforcePolicy(w http.ResponseWriter, r *http.Request)
 		}
 	} else {
 		req.Config = json.RawMessage("{}")
+		// A playbook reaches endpoints only through the Ansible type, which
+		// is what checks it parses and runs against the endpoint itself.
+		for _, set := range req.Settings {
+			if set.Ansible != nil {
+				http.Error(w, "an Ansible playbook is saved as an Ansible playbook policy, not inside a custom setting", http.StatusBadRequest)
+				return
+			}
+		}
 	}
 	settings, err := validateEnforceSettings(req.Settings, req.Mode, req.OS)
 	if err != nil {
@@ -326,7 +334,7 @@ func validateEnforceSettings(settings []proto.EnforceSetting, mode, os string) (
 		s.RemediateLinux = strings.TrimSpace(s.RemediateLinux)
 		s.RemediateWindows = strings.TrimSpace(s.RemediateWindows)
 		s.RemediateDarwin = strings.TrimSpace(s.RemediateDarwin)
-		if remediationForPlatform(*s, os) != "" {
+		if remediationForPlatform(*s, os) != "" || (s.Ansible != nil && (os == "" || os == "linux")) {
 			fixable++
 		}
 	}

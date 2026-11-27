@@ -33,6 +33,9 @@ func TestDefaultsCompile(t *testing.T) {
 				t.Errorf("%s: duplicate setting id %s", k.Kind, s.ID)
 			}
 			ids[s.ID] = true
+			if s.Ansible != nil {
+				continue // checked by the agent running the playbook, see ansible_test.go
+			}
 			for _, r := range s.Rules {
 				if !(strings.HasPrefix(r, "c:") || strings.HasPrefix(r, "u:")) || !strings.Contains(r, " -> ") {
 					t.Errorf("%s: rule is not a command rule with a matcher: %q", k.Kind, r)

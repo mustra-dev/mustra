@@ -6,9 +6,9 @@ rather than a page that can drift from it.
 
 ## Unreleased
 
-Server and agent: the Self Service category column and Enforce's `u:` rules (Linux Firewall
-policies) need this agent release; everything else is server only and works with current
-agents. No manual migration is needed: the server adds its new tables and columns on start.
+Server and agent: the Self Service category column, Enforce's `u:` rules (Linux Firewall
+policies) and Ansible playbook policies need this agent release; everything else is server
+only and works with current agents. No manual migration is needed: the server adds its new tables and columns on start.
 
 ### Added
 - **The fleet over MCP, with changes that wait for approval.** The MCP endpoint at
@@ -114,6 +114,18 @@ agents. No manual migration is needed: the server adds its new tables and column
   endpoint is refused. Given a ServiceNow ticket number (INC, RITM, REQ, SCTASK, CHG) or an
   incident's sys_id, the final report is added to the ticket as a work note through the
   ServiceNow integration. Server only; no agent upgrade. The schema adds one table.
+- **Enforce: Ansible playbooks as a Linux policy.** A new policy type holds Linux endpoints
+  to a playbook you paste in, with optional extra variables. Each pass the endpoint runs
+  `ansible-playbook -c local -i localhost, --check` against itself: nothing to change is
+  compliant, tasks that would change are drifted and listed per endpoint under
+  **what would change** (with diffs if the policy asks for them). In enforce mode a drifted
+  endpoint runs the playbook and checks again; report mode, dry run, the give-up counter
+  and the audit trail work as for every other policy. A playbook that does not parse or
+  fails in check mode, or an endpoint without `ansible-playbook`, reads unknown and is never
+  changed. The server refuses playbooks that are not YAML, target hosts other than
+  `localhost` or `all`, or import other files. Writing one needs `deploy.manage`. The
+  endpoint needs `ansible-core` installed and the new agent: older agents report the policy
+  unknown. Server and agent.
 
 ### Changed
 - An approval request records the person behind it and, when a token asked, the token. The

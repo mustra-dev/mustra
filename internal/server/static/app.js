@@ -477,7 +477,7 @@ const NAV_TREE = [
   { label: "Enforce", href: "/enforce", icon: "lock", group: "modules",
     desc: "Settings that must hold — checked on a timer, and put back when they move.", sub: [
       { label: "Standing", hash: "standing", icon: "chart", desc: "Every policy's state across the fleet, worst first." },
-      { label: "Policies", hash: "policies", icon: "book", desc: "What must be true, and the command that makes it true again — typed editors for Windows Firewall, BitLocker, Defender, AppLocker and Linux Firewall, or your own rules." },
+      { label: "Policies", hash: "policies", icon: "book", desc: "What must be true, and the command that makes it true again — typed editors for Windows Firewall, BitLocker, Defender, AppLocker and Linux Firewall, Ansible playbooks for Linux, or your own rules." },
       { label: "Rollouts", hash: "rollouts", icon: "rocket", desc: "Report-mode policies promoted to enforce one ring of endpoints at a time; resume or abort a halted one." },
       { label: "Coverage", hash: "coverage", icon: "shield", desc: "Firewall, encryption, antimalware and app-control coverage across the fleet, from the security posture sensor." },
     ] },

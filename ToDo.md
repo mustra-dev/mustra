@@ -91,6 +91,8 @@ Open work, kept here so it can be picked up. Add to it when deferring something,
 - [ ] Exceptions by check title cover every benchmark sharing the title; add optional per-benchmark scoping if two benchmarks ever share a title with different meaning.
 - [ ] Run the Linux Firewall Enforce policy on real firewalld, ufw and nftables hosts (Debian, Ubuntu, a RHEL family release): its checks and fixes are tested against stubs that answer like the real tools, not against the tools themselves.
 - [ ] Linux Firewall holds firewalld's default zone only; interfaces bound to another zone, and rules the policy does not list, are left alone. Consider an option to cover every active zone and to remove unlisted allowances.
+- [ ] Ansible Enforce policies send one playbook: roles, collections, templates and files it uses must already be on the endpoint, and Ansible Vault is not supported. Shipping a role bundle (as package payloads are) and a vault password from the credential store would remove both limits.
+- [ ] Ansible Enforce results list the tasks that would change as text in the result's output. Storing them as structured rows would let the console filter endpoints by task and count drift per task across the fleet.
 - [ ] Windows account policy (password length, lockout) and advanced audit subcategories can only come from Group Policy; a typed Enforce kind for `auditpol`/`secedit` would let Mustra hold them on workgroup machines.
 
 ## Remote desktop

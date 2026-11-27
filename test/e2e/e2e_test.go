@@ -79,6 +79,7 @@ func TestE2E(t *testing.T) {
 		{"security-headers", false, stepSecurityHeaders},
 		{"signed-update", false, stepSignedUpdate},
 		{"software", false, stepSoftware},
+		{"enforce-ansible", false, stepEnforceAnsible},
 		{"patching", false, stepPatching},
 		{"uninstall-reinstall", false, stepUninstallReinstall},
 		{"revoke", false, stepRevoke},

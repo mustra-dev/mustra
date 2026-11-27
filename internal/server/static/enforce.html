@@ -44,6 +44,9 @@
   .setting-card pre { overflow-wrap: anywhere; }
   .detail-cell { white-space: normal; max-width: 420px; color: var(--text-muted); font-size: 12px; }
   .tile-sub { font-size: var(--fs-meta); color: var(--text-muted); margin-top: 4px; }
+  /* A playbook is read and written as code: tall, monospaced, unwrapped. */
+  .form-grid textarea.playbook-input { min-height: 300px; white-space: pre; overflow-wrap: normal; overflow-x: auto; tab-size: 2; }
+  .form-grid textarea.vars-input { min-height: 90px; white-space: pre; tab-size: 2; }
   .out-pre { font-family: var(--mono); font-size: var(--fs-meta); white-space: pre-wrap; word-break: break-word;
              background: var(--surface-2); border-radius: var(--radius-md); padding: 9px 11px; margin: 6px 0 0; max-height: 240px; overflow: auto; }
 </style>
@@ -427,7 +430,7 @@ function renderResults() {
       <td>${escapeHtml(r.name)}</td>
       <td><span class="state-pill state-${escapeHtml(r.state)}">${escapeHtml(stateLabel(r.state))}</span></td>
       <td class="detail-cell">${escapeHtml(r.detail || "—")}
-        ${r.output ? `<button class="tiny u-ml-6" data-out="${i}">output</button><pre class="out-pre" id="out-${i}" hidden>${escapeHtml(r.output)}</pre>` : ""}
+        ${r.output ? `<button class="tiny u-ml-6" data-out="${i}">${r.state === "drifted" ? "what would change" : "output"}</button><pre class="out-pre" id="out-${i}" hidden>${escapeHtml(r.output)}</pre>` : ""}
         ${r.consecutive_failures > 0 ? `<div class="u-c-off u-fs-meta u-mt-3">${escapeHtml(r.consecutive_failures)} failure${r.consecutive_failures === 1 ? "" : "s"} in a row${r.consecutive_failures >= maxAttempts ? " — not retried until something changes" : ""}</div>` : ""}
       </td>
       <td>${escapeHtml(r.remediation_count || 0)}</td>
@@ -799,6 +802,18 @@ function renderKindForm() {
         ${kindField("Source (optional)", `<input data-s="${i}" data-f="source" value="${escapeHtml(r.source || "")}" placeholder="10.0.0.0/8 — blank for anywhere">`)}
         ${kindField("", `<button class="tiny danger" data-rmsvc="${i}">remove</button>`)}
       </div>`).join("") + `</div><div class="panel-actions"><button class="tiny" id="lfw-add">Add a service</button></div>`;
+  } else if (draftKind === "ansible") {
+    html += `<div class="form-grid">
+        <div class="field u-gc-full"><label for="ans-playbook">Playbook (YAML) — each play for <code>hosts: localhost</code> or <code>all</code></label>
+          <textarea id="ans-playbook" class="playbook-input" data-k="playbook" spellcheck="false" autocapitalize="off" autocomplete="off">${escapeHtml(c.playbook || "")}</textarea></div>
+      </div>
+      <div class="form-grid">
+        <div class="field u-gc-full"><label for="ans-vars">Extra variables (YAML mapping, optional — passed with <code>-e</code>)</label>
+          <textarea id="ans-vars" class="vars-input" data-k="vars" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="motd: Managed by mustra">${escapeHtml(c.vars || "")}</textarea></div>
+      </div>
+      <div class="form-grid u-ai-end">${kindField("Severity", sel("severity", c.severity || "medium", [["low", "low"], ["medium", "medium"], ["high", "high"], ["critical", "critical"]]))}${kindField("Diffs", chk("diff", !!c.diff, "record what each task would change (--diff)"))}</div>
+      ${c.diff ? `<div class="scope-note warn">Diffs show file contents, and every console user who can read Enforce results can read them. Mark tasks that handle secrets <code>no_log: true</code>.</div>` : ""}
+      <p class="hint">Every pass the endpoint runs the check below against itself: no task to change is <b>compliant</b>, tasks to change are <b>drifted</b>. Enforce mode runs the playbook, then checks again. A task failing in check mode, a playbook that does not parse, or no <code>ansible-playbook</code> on the endpoint reads <b>unknown</b> and is never run. Only this playbook is sent, so roles and collections must already be installed.</p>`;
   }
   host.innerHTML = html;
   const setPath = (path, value) => { const parts = path.split("."); let o = draftConfig; for (let i = 0; i < parts.length - 1; i++) o = o[parts[i]]; o[parts[parts.length - 1]] = value; };
@@ -806,6 +821,8 @@ function renderKindForm() {
     setPath(el.dataset.k, el.type === "checkbox" ? el.checked : (el.type === "number" ? Number(el.value) : el.value));
     // Turning SSH off changes the form itself: the warning and the port.
     if (el.dataset.k === "allow_ssh") { renderKindForm(); return; }
+    // The diff warning comes and goes with the box.
+    if (draftKind === "ansible" && el.dataset.k === "diff") { renderKindForm(); return; }
     compilePreview();
   }));
   host.querySelectorAll("[data-s]").forEach(el => el.addEventListener("change", () => { draftConfig.services[Number(el.dataset.s)][el.dataset.f] = el.value; compilePreview(); }));
@@ -818,7 +835,7 @@ function renderKindForm() {
   host.querySelectorAll("[data-rmrule]").forEach(b => b.addEventListener("click", () => { draftConfig.rules.splice(Number(b.dataset.rmrule), 1); renderKindForm(); }));
   const fwAdd = document.getElementById("fw-add"); if (fwAdd) fwAdd.addEventListener("click", () => { draftConfig.rules.push({ name: "", direction: "in", action: "allow", protocol: "tcp", local_ports: "", remote_addresses: "", enabled: true }); renderKindForm(); });
   const alAdd = document.getElementById("al-add"); if (alAdd) alAdd.addEventListener("click", () => { draftConfig.rules.push({ type: "path", action: "deny", collection: "exe", value: "", description: "" }); renderKindForm(); });
-  if (!canManage) host.querySelectorAll("input, select, button").forEach(el => { el.disabled = true; });
+  if (!canManage) host.querySelectorAll("input, select, textarea, button").forEach(el => { el.disabled = true; });
   compilePreview();
 }
 async function compilePreview() {
@@ -827,7 +844,9 @@ async function compilePreview() {
   const text = await resp.text();
   if (!resp.ok) { host.innerHTML = `<div class="scope-note warn">${escapeHtml(text.trim())}</div>`; draftSettings = []; return; }
   draftSettings = JSON.parse(text).settings || [];
-  host.innerHTML = draftSettings.map(s => `<div class="setting-card"><div class="setting-card-head"><b>${escapeHtml(s.name)}</b><span class="spacer"></span><span class="sev-pill none">${escapeHtml(s.severity || "medium")}</span></div>
+  host.innerHTML = draftSettings.map(s => s.ansible ? `<div class="setting-card"><div class="setting-card-head"><b>${escapeHtml(s.name)}</b><span class="spacer"></span><span class="sev-pill none">${escapeHtml(s.severity || "medium")}</span></div>
+    <div class="u-fs-12 u-c-text-muted">Check</div><pre class="u-ws-pre u-fs-meta u-m-4-0-8">ansible-playbook -c local -i localhost, --check${s.ansible.diff ? " --diff" : ""}${s.ansible.vars ? " -e @vars.json" : ""} playbook.yml</pre>
+    <div class="u-fs-12 u-c-text-muted">Fix (enforce mode only)</div><pre class="u-ws-pre u-fs-meta u-m-4-0-0">ansible-playbook -c local -i localhost,${s.ansible.vars ? " -e @vars.json" : ""} playbook.yml</pre></div>` : `<div class="setting-card"><div class="setting-card-head"><b>${escapeHtml(s.name)}</b><span class="spacer"></span><span class="sev-pill none">${escapeHtml(s.severity || "medium")}</span></div>
     <div class="u-fs-12 u-c-text-muted">Checks</div><pre class="u-ws-pre u-fs-meta u-m-4-0-8">${escapeHtml((s.rules || []).join("\n"))}</pre>
     ${s.remediate_windows ? `<div class="u-fs-12 u-c-text-muted">Fix (PowerShell)</div><pre class="u-ws-pre u-fs-meta u-m-4-0-0">${escapeHtml(s.remediate_windows)}</pre>` : ""}
     ${s.remediate_linux ? `<div class="u-fs-12 u-c-text-muted">Fix (shell)</div><pre class="u-ws-pre u-fs-meta u-m-4-0-0">${escapeHtml(s.remediate_linux)}</pre>` : ""}

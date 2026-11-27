@@ -103,6 +103,14 @@ var typeDocs = map[string]typeDoc{
 			"RandomDelaySeconds": "RandomDelaySeconds spreads each sensor publish over a random wait up to this long, so a thousand agents sharing an interval do not all report in the same second.",
 		},
 	},
+	"github.com/mustra-dev/mustra/internal/proto.AnsiblePlaybook": {
+		Doc: "AnsiblePlaybook is an Ansible playbook held as an Enforce setting on a Linux endpoint. The agent writes it to a private temporary file and runs it against the endpoint itself (connection local, inventory localhost).",
+		Fields: map[string]string{
+			"Diff":     "Diff records what each changed task would change (--diff). Diffs can show file contents, and results are readable by every console user.",
+			"Playbook": "Playbook is the playbook's YAML.",
+			"Vars":     "Vars is a JSON object of extra variables, passed with -e @file.",
+		},
+	},
 	"github.com/mustra-dev/mustra/internal/proto.AppControlCollection": {
 		Fields: map[string]string{
 			"Mode": "Enabled | AuditOnly | NotConfigured",
@@ -208,6 +216,7 @@ var typeDocs = map[string]typeDoc{
 	"github.com/mustra-dev/mustra/internal/proto.EnforceSetting": {
 		Doc: "EnforceSetting is one thing that must be true, and what to run when it isn't. Remediation is per platform and may be blank: a setting with no remediation for the platform it lands on reports drift rather than pretending it was fixed.",
 		Fields: map[string]string{
+			"Ansible":   "Ansible, when set, makes this setting an Ansible playbook: the agent checks it with ansible-playbook --check and fixes it by running the playbook, instead of evaluating Rules and running a remediation command. Only the Ansible policy type (internal/enforcekinds) produces it. Rules still carries an \"ansible:\" rule, which an agent that predates this field does not understand and so reports as unknown.",
 			"Benchmark": "Benchmark names the hardening check this setting was created from, when it was (Comply's \"Create Enforce setting\"). The server uses it to link a second request for the same check to this setting rather than copy it; it is not sent to agents.",
 			"Condition": "all (default) | any | none",
 			"Enforce":   "Enforce is decided per (endpoint, setting) by the server and sent with the command, rather than being a property of the policy the agent reads for itself. The server is the only party that knows this remediation has already failed three times in a row on this machine, and a remediation that has failed three times will fail a fourth — while still running, every half hour, forever. False here means \"check it and report; do not touch it\".",
